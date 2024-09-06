@@ -60,6 +60,22 @@ ws          {delim}+
 "="		{chars++;
 		 printf("%s : EQ\n", yytext);
 		}
+
+"+"		{chars++;
+		printf("%s : PLUS\n", yytext);
+		}
+
+"-" 	{chars++;
+		printf("%s : MINUS\n", yytext);
+		}
+
+"*"		{chars++;
+		printf("%s : MUL\n", yytext);
+		}
+
+"/"		{chars++;
+		printf("%s: DIV\n", yytext);
+		}
 		
 
 \n		{lines++; chars=0;}
