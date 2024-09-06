@@ -44,6 +44,26 @@ ws          {delim}+
 		 chars += strlen(yytext);
 		 printf("%s : KEYWORD\n", yytext);
 		}
+
+"while"	{words++; 
+		 chars += strlen(yytext);
+		 printf("%s : KEYWORD\n", yytext);
+		}
+
+"return"	{words++; 
+			 chars += strlen(yytext);
+			 printf("%s : KEYWORD\n", yytext);
+			}
+
+"if"	{words++; 
+		 chars += strlen(yytext);
+		 printf("%s : KEYWORD\n", yytext);
+		}
+
+"else"	{words++; 
+		 chars += strlen(yytext);
+		 printf("%s : KEYWORD\n", yytext);
+		}
 		
 {ID}	{words++; chars += strlen(yytext);
 		 printf("%s : IDENTIFIER\n",yytext);
@@ -62,21 +82,25 @@ ws          {delim}+
 		}
 
 "+"		{chars++;
-		printf("%s : PLUS\n", yytext);
+		 printf("%s : PLUS\n", yytext);
 		}
 
 "-" 	{chars++;
-		printf("%s : MINUS\n", yytext);
+		 printf("%s : MINUS\n", yytext);
 		}
 
 "*"		{chars++;
-		printf("%s : MUL\n", yytext);
+		 printf("%s : MUL\n", yytext);
 		}
 
 "/"		{chars++;
-		printf("%s: DIV\n", yytext);
+		 printf("%s: DIV\n", yytext);
 		}
-		
+
+"=="	{words++;
+		 chars += strlen(yytext);
+		 printf("%s : EQTO\n", yytext);
+		}
 
 \n		{lines++; chars=0;}
 [ \t]	{chars++;}

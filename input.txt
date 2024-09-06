@@ -11,3 +11,8 @@ y = x + a + b + c + a + 5;
 write x;
 write y;
 y = x / y * x;
+y == x;
+while;
+return;
+if;
+else;
