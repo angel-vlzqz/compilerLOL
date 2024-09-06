@@ -16,3 +16,5 @@ while;
 return;
 if;
 else;
+string thisString;
+float 0.001220;

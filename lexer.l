@@ -39,6 +39,14 @@ ws          {delim}+
 "char"	{words++; chars += strlen(yytext);
 		 printf("%s : TYPE\n", yytext);
 		}
+
+"string"	{words++; chars += strlen(yytext);
+			 printf("%s : TYPE\n", yytext);
+			}
+
+"float"	{words++; chars += strlen(yytext);
+		 printf("%s : TYPE\n", yytext);
+		}
 		
 "write"	{words++; 
 		 chars += strlen(yytext);
