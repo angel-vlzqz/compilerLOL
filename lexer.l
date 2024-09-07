@@ -110,6 +110,62 @@ ws          {delim}+
 		 printf("%s : EQTO\n", yytext);
 		}
 
+"&&"	{chars+= 2;
+		printf("%s : AND\n", yytext);
+		}
+		
+"||"	{chars+= 2;
+		printf("%s : OR\n", yytext);
+		}
+		
+"!"	{chars++;
+		printf("%s : NOT\n", yytext);
+		}
+
+"<"	{chars++;
+		printf("%s : LT\n", yytext);
+		}
+		
+"<="	{chars+= 2;
+		printf("%s : LTEQ\n", yytext);
+		}
+		
+">"	{chars+= 2;
+		printf("%s : GT\n", yytext);
+		}
+		
+">="	{chars+= 2;
+		printf("%s : GTEQ\n", yytext);
+		}
+		
+"!="	{chars+= 2;
+		printf("%s : NOTEQ\n", yytext);
+		}
+
+"("	{chars++;
+		printf("%s : OPEN\n", yytext);
+		}
+		
+")"	{chars++;
+		printf("%s : CLOSE\n", yytext);
+		}
+		
+"["	{chars++;
+		printf("%s : OPEN\n", yytext);
+		}
+		
+"]"	{chars++;
+		printf("%s : CLOSE\n", yytext);
+		}
+		
+"{"	{chars++;
+		printf("%s : OPEN\n", yytext);
+		}
+		
+"}"	{chars++;
+		printf("%s : CLOSE\n", yytext);
+		}
+
 \n		{lines++; chars=0;}
 [ \t]	{chars++;}
 .		{chars++;
