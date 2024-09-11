@@ -10,3 +10,23 @@ parser --> AST --> semantic analyzer:
                         3.
 
 semantic analyzer --> (TBD 1) --> Optimizer --> (TBD 1) --> code generator
+
+--------------------------------------------------------------------------
+- source code:....... --> assembly code:
+- syntax validation
+- code structure validation (e.g. sequence of commands) aka: semantic analysis
+- pseudo code generation (to simplify assembly code generation)
+- assembly code generation
+
+
+semantic analysis
+-----------------
+1. variable declaration check
+2. type check
+
+we need an inventory of all variables declared, aka SYMBOL TABLE
+
+Index   ItemName   ItemValue   ItemType
+---------------------------------------
+0       ID         x           int
+1       ID         y           int
