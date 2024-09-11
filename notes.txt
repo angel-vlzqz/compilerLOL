@@ -1,0 +1,12 @@
+lexer --> parser --> parser:
+                        1. verifies compliance with grammar
+                        2. generates appropriate syntax errors (if any)
+                        3. updates/manages symbol table
+                        4. generates an abstract syntax tree (AST)
+
+parser --> AST --> semantic analyzer:
+                        1.
+                        2.
+                        3.
+
+semantic analyzer --> (TBD 1) --> Optimizer --> (TBD 1) --> code generator
