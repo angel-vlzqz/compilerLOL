@@ -52,6 +52,7 @@ Expr:
 %%
 
 void yyerror(const char *s) {
+    printf("Error: %s\n", s);
     exit(1);
 }
 
