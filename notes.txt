@@ -30,3 +30,30 @@ Index   ItemName   ItemValue   ItemType
 ---------------------------------------
 0       ID         x           int
 1       ID         y           int
+
+Parser:
+- syntax is correct
+                prog
+              /      \
+           write      =
+                    /   \
+                  z      m
+                       /   \
+                      x     +
+                          /   \
+                         1     +
+                             /   \
+                            y    100
+
+optimization rule 1: constant propagation
+T0 = 1
+T1 = 2 + T0
+
+becomes:
+T1 = 2 + 1
+
+optimization rule 2: constant folding
+T1 = 2 + 1
+
+becomes:
+T1 = 3

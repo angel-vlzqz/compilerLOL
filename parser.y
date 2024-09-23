@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include "lex.yy.c"
 
 extern int yylex();
 extern int yyparse();
