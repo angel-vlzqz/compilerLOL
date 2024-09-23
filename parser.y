@@ -1,89 +1,62 @@
 %{
-
 #include <stdio.h>
 #include <stdlib.h>
-#include "lex.yy.c"
-
+void yyerror(const char *s);
 extern int yylex();
-extern int yyparse();
-extern FILE* yyin;
-
-void yyerror(const char* s);
 %}
 
-%union {
-	int number;
-	char character;
-	char* string;
-}
-
-%token <string> TYPE
-%token <string> ID
-%token <char> SEMICOLON
-%token <char> EQ
-%token <char> COMMA
-%token <char> PLUS
-%token <number> NUMBER
-%token <string> WRITE
-
-
-%printer { fprintf(yyoutput, "%s", $$); } ID;
-
-
-%start Program
+%token ID ASSIGNOP ADD SEMICOLON WRITE NUMBER
+%token TYPE_INT TYPE_CHAR
+%left ADD
 
 %%
 
-Program: VarDeclList StmtList    { printf("The PARSER has started\n"); }
-;
+Program:
+    VarDecl Block
+    ;
 
-VarDeclList:  {/*empty, i.e. it is possible not to declare a variable*/}
-	| VarDecl VarDeclList { /* code TBD */ }
-;
+VarDecl:
+    Type ID SEMICOLON VarDecl
+    |
+    /* empty */
+    ;
 
-VarDecl: TYPE ID SEMICOLON { printf("PARSER: Recognized variable declaration: %s\n", $2); }
-		| TYPE ID {
-                  printf ("Missing semicolon after declaring variable: %s\n", $2);
-             }
+Type:
+    TYPE_INT
+    | TYPE_CHAR
+    ;
 
-StmtList:  {/*empty, i.e. it is possible not to have any statement*/}
-	| Stmt StmtList { /* code TBD */ }
-;
+Block:
+    StmtList
+    ;
 
-Stmt: ID EQ Expr SEMICOLON { /* code TBD */ }
-	| WRITE ID SEMICOLON { printf("PARSER: Recognized write statement\n"); }
-;
+StmtList:
+    Stmt StmtList
+    | /* empty */
+    ;
 
-Expr: Expr BinOp Expr { /* code TBD */ }
-	| ID { printf("ASSIGNMENT statement /n"); }
-	| NUMBER { /* code TBD */ }
-;
+Stmt:
+    ID ASSIGNOP Expr SEMICOLON
+    | WRITE ID
+    ;
 
-BinOp: PLUS { /* code TBD */ }
-;
+Expr:
+    ID ADD ID
+    | ID ADD NUMBER
+    | NUMBER ADD ID
+    | NUMBER ADD NUMBER
+    | ID
+    | NUMBER
+    ;
 
 %%
 
-int main(int argc, char**argv)
-{
-/*
-	#ifdef YYDEBUG
-		yydebug = 1;
-	#endif
-*/
-	printf("Compiler started. \n\n");
-	
-	if (argc > 1){
-	  if(!(yyin = fopen(argv[1], "r")))
-          {
-		perror(argv[1]);
-		return(1);
-	  }
-	}
-	yyparse();
+void yyerror(const char *s) {
+    exit(1);
 }
 
-void yyerror(const char* s) {
-	fprintf(stderr, "Parse error: %s\n", s);
-	exit(1);
+int main() {
+    printf("Enter your program:\n");
+    yyparse();
+    return 0;
 }

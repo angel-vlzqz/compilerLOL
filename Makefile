@@ -1,15 +1,34 @@
-all: parser
+# Makefile
 
-parser.tab.c parser.tab.h:	parser.y
-	bison -t -v -d parser.y
+# Compiler and flags
+CC = gcc
+BISON = bison
+FLEX = flex
+OUTPUT = my_compiler
 
-lex.yy.c: lexer.l parser.tab.h
-	flex lexer.l
+# Files
+LEXER = lexer.l
+PARSER = parser.y
+INPUT = test_all_tokens.c
+BISON_OUTPUT = parser.tab.c parser.tab.h
+LEXER_OUTPUT = lex.yy.c
 
-parser: lex.yy.c parser.tab.c parser.tab.h AST.c
-	gcc -o parser parser.tab.c lex.yy.c AST.c
-	./parser testProg.cmm
+# Default target: compile and run
+all: $(OUTPUT)
+	./$(OUTPUT) < $(INPUT)
 
+# Generate the parser files
+parser.tab.c: $(PARSER)
+	$(BISON) -d $(PARSER)
+
+# Generate the lexer file
+lex.yy.c: $(LEXER)
+	$(FLEX) $(LEXER)
+
+# Compile and link the lexer and parser
+$(OUTPUT): parser.tab.c lex.yy.c
+	$(CC) -o $(OUTPUT) parser.tab.c lex.yy.c -ll
+
+# Clean up generated files
 clean:
-	rm -f parser parser.tab.c lex.yy.c parser.tab.h parser.output lex.yy.o parser.tab.o AST.o
-	ls -l
+	rm -f $(OUTPUT) $(LEXER_OUTPUT) $(BISON_OUTPUT)

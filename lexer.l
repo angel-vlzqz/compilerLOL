@@ -175,20 +175,3 @@ ws          {delim}+
 
 
 %%
-int main(int argc, char**argv)
-{
-	#ifdef YYDEBUG
-		yydebug = 1;
-	#endif
-
-	printf("Compiler started. \n\n");
-
-	if (argc > 1){
-	  if(!(yyin = fopen(argv[1], "r")))
-          {
-		perror(argv[1]);
-		return(1);
-	  }
-	}
-	yylex();
-}
