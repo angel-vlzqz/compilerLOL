@@ -31,4 +31,4 @@ $(OUTPUT): parser.tab.c lex.yy.c
 
 # Clean up generated files
 clean:
-	rm -f $(OUTPUT) $(LEXER_OUTPUT) $(BISON_OUTPUT)
+	rm -f $(OUTPUT) $(LEXER_OUTPUT) $(BISON_OUTPUT) lexer

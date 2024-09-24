@@ -31,7 +31,14 @@ ws          {delim}+
 								}
 							}
 						}
-						
+
+"'" { 
+    printf("%s : CHAR_LITERAL\n", yytext);
+}
+\"([^\\"]|\\.)*\" {
+    printf("%s : STRING_LITERAL\n", yytext);
+}
+
 "int"	{words++; chars += strlen(yytext);
 		 printf("%s : TYPE\n", yytext);
 		}
