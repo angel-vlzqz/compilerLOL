@@ -22,15 +22,106 @@ Program:
     }
     ;
 
+
 VarDecl:
     Type ID SEMICOLON VarDecl {
-        printf("Parsed Variable Declaration: %s\n", $2);
+        // Insert variable into symbol table
+        Symbol* existingSymbol = findSymbol(symTab, $2);
+        if (existingSymbol == NULL) {
+            insertSymbol(symTab, $2, $1);
+            printf("Declared Variable: %s of type %s\n", $2, $1);
+        } else {
+            printf("Error: Variable %s already declared\n", $2);
+            yyerror("Variable redeclaration");
+        }
     }
-    |
-    /* empty */ {
-        printf("Parsed Empty Variable Declaration\n");
+    | /* empty */ {
+        // No variables declared
     }
     ;
+
+Stmt:
+    ID ASSIGNOP Expr SEMICOLON {
+        Symbol* existingSymbol = findSymbol(symTab, $1);
+        if (existingSymbol != NULL) {
+            printf("Parsed Assignment Statement: %s = ...\n", $1);
+            // Here we could update the symbol value if needed
+        } else {
+            printf("Error: Variable %s not declared\n", $1);
+            yyerror("Undeclared variable");
+        }
+    }
+    | WRITE ID {
+        Symbol* existingSymbol = findSymbol(symTab, $2);
+        if (existingSymbol != NULL) {
+            printf("Parsed Write Statement: %s\n", $2);
+        } else {
+            printf("Error: Variable %s not declared\n", $2);
+            yyerror("Undeclared variable");
+        }
+    }
+    | IF Expr THEN Block ELSE Block {
+        printf("Parsed If-Else Statement\n");
+    }
+    | WHILE Expr DO Block {
+        printf("Parsed While Statement\n");
+    }
+    | RETURN Expr SEMICOLON {
+        printf("Parsed Return Statement\n");
+    }
+    ;
+
+Expr:
+    ID {
+        Symbol* existingSymbol = findSymbol(symTab, $1);
+        if (existingSymbol != NULL) {
+            printf("Parsed Identifier: %s\n", $1);
+        } else {
+            printf("Error: Variable %s not declared\n", $1);
+            yyerror("Undeclared variable");
+        }
+    }
+    | NUMBER {
+        printf("Parsed Number: %s\n", $1);
+    }
+    | Expr ADD Expr {
+        printf("Parsed Expression: +\n");
+    }
+    | Expr SUB Expr {
+        printf("Parsed Expression: -\n");
+    }
+    | Expr MUL Expr {
+        printf("Parsed Expression: *\n");
+    }
+    | Expr DIV Expr {
+        printf("Parsed Expression: /\n");
+    }
+    | Expr LT Expr {
+        printf("Parsed Expression: <\n");
+    }
+    | Expr GT Expr {
+        printf("Parsed Expression: >\n");
+    }
+    | Expr EQTO Expr {
+        printf("Parsed Expression: ==\n");
+    }
+    | Expr NOTEQ Expr {
+        printf("Parsed Expression: !=\n");
+    }
+    | Expr AND Expr {
+        printf("Parsed Expression: &&\n");
+    }
+    | Expr OR Expr {
+        printf("Parsed Expression: ||\n");
+    }
+    | NOT Expr {
+        printf("Parsed Expression: !\n");
+    }
+    | '(' Expr ')' {
+        printf("Parsed Expression in parentheses\n");
+    }
+    ;
+
 
 Type:
     TYPE_INT {

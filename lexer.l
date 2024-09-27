@@ -108,10 +108,6 @@ ws          {delim}+
 		 printf("%s : MUL\n", yytext);
 		}
 
-"/"		{chars++;
-		 printf("%s: DIV\n", yytext);
-		}
-
 "=="	{words++;
 		 chars += strlen(yytext);
 		 printf("%s : LOGICOP\n", yytext);
