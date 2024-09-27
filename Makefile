@@ -12,6 +12,7 @@ PARSER = parser.y
 INPUT = test_all_tokens.c
 BISON_OUTPUT = parser.tab.c parser.tab.h
 LEXER_OUTPUT = lex.yy.c
+SYMBOL_TABLE = SymbolTable.c
 
 # Default target: compile and run
 all: $(OUTPUT)
@@ -25,9 +26,9 @@ parser.tab.c: $(PARSER)
 lex.yy.c: $(LEXER)
 	$(FLEX) $(LEXER)
 
-# Compile and link the lexer and parser
-$(OUTPUT): parser.tab.c lex.yy.c
-	$(CC) -o $(OUTPUT) parser.tab.c lex.yy.c -ll
+# Compile and link the lexer, parser, and symbol table
+$(OUTPUT): parser.tab.c lex.yy.c $(SYMBOL_TABLE)
+	$(CC) -o $(OUTPUT) parser.tab.c lex.yy.c $(SYMBOL_TABLE) -ll
 
 # Clean up generated files
 clean:
