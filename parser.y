@@ -10,9 +10,9 @@ SymbolTable* symTab = NULL;
 Symbol* symbol = NULL;
 %}
 
-%token ID ASSIGNOP ADD SEMICOLON WRITE NUMBER
+%token ID ASSIGNOP PLUS SEMICOLON WRITE NUMBER LOGICOP MUL MINUS RETURN WHILE THEN IF DO ELSE
 %token TYPE_INT TYPE_CHAR
-%left ADD
+%left PLUS
 
 %% 
 
@@ -84,38 +84,11 @@ Expr:
     | NUMBER {
         printf("Parsed Number: %s\n", $1);
     }
-    | Expr ADD Expr {
+    | Expr Op Expr {
         printf("Parsed Expression: +\n");
     }
-    | Expr SUB Expr {
-        printf("Parsed Expression: -\n");
-    }
-    | Expr MUL Expr {
-        printf("Parsed Expression: *\n");
-    }
-    | Expr DIV Expr {
-        printf("Parsed Expression: /\n");
-    }
-    | Expr LT Expr {
+    | Expr LOGICOP Expr {
         printf("Parsed Expression: <\n");
-    }
-    | Expr GT Expr {
-        printf("Parsed Expression: >\n");
-    }
-    | Expr EQTO Expr {
-        printf("Parsed Expression: ==\n");
-    }
-    | Expr NOTEQ Expr {
-        printf("Parsed Expression: !=\n");
-    }
-    | Expr AND Expr {
-        printf("Parsed Expression: &&\n");
-    }
-    | Expr OR Expr {
-        printf("Parsed Expression: ||\n");
-    }
-    | NOT Expr {
-        printf("Parsed Expression: !\n");
     }
     | '(' Expr ')' {
         printf("Parsed Expression in parentheses\n");
@@ -157,16 +130,16 @@ Stmt:
     ;
 
 Expr:
-    ID ADD ID {
+    ID Op ID {
         printf("Parsed Expression: %s + %s\n", $1, $3);
     }
-    | ID ADD NUMBER {
+    | ID Op NUMBER {
         printf("Parsed Expression: %s + %s\n", $1, $3);
     }
-    | NUMBER ADD ID {
+    | NUMBER Op ID {
         printf("Parsed Expression: %s + %s\n", $1, $3);
     }
-    | NUMBER ADD NUMBER {
+    | NUMBER Op NUMBER {
         printf("Parsed Expression: %s + %s\n", $1, $3);
     }
     | ID {
@@ -175,6 +148,17 @@ Expr:
     | NUMBER {
         printf("Parsed Number: %s\n", $1);
     }
+    ;
+    Op: PLUS {
+        printf("Parsed Operator: +\n");
+    }
+    | MINUS {
+        printf("Parsed Operator: -\n");
+    }
+    | MUL {
+        printf("Parsed Operator: *\n");
+    }
+    
     ;
 
 %% 

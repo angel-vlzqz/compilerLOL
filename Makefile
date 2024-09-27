@@ -28,7 +28,7 @@ lex.yy.c: $(LEXER)
 
 # Compile and link the lexer, parser, and symbol table
 $(OUTPUT): parser.tab.c lex.yy.c $(SYMBOL_TABLE)
-	$(CC) -o $(OUTPUT) parser.tab.c lex.yy.c $(SYMBOL_TABLE) -ll
+	$(CC) -o $(OUTPUT) parser.tab.c lex.yy.c $(SYMBOL_TABLE) -ll -w
 
 # Clean up generated files
 clean:
