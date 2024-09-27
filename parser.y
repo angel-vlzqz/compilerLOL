@@ -4,6 +4,7 @@
 #include "SymbolTable.h"
 void yyerror(const char *s);
 extern int yylex();
+extern FILE* yyin;
 // ASTNode* root = NULL;
 SymbolTable* symTab = NULL;
 Symbol* symbol = NULL;
@@ -97,7 +98,7 @@ int main() {
     yyin = fopen("test_all_tokens.c", "r");
 
     // initialize symbol table
-    symTab = initSymbolTable(101);
+    initSymbolTable(symTab);
     if (symTab == NULL) {
         fprintf(stderr, "Error: Unable to initialize symbol table\n");
         exit(1);

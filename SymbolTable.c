@@ -1,3 +1,4 @@
+#include <string.h>
 #include "SymbolTable.h"
 #include <stdio.h>
 
