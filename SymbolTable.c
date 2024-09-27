@@ -3,18 +3,18 @@
 #include <stdio.h>
 
 // Hash function: Hash based on the ASCII values of the string's characters
-unsigned int hashFunction(const char *name) {
+unsigned int hashFunction(const char *name, int tableSize) {
     unsigned long hash = 0;
     while (*name) {
         hash = (hash * 31) + (unsigned char)(*name); // 31 is used as a multiplier for hashing
         name++;
     }
-    return hash % HASH_TABLE_SIZE;  // Use the prime number size for better distribution
+    return hash % tableSize;  // Use the prime number size for better distribution
 }
 
 // Initialize a symbol table by setting all elements of the hash table to NULL
 void initSymbolTable(SymbolTable *symbolTable) {
-    for (int i = 0; i < HASH_TABLE_SIZE; i++) {
+    for (int i = 0; i < tableSize; i++) {
         symbolTable->table[i] = NULL;
     }
 }
@@ -35,7 +35,7 @@ Symbol* createSymbol(const char *name, const char *type, int index) {
 
 // Insert a symbol into the symbol table
 void insertSymbol(SymbolTable *symbolTable, const char *name, const char *type) {
-    unsigned int index = hashFunction(name);
+    unsigned int index = hashFunction(name, symbolTable->size);
     Symbol *newSymbol = createSymbol(name, type, index);
     
     // Insert the symbol at the head of the linked list for this index
@@ -50,7 +50,7 @@ void insertSymbol(SymbolTable *symbolTable, const char *name, const char *type) 
 
 // Find a symbol in the symbol table by name
 Symbol* findSymbol(SymbolTable *symbolTable, const char *name) {
-    unsigned int index = hashFunction(name);
+    unsigned int index = hashFunction(name, symbolTable->size);
     Symbol *current = symbolTable->table[index];
     
     // Traverse the linked list to find the symbol
@@ -66,7 +66,7 @@ Symbol* findSymbol(SymbolTable *symbolTable, const char *name) {
 
 // Free the memory used by the symbol table
 void freeSymbolTable(SymbolTable *symbolTable) {
-    for (int i = 0; i < HASH_TABLE_SIZE; i++) {
+    for (int i = 0; i < symbolTable->size; i++) {
         Symbol *current = symbolTable->table[i];
         while (current != NULL) {
             Symbol *temp = current;
@@ -76,4 +76,26 @@ void freeSymbolTable(SymbolTable *symbolTable) {
             free(temp);
         }
     }
+    free(symbolTable->table);
+    free(symbolTable);
+}
+
+// Function to create a new symbol table
+SymbolTable* createSymbolTable(int size) {
+    SymbolTable* newTable = (SymbolTable*)malloc(sizeof(SymbolTable));
+    if (!newTable) return 0;
+
+    newTable->size = size;
+    newTable->table = (Symbol**)malloc(sizeof(Symbol*) * size);
+    if (!newTable->table) {
+        free(newTable);
+        return 0;
+    }
+
+    // Initialize all table entries to NULL
+    for (int i = 0; i < size; i++) {
+        newTable->table[i] = 0;
+    }
+
+    return newTable;
 }

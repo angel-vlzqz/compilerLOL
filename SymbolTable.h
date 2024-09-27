@@ -4,10 +4,6 @@
 // Include necessary libraries
 #include <stdlib.h>
 
-// Use a prime number for the hash table size to reduce collisions
-#define HASH_TABLE_SIZE 101  // Prime number size for better distribution
-
-// Symbol structure representing each entry in the symbol table linked list
 typedef struct Symbol {
     char *name;              // The name of the symbol
     char *type;              // The type of the symbol (e.g., int, float, etc.)
@@ -17,12 +13,13 @@ typedef struct Symbol {
 
 // SymbolTable structure to store the hash table (array of symbol pointers)
 typedef struct SymbolTable {
-    Symbol *table[HASH_TABLE_SIZE];  // Hash table of symbols
+    int size;
+    Symbol **table; // Array of symbol pointers (linked list heads)
 } SymbolTable;
 
 // Function Declerations
-unsigned int hashFunction(const char *name);
-void initSymbolTable(SymbolTable *symbolTable);
+unsigned int hashFunction(const char *name, int tableSize);
+SymbolTable* createSymbolTable(int size); 
 Symbol* createSymbol(const char *name, const char *type, int index);
 void insertSymbol(SymbolTable *symbolTable, const char *name, const char *type);
 Symbol* findSymbol(SymbolTable *symbolTable, const char *name);
