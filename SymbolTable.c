@@ -5,7 +5,7 @@
 unsigned int hashFunction(const char *name) {
     unsigned long hash = 0;
     while (*name) {
-        hash = (hash * 31) + (unsigned char)(*name); // 31 is often used as a multiplier for hashing
+        hash = (hash * 31) + (unsigned char)(*name); // 31 is used as a multiplier for hashing
         name++;
     }
     return hash % HASH_TABLE_SIZE;  // Use the prime number size for better distribution
@@ -76,37 +76,3 @@ void freeSymbolTable(SymbolTable *symbolTable) {
         }
     }
 }
-
-// Example usage of the SymbolTable in a main function
-int main() {
-    // Create and initialize a symbol table
-    SymbolTable symbolTable;
-    initSymbolTable(&symbolTable);
-
-    // Insert symbols into the symbol table
-    insertSymbol(&symbolTable, "x", "int");
-    insertSymbol(&symbolTable, "y", "float");
-    insertSymbol(&symbolTable, "z", "double");
-
-    // Find symbols in the symbol table
-    Symbol *s = findSymbol(&symbolTable, "x");
-    if (s != NULL) {
-        printf("Found symbol: Name = %s, Type = %s, Index = %d\n", s->name, s->type, s->index);
-    } else {
-        printf("Symbol not found.\n");
-    }
-
-    // Find a non-existent symbol
-    s = findSymbol(&symbolTable, "a");
-    if (s != NULL) {
-        printf("Found symbol: Name = %s, Type = %s, Index = %d\n", s->name, s->type, s->index);
-    } else {
-        printf("Symbol not found.\n");
-    }
-
-    // Free the symbol table memory
-    freeSymbolTable(&symbolTable);
-
-    return 0;
-}
-
