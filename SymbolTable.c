@@ -12,12 +12,6 @@ unsigned int hashFunction(const char *name, int tableSize) {
     return hash % tableSize;  // Use the prime number size for better distribution
 }
 
-// Initialize a symbol table by setting all elements of the hash table to NULL
-void initSymbolTable(SymbolTable *symbolTable) {
-    for (int i = 0; i < tableSize; i++) {
-        symbolTable->table[i] = NULL;
-    }
-}
 
 // Create a new symbol with the given name, type, and index
 Symbol* createSymbol(const char *name, const char *type, int index) {

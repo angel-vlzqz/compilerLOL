@@ -98,7 +98,7 @@ int main() {
     yyin = fopen("test_all_tokens.c", "r");
 
     // initialize symbol table
-    initSymbolTable(symTab);
+    symTab = createSymbolTable(101);
     if (symTab == NULL) {
         fprintf(stderr, "Error: Unable to initialize symbol table\n");
         exit(1);
