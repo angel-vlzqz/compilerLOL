@@ -109,5 +109,6 @@ int main() {
         exit(1);
     }
     yyparse();
+    freeSymbolTable(symTab);
     return 0;
 }
