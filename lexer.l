@@ -114,39 +114,39 @@ ws          {delim}+
 
 "=="	{words++;
 		 chars += strlen(yytext);
-		 printf("%s : EQTO\n", yytext);
+		 printf("%s : LOGICOP\n", yytext);
 		}
 
 "&&"	{chars+= 2;
-		printf("%s : AND\n", yytext);
+		printf("%s : LOGICOP\n", yytext);
 		}
 		
 "||"	{chars+= 2;
-		printf("%s : OR\n", yytext);
+		printf("%s : LOGICOP\n", yytext);
 		}
 		
 "!"	{chars++;
-		printf("%s : NOT\n", yytext);
+		printf("%s : LOGICOP\n", yytext);
 		}
 
 "<"	{chars++;
-		printf("%s : LT\n", yytext);
+		printf("%s : LOGICOP\n", yytext);
 		}
 		
 "<="	{chars+= 2;
-		printf("%s : LTEQ\n", yytext);
+		printf("%s : LOGICOP\n", yytext);
 		}
 		
 ">"	{chars+= 2;
-		printf("%s : GT\n", yytext);
+		printf("%s : LOGICOP\n", yytext);
 		}
 		
 ">="	{chars+= 2;
-		printf("%s : GTEQ\n", yytext);
+		printf("%s : LOGICOP\n", yytext);
 		}
 		
 "!="	{chars+= 2;
-		printf("%s : NOTEQ\n", yytext);
+		printf("%s : LOGICOP\n", yytext);
 		}
 
 "("	{chars++;
