@@ -1,8 +1,12 @@
 %{
 #include <stdio.h>
 #include <stdlib.h>
+#include "SymbolTable.h"
 void yyerror(const char *s);
 extern int yylex();
+// ASTNode* root = NULL;
+SymbolTable* symTab = NULL;
+Symbol* symbol = NULL;
 %}
 
 %token ID ASSIGNOP ADD SEMICOLON WRITE NUMBER
@@ -89,7 +93,20 @@ void yyerror(const char *s) {
 }
 
 int main() {
-    printf("Enter your program:\n");
+    // initialize the input source
+    yyin = fopen("test_all_tokens.c", "r");
+
+    // initialize symbol table
+    symTab = initSymbolTable(101);
+    if (symTab == NULL) {
+        fprintf(stderr, "Error: Unable to initialize symbol table\n");
+        exit(1);
+    }
+    symbol = malloc(sizeof(Symbol));
+    if (symbol == NULL) {
+        fprintf(stderr, "Error: Unable to allocate memory for symbol\n");
+        exit(1);
+    }
     yyparse();
     return 0;
 }
