@@ -26,34 +26,19 @@ Symbol* symbol = NULL;
 	char* operator;
 	struct ASTNode* ast;
 }
-
-%token <string> TYPE_INT     {// For "int"}
-%token <string> TYPE_CHAR    {// For "char"}
-%token <string> WRITE        {// For "write"}
-%token <string> WHILE        {// For "while"}
-%token <string> RETURN       {// For "return"}
-%token <string> IF           {// For "if"}
-%token <string> ELSE         {// For "else"}
-%token <string> ID           {// For identifiers}
-%token <number> NUMBER       {// For numbers}
-%token <character> SEMICOLON {// For ';'}
-%token <operator> ASSIGNOP   {// For '='}
-%token <operator> PLUS       {// For '+'}
-%token <operator> MINUS      {// For '-'}
-%token <operator> MUL        {// For '*'}
-%token <operator> LOGICOP    {// For logical operators (==, &&, ||, <, <=, >, >=, !=)}
-%token '('                   {// For '('}
-%token ')'                   {// For ')'}
-%token '['                   {// For '['}
-%token ']'                   {// For ']'}
-%token '{'                   {// For '{'}
-%token '}'                   {// For '}'}
+         
+%token <number> NUMBER       
+%token <string> IF ELSE WHILE RETURN WRITE TYPE_INT TYPE_CHAR ID
+%token <operator> ASSIGNOP PLUS MINUS MUL LOGICOP
+%token <character> SEMICOLON '(' ')' '[' ']' '{' '}'
+%token THEN DO
 
 %left PLUS MINUS
 %left MUL
 
+%type <ast> Program VarDecl Stmt StmtList Expr
 %type <string> Type
-%type <ast> Program VarDecl VarDeclList Stmt StmtList Expr BinOp
+
 %start Program
 
 %% 
