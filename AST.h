@@ -72,6 +72,35 @@ typedef struct ASTNode {
             struct ASTNode* left;
             struct ASTNode* right;
         } binOp;
+
+        struct {
+            char* logicalOp; 
+            struct ASTNode* left;
+            struct ASTNode* right;
+        } logicalOp;  // Logical operation
+
+        struct {
+            struct ASTNode* stmtList;
+        } block;  // Block
+
+        struct {
+            char* varName;
+        } writeStmt;  // WRITE statement
+
+        struct {
+            struct ASTNode* condition;
+            struct ASTNode* thenBlock;
+            struct ASTNode* elseBlock;
+        } ifStmt;  // IF-ELSE statement
+
+        struct {
+            struct ASTNode* condition;
+            struct ASTNode* block;
+        } whileStmt;  // WHILE statement
+
+        struct {
+            struct ASTNode* expr;
+        } returnStmt;  // RETURN statement
     };
 } ASTNode;
 
