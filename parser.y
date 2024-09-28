@@ -1,18 +1,54 @@
 %{
 #include <stdio.h>
 #include <stdlib.h>
+#include "AST.h"
 #include "SymbolTable.h"
-void yyerror(const char *s);
+
+#define TABLE_SIZE 101
+
+
 extern int yylex();
 extern FILE* yyin;
-// ASTNode* root = NULL;
+extern int yylineno;
+
+void yyerror(const char *s);
+
+ASTNode* root = NULL;
 SymbolTable* symTab = NULL;
 Symbol* symbol = NULL;
+
 %}
 
-%token ID ASSIGNOP PLUS SEMICOLON WRITE NUMBER LOGICOP MUL MINUS RETURN WHILE THEN IF DO ELSE
+%union {
+	int number;
+	char character;
+	char* string;
+	char* operator;
+	struct ASTNode* ast;
+}
+
+%token <string> TYPE_INT
+%token <string> TYPE_CHAR
+%token <string> ID
+%token <char> SEMICOLON
+%token <operator> ASSIGNOP
+%token <operator> PLUS
+%token <operator> MINUS
+%token <operator> MUL
+%token <operator> LOGICOP
+%token <number> NUMBER
+%token <string> WRITE
+%token <string> RETURN
+%token <string> WHILE
+%token <string> THEN
+%token <string> IF
+%token <string> DO
+%token <string> ELSE
 %token TYPE_INT TYPE_CHAR
 %left PLUS
+
+%type <ast> Program VarDecl VarDeclList Stmt StmtList Expr BinOp
+%start Program
 
 %% 
 
@@ -158,7 +194,6 @@ Expr:
     | MUL {
         printf("Parsed Operator: *\n");
     }
-    
     ;
 
 %% 
@@ -173,7 +208,7 @@ int main() {
     yyin = fopen("test_all_tokens.c", "r");
 
     // initialize symbol table
-    symTab = createSymbolTable(101);
+    symTab = createSymbolTable(TABLE_SIZE);
     if (symTab == NULL) {
         fprintf(stderr, "Error: Unable to initialize symbol table\n");
         exit(1);
@@ -186,4 +221,9 @@ int main() {
     yyparse();
     freeSymbolTable(symTab);
     return 0;
+}
+
+void yyerror(const char* s) {
+	fprintf(stderr, "Parse error: %s\n", s);
+	exit(1);
 }
