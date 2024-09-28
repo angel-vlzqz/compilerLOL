@@ -8,16 +8,21 @@
 
 // NodeType enum to differentiate between different 
 // kinds of AST nodes
-typedef enum { 
+typedef enum {
     NodeType_Program,
-    NodeType_VarDeclList, 
-    NodeType_VarDecl, 
-    NodeType_SimpleExpr,
-    NodeType_SimpleID,
-    NodeType_Expr, 
     NodeType_StmtList,
     NodeType_AssignStmt,
-    NodeType_BinOp, 
+    NodeType_BinOp,
+    NodeType_SimpleID,
+    NodeType_SimpleExpr,
+    NodeType_Type,
+    NodeType_Block,
+    NodeType_WriteStmt,
+    NodeType_IfStmt,
+    NodeType_WhileStmt,
+    NodeType_ReturnStmt,
+    NodeType_LogicalOp,
+    NodeType_TypeNode
 } NodeType;
 
 // Structure for AST nodes
@@ -72,6 +77,39 @@ typedef struct ASTNode {
             struct ASTNode* left;
             struct ASTNode* right;
         } binOp;
+
+        struct {
+            char* logicalOp; 
+            struct ASTNode* left;
+            struct ASTNode* right;
+        } logicalOp;  // Logical operation
+
+        struct {
+            struct ASTNode* stmtList;
+        } block;  // Block
+
+        struct {
+            char* varName;
+        } writeStmt;  // WRITE statement
+
+        struct {
+            struct ASTNode* condition;
+            struct ASTNode* thenBlock;
+            struct ASTNode* elseBlock;
+        } ifStmt;  // IF-ELSE statement
+
+        struct {
+            struct ASTNode* condition;
+            struct ASTNode* block;
+        } whileStmt;  // WHILE statement
+
+        struct {
+            struct ASTNode* expr;
+        } returnStmt;  // RETURN statement
+
+        struct {
+            char* type;  // int or char type
+        } typeNode;
     };
 } ASTNode;
 

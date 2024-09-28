@@ -2,34 +2,43 @@
 
 # Compiler and flags
 CC = gcc
+CFLAGS = -Wall -g
 BISON = bison
 FLEX = flex
-OUTPUT = my_compiler
+EXEC = main_program
 
 # Files
-LEXER = lexer.l
-PARSER = parser.y
-INPUT = test_all_tokens.c
-BISON_OUTPUT = parser.tab.c parser.tab.h
-LEXER_OUTPUT = lex.yy.c
-SYMBOL_TABLE = SymbolTable.c
+BISON_SRC = parser.y
+FLEX_SRC = lexer.l
+BISON_OUTPUT = parser.tab.c
+FLEX_OUTPUT = lex.yy.c
+OBJS = parser.tab.o lex.yy.o AST.o SymbolTable.o
 
-# Default target: compile and run
-all: $(OUTPUT)
-	./$(OUTPUT) < $(INPUT)
+# Default rule to build the executable
+all: $(EXEC)
 
-# Generate the parser files
-parser.tab.c: $(PARSER)
-	$(BISON) -d $(PARSER)
+# Build the executable by linking all object files
+$(EXEC): $(OBJS)
+	$(CC) $(CFLAGS) -o $(EXEC) $(OBJS)
 
-# Generate the lexer file
-lex.yy.c: $(LEXER)
-	$(FLEX) $(LEXER)
+# Compile Bison file
+parser.tab.o: $(BISON_SRC)
+	$(BISON) -d $(BISON_SRC) -o $(BISON_OUTPUT)
+	$(CC) $(CFLAGS) -c $(BISON_OUTPUT) -o parser.tab.o
 
-# Compile and link the lexer, parser, and symbol table
-$(OUTPUT): parser.tab.c lex.yy.c $(SYMBOL_TABLE)
-	$(CC) -o $(OUTPUT) parser.tab.c lex.yy.c $(SYMBOL_TABLE) -ll -w
+# Compile Flex file
+lex.yy.o: $(FLEX_SRC) parser.tab.h
+	$(FLEX) $(FLEX_SRC)
+	$(CC) $(CFLAGS) -c $(FLEX_OUTPUT) -o lex.yy.o
 
-# Clean up generated files
+# Compile AST.c
+AST.o: AST.c AST.h
+	$(CC) $(CFLAGS) -c AST.c -o AST.o
+
+# Compile SymbolTable.c
+SymbolTable.o: SymbolTable.c SymbolTable.h
+	$(CC) $(CFLAGS) -c SymbolTable.c -o SymbolTable.o
+
+# Clean rule to remove all generated files
 clean:
-	rm -f $(OUTPUT) $(LEXER_OUTPUT) $(BISON_OUTPUT) 
+	rm -f $(OBJS) $(EXEC) $(BISON_OUTPUT) parser.tab.h $(FLEX_OUTPUT)
