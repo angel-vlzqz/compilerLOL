@@ -40,48 +40,40 @@ ws          {delim}+
 }
 
 "int"	{words++; chars += strlen(yytext);
-		 printf("%s : TYPE\n", yytext);
+		 printf("%s : TYPE_INT\n", yytext);
 		}
 
 "char"	{words++; chars += strlen(yytext);
-		 printf("%s : TYPE\n", yytext);
-		}
-
-"string"	{words++; chars += strlen(yytext);
-			 printf("%s : TYPE\n", yytext);
-			}
-
-"float"	{words++; chars += strlen(yytext);
-		 printf("%s : TYPE\n", yytext);
+		 printf("%s : TYPE_CHAR\n", yytext);
 		}
 		
 "write"	{words++; 
 		 chars += strlen(yytext);
-		 printf("%s : KEYWORD\n", yytext);
+		 printf("%s : WRITE\n", yytext);
 		}
 
 "while"	{words++; 
 		 chars += strlen(yytext);
-		 printf("%s : KEYWORD\n", yytext);
+		 printf("%s : WHILE\n", yytext);
 		}
 
 "return"	{words++; 
 			 chars += strlen(yytext);
-			 printf("%s : KEYWORD\n", yytext);
+			 printf("%s : RETURN\n", yytext);
 			}
 
 "if"	{words++; 
 		 chars += strlen(yytext);
-		 printf("%s : KEYWORD\n", yytext);
+		 printf("%s : IF\n", yytext);
 		}
 
 "else"	{words++; 
 		 chars += strlen(yytext);
-		 printf("%s : KEYWORD\n", yytext);
+		 printf("%s : ELSE\n", yytext);
 		}
 		
 {ID}	{words++; chars += strlen(yytext);
-		 printf("%s : IDENTIFIER\n",yytext);
+		 printf("%s : ID\n",yytext);
 		}
 			
 {NUMBER}	{words++; chars += strlen(yytext);
@@ -93,7 +85,7 @@ ws          {delim}+
 		}
 		
 "="		{chars++;
-		 printf("%s : EQ\n", yytext);
+		 printf("%s : ASSIGNOP\n", yytext);
 		}
 
 "+"		{chars++;
@@ -146,27 +138,27 @@ ws          {delim}+
 		}
 
 "("	{chars++;
-		printf("%s : OPEN\n", yytext);
+		printf("%s : '('\n", yytext);
 		}
 		
 ")"	{chars++;
-		printf("%s : CLOSE\n", yytext);
+		printf("%s : ')'\n", yytext);
 		}
 		
 "["	{chars++;
-		printf("%s : OPEN\n", yytext);
+		printf("%s : '['\n", yytext);
 		}
 		
 "]"	{chars++;
-		printf("%s : CLOSE\n", yytext);
+		printf("%s : ']'\n", yytext);
 		}
 		
 "{"	{chars++;
-		printf("%s : OPEN\n", yytext);
+		printf("%s : '{'\n", yytext);
 		}
 		
 "}"	{chars++;
-		printf("%s : CLOSE\n", yytext);
+		printf("%s : '}'\n", yytext);
 		}
 
 \n		{lines++; chars=0;}
