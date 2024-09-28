@@ -27,19 +27,37 @@ Symbol* symbol = NULL;
 	char* operator;
 	struct ASTNode* ast;
 }
-         
-%token <number> NUMBER       
-%token <string> IF ELSE WHILE RETURN WRITE TYPE_INT TYPE_CHAR ID
-%token <operator> ASSIGNOP PLUS MINUS MUL LOGICOP
-%token <character> SEMICOLON '(' ')' '[' ']' '{' '}'
-%token THEN DO
+
+%token <string> TYPE_INT     // For "int"}
+%token <string> TYPE_CHAR    // For "char"}
+%token <string> WRITE        // For "write"}
+%token <string> WHILE        // For "while"}
+%token <string> RETURN       // For "return"}
+%token <string> IF           // For "if"}
+%token <string> ELSE         // For "else"}
+%token <string> ID           // For identifiers}
+%token <number> NUMBER       // For numbers}
+// %token <string> THEN         // For "then"
+// %token <string> DO           // For "do"
+%token <character> SEMICOLON // For ';'}
+%token <operator> ASSIGNOP   // For '='}
+%token <operator> PLUS       // For '+'}
+%token <operator> MINUS      // For '-'}
+%token <operator> MUL        // For '*'}
+%token <operator> LOGICOP    // For logical operators (==, &&, ||, <, <=, >, >=, !=)}
+%token '('                   // For '('}
+%token ')'                   // For ')'}
+%token '['                   // For '['}
+%token ']'                   // For ']'}
+%token '{'                   // For '{'}
+%token '}'                   // For '}'}
 
 %left PLUS MINUS
 %left MUL
 
-%type <ast> Program VarDecl Stmt StmtList Expr Block
-%type <string> Type
-
+%type <ast> Program VarDecl VarDeclList Stmt StmtList Expr BinOp
+%type <operator> Op
+%type <string> Type // fixes $1 and $2 to be of type string
 %start Program
 
 %% 
@@ -138,19 +156,12 @@ Stmt:
             yyerror("Undeclared variable");
         }
     }
-    | IF Expr THEN Block ELSE Block {
-        printf("Parsed If-Else Statement\n");
-        $$ = createNode(NodeType_IfStmt);
-        $$->ifStmt.condition = $2;
-        $$->ifStmt.thenBlock = $4;
-        $$->ifStmt.elseBlock = $6;
-    }
-    | WHILE Expr DO Block {
-        printf("Parsed While Statement\n");
-        $$ = createNode(NodeType_WhileStmt);
-        $$->whileStmt.condition = $2;
-        $$->whileStmt.block = $4;
-    }
+    // | IF Expr THEN Block ELSE Block {
+    //     printf("Parsed If-Else Statement\n");
+    // }
+    // | WHILE Expr DO Block {
+    //     printf("Parsed While Statement\n");
+    // }
     | RETURN Expr SEMICOLON {
         printf("Parsed Return Statement\n");
 	$$ = createNode(NodeType_ReturnStmt);
@@ -207,13 +218,92 @@ Expr:
         }
     }
     | NUMBER {
-        printf("Parsed Number: %d\n", $1);
-	$$ = malloc(sizeof(ASTNode));
-	$$->type = NodeType_SimpleExpr;
-	$$->simpleExpr.number = $1;
+        printf("Parsed Number: %s\n", $1);
+    }
+    | Expr Op Expr {
+        printf("Parsed Expression: +\n");
+    }
+    | Expr LOGICOP Expr {
+        printf("Parsed Expression: <\n");
+    }
+    | '(' Expr ')' {
+        printf("Parsed Expression in parentheses\n");
     }
     ;
 
+
+Type:
+    TYPE_INT {
+        printf("Parsed Type: int\n");
+    }
+    | TYPE_CHAR {
+        printf("Parsed Type: char\n");
+    }
+    ;
+
+Block:
+    StmtList {
+        printf("Parsed Block\n");
+    }
+    ;
+
+StmtList:
+    Stmt StmtList {
+        printf("Parsed Statement List\n");
+    }
+    | /* empty */ {
+        printf("Parsed Empty Statement List\n");
+    }
+    ;
+
+BinOp:
+    PLUS    { $$ = $1; }
+    | MINUS { $$ = $1; }
+    | MUL   { $$ = $1; }
+    ;
+
+// Stmt:
+//     ID ASSIGNOP Expr SEMICOLON {
+//         printf("Parsed Assignment Statement: %s\n", $1);
+//     }
+//     | WRITE ID {
+//         printf("Parsed Write Statement: %s\n", $2);
+//     }
+//     ;
+
+//xpr:
+//   ID Op ID {
+//       printf("Parsed Expression: %s + %s\n", $1, $3);
+//   }
+//   | ID Op NUMBER {
+//       printf("Parsed Expression: %s + %s\n", $1, $3);
+//   }
+//   | NUMBER Op ID {
+//       printf("Parsed Expression: %s + %s\n", $1, $3);
+//   }
+//   | NUMBER Op NUMBER {
+//       printf("Parsed Expression: %s + %s\n", $1, $3);
+//   }
+//   | ID {
+//       printf("Parsed Identifier: %s\n", $1);
+//   }
+//   | NUMBER {
+//       printf("Parsed Number: %s\n", $1);
+//   }
+//   ;
+    Op: PLUS {
+        { $$ = $1; }
+        printf("Parsed Operator: +\n");
+    }
+    | MINUS {
+        { $$ = $1; }
+       printf("Parsed Operator: -\n");
+    }
+   | MUL {
+        { $$ = $1; }
+        printf("Parsed Operator: *\n");
+   }
+   ;
 
 %% 
 
@@ -223,9 +313,12 @@ void yyerror(const char *s) {
 }
 
 int main() {
-    // initialize the input source
+    // check if file is provided
     yyin = fopen("test_all_tokens.c", "r");
-
+    if (!yyin) {
+        fprintf(stderr, "Error: Unable to open file\n");
+        exit(1);
+    }
     // initialize symbol table
     symTab = createSymbolTable(TABLE_SIZE);
     if (symTab == NULL) {
@@ -248,3 +341,8 @@ int main() {
     freeSymbolTable(symTab);
     return 0;
 }
+
+// void yyerror(const char* s) {
+// 	fprintf(stderr, "Parse error: %s\n", s);
+// 	exit(1);
+// }
