@@ -27,25 +27,30 @@ Symbol* symbol = NULL;
 	struct ASTNode* ast;
 }
 
-%token <string> TYPE_INT
-%token <string> TYPE_CHAR
-%token <string> ID
-%token <char> SEMICOLON
-%token <operator> ASSIGNOP
-%token <operator> PLUS
-%token <operator> MINUS
-%token <operator> MUL
-%token <operator> LOGICOP
-%token <number> NUMBER
-%token <string> WRITE
-%token <string> RETURN
-%token <string> WHILE
-%token <string> THEN
-%token <string> IF
-%token <string> DO
-%token <string> ELSE
-%token TYPE_INT TYPE_CHAR
-%left PLUS
+%token <string> TYPE_INT     {// For "int"}
+%token <string> TYPE_CHAR    {// For "char"}
+%token <string> WRITE        {// For "write"}
+%token <string> WHILE        {// For "while"}
+%token <string> RETURN       {// For "return"}
+%token <string> IF           {// For "if"}
+%token <string> ELSE         {// For "else"}
+%token <string> ID           {// For identifiers}
+%token <number> NUMBER       {// For numbers}
+%token <character> SEMICOLON {// For ';'}
+%token <operator> ASSIGNOP   {// For '='}
+%token <operator> PLUS       {// For '+'}
+%token <operator> MINUS      {// For '-'}
+%token <operator> MUL        {// For '*'}
+%token <operator> LOGICOP    {// For logical operators (==, &&, ||, <, <=, >, >=, !=)}
+%token '('                   {// For '('}
+%token ')'                   {// For ')'}
+%token '['                   {// For '['}
+%token ']'                   {// For ']'}
+%token '{'                   {// For '{'}
+%token '}'                   {// For '}'}
+
+%left PLUS MINUS
+%left MUL
 
 %type <ast> Program VarDecl VarDeclList Stmt StmtList Expr BinOp
 %start Program
