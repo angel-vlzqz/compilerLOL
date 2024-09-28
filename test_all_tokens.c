@@ -1,4 +1,12 @@
-int a = 2;
-int b = 3;
-int c = b + a;
-int d = a * b;
+int x;
+int y;
+int a;
+int b;
+int c;
+x = 1;
+a = 12;
+b = 23 + 10;
+x = a + a + 1;
+y = x + a + b + c + a + 5;
+write x;
+write y;
