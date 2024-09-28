@@ -18,48 +18,6 @@ void traverseAST(ASTNode* node, int level) {
     //printf("Traversing node of type %d\n", node->type);
     
     switch (node->type) {
-    typedef struct ASTNode {
-        int type; // Add the "type" field
-        union {
-            struct {
-                struct ASTNode* varDeclList;
-                struct ASTNode* stmtList;
-            } program;
-            struct {
-                struct ASTNode* varDecl;
-                struct ASTNode* varDeclList;
-            } varDeclList;
-            struct {
-                char* varType;
-                char* varName;
-            } varDecl;
-            struct {
-                int number;
-            } simpleExpr;
-            struct {
-                char* name;
-            } simpleID;
-            struct {
-                char operator;
-                struct ASTNode* left;
-                struct ASTNode* right;
-            } expr;
-            struct {
-                struct ASTNode* stmt;
-                struct ASTNode* stmtList;
-            } stmtList;
-            struct {
-                char* varName;
-                char* operator;
-                struct ASTNode* expr;
-            } assignStmt;
-            struct {
-                char operator;
-                struct ASTNode* left;
-                struct ASTNode* right;
-            } binOp;
-        };
-    } ASTNode;
         case NodeType_Program:
             printIndent(level);
             printf("Program\n");
@@ -109,6 +67,51 @@ void traverseAST(ASTNode* node, int level) {
             traverseAST(node->binOp.left, level + 1);
             traverseAST(node->binOp.right, level + 1);
             break;
+        case NodeType_LogicalOp:
+            printIndent(level);
+            printf("LogicalOp: %s\n", node->logicalOp.logicalOp);
+            traverseAST(node->logicalOp.left, level + 1);
+            traverseAST(node->logicalOp.right, level + 1);
+            break;
+        case NodeType_WriteStmt:
+            printIndent(level);
+            printf("Write: %s\n", node->writeStmt.varName);
+            break;
+        case NodeType_IfStmt:
+            printIndent(level);
+            printf("If Statement\n");
+            traverseAST(node->ifStmt.condition, level + 1);
+            traverseAST(node->ifStmt.thenBlock, level + 1);
+            if (node->ifStmt.elseBlock) {
+                traverseAST(node->ifStmt.elseBlock, level + 1);
+            }
+            break;
+        case NodeType_WhileStmt:
+            printIndent(level);
+            printf("While Statement\n");
+            traverseAST(node->whileStmt.condition, level + 1);
+            traverseAST(node->whileStmt.block, level + 1);
+            break;
+        case NodeType_ReturnStmt:
+            printIndent(level);
+            printf("Return\n");
+            traverseAST(node->returnStmt.expr, level + 1);
+            break;
+        case NodeType_Block:
+            printIndent(level);
+            printf("Block\n");
+            traverseAST(node->block.stmtList, level + 1);
+            break;
+        case NodeType_StmtList:
+            printIndent(level);
+            traverseAST(node->stmtList.stmt, level + 1);
+            traverseAST(node->stmtList.stmtList, level + 1);
+            break;
+        case NodeType_AssignStmt:
+            printIndent(level);
+            printf("Stmt: %s = ", node->assignStmt.varName);
+            traverseAST(node->assignStmt.expr, level + 1);
+            break;
     }
 }
 
@@ -117,46 +120,67 @@ void freeAST(ASTNode* node) {
 
     switch (node->type) {
         case NodeType_Program:
-            free(node->program.varDeclList);
-            free(node->program.stmtList);
+            freeAST(node->program.varDeclList);
+            freeAST(node->program.stmtList);
             break;
         case NodeType_VarDeclList:
-            free(node->varDeclList.varDecl);
-            free(node->varDeclList.varDeclList);
+            freeAST(node->varDeclList.varDecl);
+            freeAST(node->varDeclList.varDeclList);
             break;
         case NodeType_VarDecl:
-            free(node->varDecl.varType);
-            free(node->varDecl.varName);
+            free(node->varDecl.varType);  // Free the dynamically allocated string
+            free(node->varDecl.varName);  // Free the dynamically allocated string
             break;
         
         case NodeType_SimpleExpr:
-            //free((node->simpleExpr));
+            // No dynamic allocation, nothing to free
             break;
         case NodeType_SimpleID:
-            //free((node->simpleID));
+            free(node->simpleID.name);  // Free the dynamically allocated string
             break;
         case NodeType_Expr:
-            free(node->expr.left);
-            free(node->expr.right);
-            //free(node->expr.operator);
+            freeAST(node->expr.left);
+            freeAST(node->expr.right);
             break;
         case NodeType_StmtList:
-            free(node->stmtList.stmt);
-            free(node->stmtList.stmtList);
+            freeAST(node->stmtList.stmt);
+            freeAST(node->stmtList.stmtList);
             break;
         case NodeType_AssignStmt:
-            free(node->assignStmt.varName);
-            free(node->assignStmt.operator);
-            free(node->assignStmt.expr);
+            free(node->assignStmt.varName);  // Free the dynamically allocated string
+            free(node->assignStmt.operator);  // Free the dynamically allocated string
+            freeAST(node->assignStmt.expr);
             break;
         case NodeType_BinOp:
-            free(node->binOp.left);
-            free(node->binOp.right);
-            //free(node->binOp.operator);
+            freeAST(node->binOp.left);
+            freeAST(node->binOp.right);
+            break;
+        case NodeType_LogicalOp:
+            free(node->logicalOp.logicalOp);  // Free the dynamically allocated string
+            freeAST(node->logicalOp.left);
+            freeAST(node->logicalOp.right);
+            break;
+        case NodeType_WriteStmt:
+            free(node->writeStmt.varName);  // Free the dynamically allocated string
+            break;
+        case NodeType_IfStmt:
+            freeAST(node->ifStmt.condition);
+            freeAST(node->ifStmt.thenBlock);
+            freeAST(node->ifStmt.elseBlock);
+            break;
+        case NodeType_WhileStmt:
+            freeAST(node->whileStmt.condition);
+            freeAST(node->whileStmt.block);
+            break;
+        case NodeType_ReturnStmt:
+            freeAST(node->returnStmt.expr);
+            break;
+        case NodeType_Block:
+            freeAST(node->block.stmtList);
             break;
     }
 
-    free(node);
+    free(node);  // Free the current node itself
 }
 
 ASTNode* createNode(NodeType type) {
@@ -187,7 +211,7 @@ ASTNode* createNode(NodeType type) {
             newNode->simpleExpr.number = '\0';
             break;
         case NodeType_SimpleID:
-            //newNode->simpleID.name = NULL;
+            newNode->simpleID.name = NULL;
             break;
         case NodeType_Expr:
             newNode->expr.operator = '\0';  // Placeholder value
@@ -208,7 +232,29 @@ ASTNode* createNode(NodeType type) {
             newNode->binOp.left = NULL;
             newNode->binOp.right = NULL;
             break;
-        // Add more cases as necessary for other node types
+        case NodeType_LogicalOp:
+            newNode->logicalOp.logicalOp = NULL;
+            newNode->logicalOp.left = NULL;
+            newNode->logicalOp.right = NULL;
+            break;
+        case NodeType_WriteStmt:
+            newNode->writeStmt.varName = NULL;
+            break;
+        case NodeType_IfStmt:
+            newNode->ifStmt.condition = NULL;
+            newNode->ifStmt.thenBlock = NULL;
+            newNode->ifStmt.elseBlock = NULL;
+            break;
+        case NodeType_WhileStmt:
+            newNode->whileStmt.condition = NULL;
+            newNode->whileStmt.block = NULL;
+            break;
+        case NodeType_ReturnStmt:
+            newNode->returnStmt.expr = NULL;
+            break;
+        case NodeType_Block:
+            newNode->block.stmtList = NULL;
+            break;
     }
 
     return newNode;
