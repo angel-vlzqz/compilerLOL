@@ -212,7 +212,7 @@ void yyerror(const char *s) {
 
 int main() {
     // initialize the input source
-    yyin = fopen("test_all_tokens.c", "r");
+    yyin = fopen("input.cmm", "r");
 
     // initialize symbol table
     symTab = createSymbolTable(TABLE_SIZE);
