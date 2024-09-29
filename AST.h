@@ -10,6 +10,8 @@
 // kinds of AST nodes
 typedef enum {
     NodeType_Program,
+    NodeType_VarDeclList,
+    NodeType_VarDecl, 
     NodeType_StmtList,
     NodeType_AssignStmt,
     NodeType_BinOp,
@@ -22,7 +24,6 @@ typedef enum {
     NodeType_WhileStmt,
     NodeType_ReturnStmt,
     NodeType_LogicalOp,
-    NodeType_TypeNode
 } NodeType;
 
 // Structure for AST nodes
@@ -106,10 +107,6 @@ typedef struct ASTNode {
         struct {
             struct ASTNode* expr;
         } returnStmt;  // RETURN statement
-
-        struct {
-            char* type;  // int or char type
-        } typeNode;
     };
 } ASTNode;
 

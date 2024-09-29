@@ -5,6 +5,7 @@
 #include <string.h>
 
 #define YY_DECL int yylex()
+#include "parser.tab.h"
 
 int words = 0;
 int chars = 0;
@@ -19,6 +20,7 @@ delim       [ \t\n]
 NUMBER         {digit}+(\.{digit}+)?(E[+\-]?(digit)+)?
 ws          {delim}+
 
+%option yylineno
 %%
 "/*"    				{
 							int c;
@@ -40,125 +42,70 @@ ws          {delim}+
 }
 
 "int"	{words++; chars += strlen(yytext);
-		 printf("%s : TYPE_INT\n", yytext);
+		printf("%s : TYPE\n", yytext);
+		yylval.string = strdup(yytext);
+		return TYPE;
 		}
 
-"char"	{words++; chars += strlen(yytext);
-		 printf("%s : TYPE_CHAR\n", yytext);
-		}
-		
 "write"	{words++; 
-		 chars += strlen(yytext);
-		 printf("%s : WRITE\n", yytext);
-		}
-
-"while"	{words++; 
-		 chars += strlen(yytext);
-		 printf("%s : WHILE\n", yytext);
-		}
-
-"return"	{words++; 
-			 chars += strlen(yytext);
-			 printf("%s : RETURN\n", yytext);
-			}
-
-"if"	{words++; 
-		 chars += strlen(yytext);
-		 printf("%s : IF\n", yytext);
-		}
-
-"else"	{words++; 
-		 chars += strlen(yytext);
-		 printf("%s : ELSE\n", yytext);
+		chars += strlen(yytext);
+		printf("%s : WRITE\n", yytext);
+		yylval.string = strdup(yytext);
+		return WRITE;
 		}
 		
 {ID}	{words++; chars += strlen(yytext);
-		 printf("%s : ID\n",yytext);
+		printf("%s : ID\n",yytext);
+		yylval.string = strdup(yytext);
+		return ID;
 		}
 			
 {NUMBER}	{words++; chars += strlen(yytext);
-			  printf("%s : NUMBER\n",yytext);
+			printf("%s : NUMBER\n",yytext);
+			yylval.number = atoi(yytext);
+			return NUMBER;
 			}
 			
 ";"		{chars++;
-		 printf("%s : SEMICOLON\n", yytext);
+		printf("%s : SEMICOLON\n", yytext);
+		yylval.string = strdup(yytext);
+		return SEMICOLON;
 		}
 		
 "="		{chars++;
-		 printf("%s : ASSIGNOP\n", yytext);
+		printf("%s : ASSIGNOP\n", yytext);
+		yylval.string = strdup(yytext);
+		return ASSIGNOP;
 		}
 
 "+"		{chars++;
-		 printf("%s : PLUS\n", yytext);
+		printf("%s : PLUS\n", yytext);
+		yylval.string = strdup(yytext);
+		return PLUS;
 		}
 
 "-" 	{chars++;
-		 printf("%s : MINUS\n", yytext);
+		printf("%s : MINUS\n", yytext);
+		yylval.string = strdup(yytext);
+		return MINUS;
 		}
 
 "*"		{chars++;
-		 printf("%s : MUL\n", yytext);
-		}
-
-"=="	{words++;
-		 chars += strlen(yytext);
-		 printf("%s : LOGICOP\n", yytext);
-		}
-
-"&&"	{chars+= 2;
-		printf("%s : LOGICOP\n", yytext);
-		}
-		
-"||"	{chars+= 2;
-		printf("%s : LOGICOP\n", yytext);
-		}
-		
-"!"	{chars++;
-		printf("%s : LOGICOP\n", yytext);
-		}
-
-"<"	{chars++;
-		printf("%s : LOGICOP\n", yytext);
-		}
-		
-"<="	{chars+= 2;
-		printf("%s : LOGICOP\n", yytext);
-		}
-		
-">"	{chars+= 2;
-		printf("%s : LOGICOP\n", yytext);
-		}
-		
-">="	{chars+= 2;
-		printf("%s : LOGICOP\n", yytext);
-		}
-		
-"!="	{chars+= 2;
-		printf("%s : LOGICOP\n", yytext);
+		printf("%s : MUL\n", yytext);
+		yylval.string = strdup(yytext);
+		return MUL;
 		}
 
 "("	{chars++;
 		printf("%s : '('\n", yytext);
+		yylval.string = strdup(yytext);
+		return '(';
 		}
 		
 ")"	{chars++;
 		printf("%s : ')'\n", yytext);
-		}
-		
-"["	{chars++;
-		printf("%s : '['\n", yytext);
-		}
-		
-"]"	{chars++;
-		printf("%s : ']'\n", yytext);
-		}
-		
-"{"	{chars++;
-		printf("%s : '{'\n", yytext);
-		}
-		
-"}"	{chars++;
-		printf("%s : '}'\n", yytext);
+		yylval.string = strdup(yytext);
+		return ')';
 		}
 
 \n		{lines++; chars=0;}

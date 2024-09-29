@@ -24,20 +24,20 @@ $(EXEC): $(OBJS)
 # Compile Bison file
 parser.tab.o: $(BISON_SRC)
 	$(BISON) -d $(BISON_SRC) -o $(BISON_OUTPUT)
-	$(CC) $(CFLAGS) -c $(BISON_OUTPUT) -o parser.tab.o
+	$(CC) $(CFLAGS) -c $(BISON_OUTPUT) -o parser.tab.o -w
 
 # Compile Flex file
 lex.yy.o: $(FLEX_SRC) parser.tab.h
 	$(FLEX) $(FLEX_SRC)
-	$(CC) $(CFLAGS) -c $(FLEX_OUTPUT) -o lex.yy.o
+	$(CC) $(CFLAGS) -c $(FLEX_OUTPUT) -o lex.yy.o -w
 
 # Compile AST.c
 AST.o: AST.c AST.h
-	$(CC) $(CFLAGS) -c AST.c -o AST.o
+	$(CC) $(CFLAGS) -c AST.c -o AST.o -w
 
 # Compile SymbolTable.c
 SymbolTable.o: SymbolTable.c SymbolTable.h
-	$(CC) $(CFLAGS) -c SymbolTable.c -o SymbolTable.o
+	$(CC) $(CFLAGS) -c SymbolTable.c -o SymbolTable.o -w
 
 # Clean rule to remove all generated files
 clean:
