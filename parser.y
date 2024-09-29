@@ -74,6 +74,7 @@ VarDecl:
         $$->varDecl.varType = strdup($1);
         $$->varDecl.varName = strdup($2);
         // Insert into symbol table.
+        insertSymbol(symTab, $2, $1);
     } | TYPE ID {
         printf("Missing semicolon after declaring variable: %s\n", $2);
     }
