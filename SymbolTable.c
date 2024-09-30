@@ -71,9 +71,9 @@ Symbol *findSymbol(SymbolTable *symbolTable, const char *name)
     {
         if (strcmp(current->name, name) == 0)
         {
-            printf("Symbol found: Name = %s, Type = %s, Index = %d, Value = %s\n", 
-                   current->name, 
-                   current->type, 
+            printf("Symbol found: Name = %s, Type = %s, Index = %d, Value = %s\n",
+                   current->name,
+                   current->type,
                    index,
                    current->value);
             return current;
@@ -85,28 +85,32 @@ Symbol *findSymbol(SymbolTable *symbolTable, const char *name)
 }
 
 // Free the memory used by the symbol table
-void freeSymbolTable(SymbolTable* symbolTable)
+void freeSymbolTable(SymbolTable *symbolTable)
 {
-    if (symbolTable == NULL) {
+    if (symbolTable == NULL)
+    {
         printf("Symbol table is NULL. Nothing to free.\n");
         return;
     }
 
     printf("Starting to free symbol table of size %d\n", symbolTable->size);
 
-    for (int i = 0; i < symbolTable->size; i++) {
-        Symbol* symbol = symbolTable->table[i];
-        
+    for (int i = 0; i < symbolTable->size; i++)
+    {
+        Symbol *symbol = symbolTable->table[i];
+
         // Print current bucket being processed
         printf("Processing bucket %d\n", i);
 
-        while (symbol != NULL) {
+        while (symbol != NULL)
+        {
             printf("Freeing symbol: %s\n", symbol->name ? symbol->name : "NULL");
 
-            Symbol* next = symbol->next;
+            Symbol *next = symbol->next;
 
             // Safely free the symbol's name if it exists
-            if (symbol->name != NULL) {
+            if (symbol->name != NULL)
+            {
                 printf("Freeing symbol name: %s\n", symbol->name);
                 free(symbol->name);
                 symbol->name = NULL; // Avoid double free
@@ -118,9 +122,12 @@ void freeSymbolTable(SymbolTable* symbolTable)
             symbol = next;
 
             // Print status of next symbol to process
-            if (symbol != NULL) {
+            if (symbol != NULL)
+            {
                 printf("Next symbol in bucket: %s\n", symbol->name ? symbol->name : "NULL");
-            } else {
+            }
+            else
+            {
                 printf("No more symbols in this bucket.\n");
             }
         }
@@ -166,20 +173,20 @@ SymbolTable *createSymbolTable(int size)
     return newTable;
 }
 
-void updateSymbolValue(SymbolTable *symbolTable, const char *name, const char *value) 
+void updateSymbolValue(SymbolTable *symbolTable, const char *name, const char *value)
 {
     // Find the symbol in the table
     Symbol *symbol = findSymbol(symbolTable, name);
-    
-    if (symbol == NULL) 
+
+    if (symbol == NULL)
     {
         // If the symbol is not found, print an error or handle it accordingly
         fprintf(stderr, "Error: Symbol %s not found in the table, cannot update value.\n", name);
         return;
     }
-    
+
     // Free the old value if it exists to avoid memory leaks
-    if (symbol->value != NULL) 
+    if (symbol->value != NULL)
     {
         free(symbol->value);
     }
@@ -189,12 +196,12 @@ void updateSymbolValue(SymbolTable *symbolTable, const char *name, const char *v
     printf("Updated symbol %s with new value: %s\n", name, value);
 }
 
-const char* getSymbolValue(SymbolTable *symbolTable, const char *name) 
+const char *getSymbolValue(SymbolTable *symbolTable, const char *name)
 {
     // Find the symbol in the table
     Symbol *symbol = findSymbol(symbolTable, name);
 
-    if (symbol == NULL) 
+    if (symbol == NULL)
     {
         // If the symbol is not found, print an error or return NULL
         fprintf(stderr, "Error: Symbol %s not found in the table.\n", name);

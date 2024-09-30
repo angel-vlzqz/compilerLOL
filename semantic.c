@@ -105,6 +105,7 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
 
     default:
         fprintf(stderr, "Unknown Node Type\n");
+        fprintf(stderr, "Node Type: %d\n", node->type);
     }
 
     // ... other code ...
