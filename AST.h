@@ -18,7 +18,6 @@ typedef enum
     NodeType_BinOp,
     NodeType_SimpleID,
     NodeType_SimpleExpr,
-    NodeType_Type,
     NodeType_Block,
     NodeType_WriteStmt,
     NodeType_IfStmt,

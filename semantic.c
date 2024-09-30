@@ -112,10 +112,12 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         }
         break;
     case NodeType_Block:
+        printf("Performing semantic analysis on block\n");
         semanticAnalysis(node->block.stmtList, symTab);
         fprintf(stderr, "Node Type: %d\n", node->type);
         break;
-        // ... handle other node types ...
+    break;
+    // ... handle other node types ...
 
     default:
         fprintf(stderr, "Unknown Node Type\n");
@@ -208,9 +210,9 @@ TAC *generateTACForExpr(ASTNode *expr)
     case NodeType_WriteStmt:
     {
         printf("Generating TAC for WRITE statement\n");
-        instruction->arg1 = strdup(expr->writeStmt.varName);
-        instruction->op = strdup("write");
-        instruction->result = NULL;
+        instruction->arg1 = strdup(expr->writeStmt.varName);  // Variable to be written
+        instruction->op = strdup("write");  // Operation is 'write'
+        instruction->result = strdup(expr->writeStmt.varName);  // The result is the variable being written
         break;
     }
     case NodeType_IfStmt:
@@ -260,6 +262,7 @@ TAC *generateTACForExpr(ASTNode *expr)
 
     return instruction;
 }
+
 // Function to create a new temporary variable for TAC
 char *createTempVar()
 {
@@ -430,3 +433,4 @@ void appendTAC(TAC **head, TAC *newInstruction)
         current->next = newInstruction;
     }
 }
+

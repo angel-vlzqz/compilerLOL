@@ -252,7 +252,7 @@ int main() {
 
         // TAC Optimization
         optimizeTAC(&tacHead);  // 'tacHead' is the global head of the TAC linked list
-
+        
         // Code Generation
         initCodeGenerator("output.asm");
         generateMIPS(tacHead);  // Generate MIPS code from optimized TAC

@@ -1,25 +1,18 @@
 #include <string.h>
-#include "SymbolTable.h"
+#include <math.h>
 #include <stdio.h>
+#include "SymbolTable.h"
 
 // Hash function: Hash based on the ASCII values of the string's characters
 unsigned int hashFunction(const char *name, int tableSize)
 {
-    // Check if the name is NULL
-    if (name == NULL)
-    {
-        fprintf(stderr, "Error: Tried to hash a NULL name.\n");
-        return 0; // Or handle it appropriately
-    }
-
     unsigned long hash = 0;
-    while (*name) // Proceed only if name is non-NULL
+    while (*name)
     {
-        hash = (hash * 31) + (unsigned char)(*name);
+        hash = abs((hash * 31) + (unsigned char)(*name)); // 31 is used as a multiplier for hashing
         name++;
     }
-
-    return hash % tableSize;
+    return hash % tableSize; // Use the prime number size for better distribution
 }
 
 // Create a new symbol with the given name, type, and index
@@ -71,11 +64,15 @@ Symbol *findSymbol(SymbolTable *symbolTable, const char *name)
     {
         if (strcmp(current->name, name) == 0)
         {
+<<<<<<< HEAD
             printf("Symbol found: Name = %s, Type = %s, Index = %d, Value = %s\n",
                    current->name,
                    current->type,
                    index,
                    current->value);
+=======
+            printf("Symbol found: Name = %s, Type = %s, Index = %d, Value = %s\n", current->name, current->type, index, current->value ? current->value : "NULL");
+>>>>>>> 8975319 (did some things, including absolute value in hash method)
             return current;
         }
         current = current->next;
@@ -116,6 +113,13 @@ void freeSymbolTable(SymbolTable *symbolTable)
                 symbol->name = NULL; // Avoid double free
             }
 
+            // Safely free the symbol's value if it exists
+            if (symbol->value != NULL) {
+                printf("Freeing symbol value: %s\n", symbol->value);
+                free(symbol->value);
+                symbol->value = NULL; // Avoid double free
+            }
+
             // Free the symbol itself
             printf("Freeing symbol structure\n");
             free(symbol);
@@ -143,6 +147,7 @@ void freeSymbolTable(SymbolTable *symbolTable)
 
     printf("Symbol table freed successfully.\n");
 }
+
 
 // Function to create a new symbol table
 SymbolTable *createSymbolTable(int size)
