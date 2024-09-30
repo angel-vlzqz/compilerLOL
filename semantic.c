@@ -1,5 +1,8 @@
-#include "semantic.h"
 #include <stdio.h>
+#include "semantic.h"
+#include "temp.h"
+
+int tempVars[20] = {0}; // Definition and initialization
 
 // Perform semantic analysis on the AST
 TAC* tacHead = NULL;
@@ -34,17 +37,17 @@ void semanticAnalysis(ASTNode* node, SymbolTable* symTab) {
             break;
         case NodeType_BinOp:
             // Check for declaration of variables
-            if (lookupSymbol(symTab, node->binOp.left->varDecl.varName) == NULL) {
+            if (findSymbol(symTab, node->binOp.left->varDecl.varName) == NULL) {
                 fprintf(stderr, "Semantic error: Variable %s has not been declared\n", node->varDecl.varName);
             }
-            if (lookupSymbol(symTab, node->binOp.right->varDecl.varName) == NULL) {
+            if (findSymbol(symTab, node->binOp.right->varDecl.varName) == NULL) {
                 fprintf(stderr, "Semantic error: Variable %s has not been declared\n", node->varDecl.varName);
             }
             semanticAnalysis(node->binOp.left, symTab);
             break;
         case NodeType_SimpleID:
             // Check for declaration of variable
-            if (lookupSymbol(symTab, node->simpleID.name) == NULL) {
+            if (findSymbol(symTab, node->simpleID.name) == NULL) {
                 fprintf(stderr, "Semantic error: Variable %s has not been declared\n", node->simpleID.name);
             }
         case NodeType_SimpleExpr:

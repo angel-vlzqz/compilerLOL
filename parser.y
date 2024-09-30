@@ -4,6 +4,9 @@
 #include <string.h>
 #include "AST.h"
 #include "SymbolTable.h"
+#include "semantic.h"
+#include "optimizer.h"
+#include "codeGenerator.h"
 
 #define TABLE_SIZE 101
 
@@ -91,7 +94,7 @@ Block:
 StmtList:
     Stmt StmtList {
         printf("Parsed Statement List\n");
-	$$ = malloc(sizeof(ASTNode));
+	    $$ = malloc(sizeof(ASTNode));
         $$->type = NodeType_StmtList;
         $$->stmtList.stmt = $1;
         $$->stmtList.stmtList = $2;
@@ -142,7 +145,7 @@ Stmt:
     }
     | RETURN Expr SEMICOLON {
         printf("Parsed Return Statement\n");
-	$$ = createNode(NodeType_ReturnStmt);
+	    $$ = createNode(NodeType_ReturnStmt);
         $$->returnStmt.expr = $2;
     }
     ;
@@ -187,19 +190,19 @@ Expr:
         Symbol* existingSymbol = findSymbol(symTab, $1);
         if (existingSymbol != NULL) {
             printf("Parsed Identifier: %s\n", $1);
-	    $$ = malloc(sizeof(ASTNode));
-	    $$->type = NodeType_SimpleID;
-	    $$->simpleID.name = $1;
+	        $$ = malloc(sizeof(ASTNode));
+	        $$->type = NodeType_SimpleID;
+	        $$->simpleID.name = $1;
         } else {
             printf("Error: Variable %s not declared\n", $1);
             yyerror("Undeclared variable");
         }
-    }
+    } 
     | NUMBER {
         printf("Parsed Number: %d\n", $1);
-	$$ = malloc(sizeof(ASTNode));
-	$$->type = NodeType_SimpleExpr;
-	$$->simpleExpr.number = $1;
+	    $$ = malloc(sizeof(ASTNode));
+	    $$->type = NodeType_SimpleExpr;
+	    $$->simpleExpr.number = $1;
     }
     ;
 
@@ -226,7 +229,22 @@ int main() {
         fprintf(stderr, "Error: Unable to allocate memory for symbol\n");
         exit(1);
     }
-    yyparse();
+
+    initializeTempVars();
+    
+    if (yyparse() == 0) {
+
+        // Semantic Analysis
+        semanticAnalysis(root, symTab);
+
+        // TAC Optimization
+        optimizeTAC(&tacHead);  // 'tacHead' is the global head of the TAC linked list
+
+        // Code Generation
+        initCodeGenerator("output.asm");
+        generateMIPS(tacHead);  // Generate MIPS code from optimized TAC
+        finalizeCodeGenerator("output.asm");
+    }
 
     // Traverse and print the AST
     if (root != NULL) {
@@ -235,5 +253,6 @@ int main() {
     }
 
     freeSymbolTable(symTab);
+    fclose(yyin);
     return 0;
 }

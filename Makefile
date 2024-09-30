@@ -5,6 +5,8 @@ CC = gcc
 CFLAGS = -Wall -g
 BISON = bison
 FLEX = flex
+
+# Executable
 EXEC = main_program
 
 # Files
@@ -12,7 +14,7 @@ BISON_SRC = parser.y
 FLEX_SRC = lexer.l
 BISON_OUTPUT = parser.tab.c
 FLEX_OUTPUT = lex.yy.c
-OBJS = parser.tab.o lex.yy.o AST.o SymbolTable.o
+OBJS = parser.tab.o lex.yy.o AST.o SymbolTable.o semantic.o optimizer.o codeGenerator.o
 
 # Default rule to build the executable
 all: $(EXEC)
@@ -39,6 +41,18 @@ AST.o: AST.c AST.h
 SymbolTable.o: SymbolTable.c SymbolTable.h
 	$(CC) $(CFLAGS) -c SymbolTable.c -o SymbolTable.o -w
 
+# Compile Semantic Analysis
+semantic.o: semantic.c semantic.h AST.h SymbolTable.h
+	$(CC) $(CFLAGS) -c semantic.c -o semantic.o -w
+
+# Compile Optimizer
+optimizer.o: optimizer.c optimizer.h semantic.h
+	$(CC) $(CFLAGS) -c optimizer.c -o optimizer.o -w
+
+# Compile Code Generator
+codeGenerator.o: codeGenerator.c codeGenerator.h AST.h semantic.h
+	$(CC) $(CFLAGS) -c codeGenerator.c -o codeGenerator.o -w
+
 # Clean rule to remove all generated files
 clean:
-	rm -f $(OBJS) $(EXEC) $(BISON_OUTPUT) parser.tab.h $(FLEX_OUTPUT)
+	rm -f $(OBJS) $(EXEC) $(BISON_OUTPUT) parser.tab.h $(FLEX_OUTPUT) semantic.o optimizer.o codeGenerator.o

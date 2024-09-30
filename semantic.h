@@ -2,7 +2,8 @@
 #define SEMANTIC_H
 
 #include "AST.h"         // Assuming this includes the definition of ASTNode
-#include "symbolTable.h" // Assuming this includes the definition of SymbolTable
+#include "SymbolTable.h" // Assuming this includes the definition of SymbolTable
+#include "temp.h"
 
 // Define a structure for TAC instructions
 
@@ -14,7 +15,7 @@ typedef struct TAC {
     struct TAC* next; // Next instruction
 } TAC;
 
-int tempVars[20];
+extern int tempVars[20];
 extern TAC* tacHead; // Global head of the TAC instructions list
 
 int allocateNextAvailableTempVar(int tempVars[]);

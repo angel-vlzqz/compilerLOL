@@ -4,11 +4,9 @@
 
 void optimizeTAC(TAC** head) {
     constantFolding(head);
-    /*
     constantPropagation(head);
     copyPropagation(head);
     deadCodeElimination(head);
-    */
 }
 
 /**
