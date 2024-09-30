@@ -119,7 +119,7 @@ Stmt:
             yyerror("Undeclared variable");
         }
     }
-    | WRITE ID {
+    | WRITE ID SEMICOLON {
         Symbol* existingSymbol = findSymbol(symTab, $2);
         if (existingSymbol != NULL) {
             printf("Parsed Write Statement: %s\n", $2);

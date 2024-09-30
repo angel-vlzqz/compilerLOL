@@ -139,7 +139,6 @@ void freeAST(ASTNode *node)
         free(node->varDecl.varType); // Free the dynamically allocated string
         free(node->varDecl.varName); // Free the dynamically allocated string
         break;
-
     case NodeType_SimpleExpr:
         // No dynamic allocation, nothing to free
         break;
