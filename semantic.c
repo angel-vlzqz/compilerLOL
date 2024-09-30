@@ -19,10 +19,12 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         printf("Performing semantic analysis on program\n");
         semanticAnalysis(node->program.varDeclList, symTab);
         semanticAnalysis(node->program.stmtList, symTab);
+        fprintf(stderr, "Node Type: %d\n", node->type);
         break;
     case NodeType_VarDeclList:
         semanticAnalysis(node->varDeclList.varDecl, symTab);
         semanticAnalysis(node->varDeclList.varDeclList, symTab);
+        fprintf(stderr, "Node Type: %d\n", node->type);
         break;
     case NodeType_VarDecl:
         // Check for redeclaration of variables
@@ -34,10 +36,12 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         {
             insertSymbol(symTab, node->varDecl.varName, node->varDecl.varType);
         }
+        fprintf(stderr, "Node Type: %d\n", node->type);
         break;
     case NodeType_StmtList:
         semanticAnalysis(node->stmtList.stmt, symTab);
         semanticAnalysis(node->stmtList.stmtList, symTab);
+        fprintf(stderr, "Node Type: %d\n", node->type);
         break;
     case NodeType_AssignStmt:
         if (findSymbol(symTab, node->assignStmt.varName) == NULL)
@@ -45,10 +49,12 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
             fprintf(stderr, "Semantic error: Variable %s has not been declared\n", node->assignStmt.varName);
         }
         semanticAnalysis(node->assignStmt.expr, symTab);
+        fprintf(stderr, "Node Type: %d\n", node->type);
         break;
     case NodeType_Expr:
         semanticAnalysis(node->expr.left, symTab);
         semanticAnalysis(node->expr.right, symTab);
+        fprintf(stderr, "Node Type: %d\n", node->type);
         break;
     case NodeType_BinOp:
         // Check for variable declarations in binary operations
@@ -62,11 +68,13 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         }
         semanticAnalysis(node->binOp.left, symTab);
         semanticAnalysis(node->binOp.right, symTab);
+        fprintf(stderr, "Node Type: %d\n", node->type);
         break;
     case NodeType_LogicalOp:
         // Check logical operations
         semanticAnalysis(node->logicalOp.left, symTab);
         semanticAnalysis(node->logicalOp.right, symTab);
+        fprintf(stderr, "Node Type: %d\n", node->type);
         break;
     case NodeType_IfStmt:
         semanticAnalysis(node->ifStmt.condition, symTab);
@@ -75,18 +83,22 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         {
             semanticAnalysis(node->ifStmt.elseBlock, symTab);
         }
+        fprintf(stderr, "Node Type: %d\n", node->type);
         break;
     case NodeType_WhileStmt:
         semanticAnalysis(node->whileStmt.condition, symTab);
         semanticAnalysis(node->whileStmt.block, symTab);
+        fprintf(stderr, "Node Type: %d\n", node->type);
         break;
     case NodeType_ReturnStmt:
         semanticAnalysis(node->returnStmt.expr, symTab);
+        fprintf(stderr, "Node Type: %d\n", node->type);
         break;
     case NodeType_SimpleID:
         if (findSymbol(symTab, node->simpleID.name) == NULL)
         {
             fprintf(stderr, "Semantic error: Variable %s has not been declared\n", node->simpleID.name);
+            fprintf(stderr, "Node Type: %d\n", node->type);
         }
         break;
     case NodeType_SimpleExpr:
@@ -96,10 +108,12 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         if (findSymbol(symTab, node->writeStmt.varName) == NULL)
         {
             fprintf(stderr, "Semantic error: Variable %s has not been declared\n", node->writeStmt.varName);
+            fprintf(stderr, "Node Type: %d\n", node->type);
         }
         break;
     case NodeType_Block:
         semanticAnalysis(node->block.stmtList, symTab);
+        fprintf(stderr, "Node Type: %d\n", node->type);
         break;
         // ... handle other node types ...
 
