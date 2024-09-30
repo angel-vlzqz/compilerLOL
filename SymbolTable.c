@@ -85,25 +85,55 @@ Symbol *findSymbol(SymbolTable *symbolTable, const char *name)
 }
 
 // Free the memory used by the symbol table
-void freeSymbolTable(SymbolTable *symbolTable)
+void freeSymbolTable(SymbolTable* symbolTable)
 {
-    printf("Freeing symbol table...\n");
-    for (int i = 0; i < symbolTable->size; i++)
-    {
-        Symbol *current = symbolTable->table[i];
-        while (current != NULL)
-        {
-            Symbol *temp = current;
-            printf("Freeing symbol: Name = %s, Type = %s, Index = %s\n", temp->name, temp->type, temp->index);
-            current = current->next;
-            free(temp->name);
-            free(temp->type);
-            free(temp->value);
-            free(temp);
+    if (symbolTable == NULL) {
+        printf("Symbol table is NULL. Nothing to free.\n");
+        return;
+    }
+
+    printf("Starting to free symbol table of size %d\n", symbolTable->size);
+
+    for (int i = 0; i < symbolTable->size; i++) {
+        Symbol* symbol = symbolTable->table[i];
+        
+        // Print current bucket being processed
+        printf("Processing bucket %d\n", i);
+
+        while (symbol != NULL) {
+            printf("Freeing symbol: %s\n", symbol->name ? symbol->name : "NULL");
+
+            Symbol* next = symbol->next;
+
+            // Safely free the symbol's name if it exists
+            if (symbol->name != NULL) {
+                printf("Freeing symbol name: %s\n", symbol->name);
+                free(symbol->name);
+                symbol->name = NULL; // Avoid double free
+            }
+
+            // Free the symbol itself
+            printf("Freeing symbol structure\n");
+            free(symbol);
+            symbol = next;
+
+            // Print status of next symbol to process
+            if (symbol != NULL) {
+                printf("Next symbol in bucket: %s\n", symbol->name ? symbol->name : "NULL");
+            } else {
+                printf("No more symbols in this bucket.\n");
+            }
         }
     }
+
+    // Free the table array and the symbol table itself
+    printf("Freeing the symbol table array.\n");
     free(symbolTable->table);
+    symbolTable->table = NULL; // Avoid double free
+
+    printf("Freeing the symbol table structure itself.\n");
     free(symbolTable);
+
     printf("Symbol table freed successfully.\n");
 }
 
