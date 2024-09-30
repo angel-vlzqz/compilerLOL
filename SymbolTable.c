@@ -34,6 +34,7 @@ Symbol *createSymbol(const char *name, const char *type, int index)
     newSymbol->name = strdup(name);
     newSymbol->type = strdup(type);
     newSymbol->index = index;
+    newSymbol->value = NULL;
     newSymbol->next = NULL;
     return newSymbol;
 }
@@ -70,7 +71,11 @@ Symbol *findSymbol(SymbolTable *symbolTable, const char *name)
     {
         if (strcmp(current->name, name) == 0)
         {
-            printf("Symbol found: Name = %s, Type = %s, Index = %d\n", current->name, current->type, index);
+            printf("Symbol found: Name = %s, Type = %s, Index = %d, Value = %s\n", 
+                   current->name, 
+                   current->type, 
+                   index,
+                   current->value);
             return current;
         }
         current = current->next;
@@ -89,10 +94,11 @@ void freeSymbolTable(SymbolTable *symbolTable)
         while (current != NULL)
         {
             Symbol *temp = current;
-            printf("Freeing symbol: Name = %s, Type = %s, Index = %d\n", temp->name, temp->type, temp->index);
+            printf("Freeing symbol: Name = %s, Type = %s, Index = %s\n", temp->name, temp->type, temp->index);
             current = current->next;
             free(temp->name);
             free(temp->type);
+            free(temp->value);
             free(temp);
         }
     }
@@ -128,4 +134,43 @@ SymbolTable *createSymbolTable(int size)
 
     printf("Symbol table created successfully.\n");
     return newTable;
+}
+
+void updateSymbolValue(SymbolTable *symbolTable, const char *name, const char *value) 
+{
+    // Find the symbol in the table
+    Symbol *symbol = findSymbol(symbolTable, name);
+    
+    if (symbol == NULL) 
+    {
+        // If the symbol is not found, print an error or handle it accordingly
+        fprintf(stderr, "Error: Symbol %s not found in the table, cannot update value.\n", name);
+        return;
+    }
+    
+    // Free the old value if it exists to avoid memory leaks
+    if (symbol->value != NULL) 
+    {
+        free(symbol->value);
+    }
+
+    // Allocate memory for the new value and copy it
+    symbol->value = strdup(value);
+    printf("Updated symbol %s with new value: %s\n", name, value);
+}
+
+const char* getSymbolValue(SymbolTable *symbolTable, const char *name) 
+{
+    // Find the symbol in the table
+    Symbol *symbol = findSymbol(symbolTable, name);
+
+    if (symbol == NULL) 
+    {
+        // If the symbol is not found, print an error or return NULL
+        fprintf(stderr, "Error: Symbol %s not found in the table.\n", name);
+        return NULL;
+    }
+
+    // Return the value of the symbol
+    return symbol->value;
 }

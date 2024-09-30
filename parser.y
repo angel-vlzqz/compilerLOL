@@ -77,7 +77,7 @@ VarDecl:
         $$->varDecl.varType = strdup($1);
         $$->varDecl.varName = strdup($2);
         // Insert into symbol table.
-        // insertSymbol(symTab, $2, $1);
+        insertSymbol(symTab, $2, $1);
     } | TYPE ID {
         printf("Missing semicolon after declaring variable: %s\n", $2);
     }
@@ -106,29 +106,42 @@ StmtList:
 
 Stmt:
     ID ASSIGNOP Expr SEMICOLON {
-        // Symbol* existingSymbol = findSymbol(symTab, $1);
-        // if (existingSymbol != NULL) {
+        Symbol* existingSymbol = findSymbol(symTab, $1);
+        if (existingSymbol != NULL) {
             printf("Parsed Assignment Statement: %s = ...\n", $1);
+
+            // Use a local buffer to store the value string
+            char valueBuffer[20];  // No need to free this
+
+            if ($3->type == NodeType_SimpleExpr) {
+                snprintf(valueBuffer, sizeof(valueBuffer), "%d", $3->simpleExpr.number);
+            } else {
+                // Handle other expression types
+            }
+
+            // Update the symbol with the extracted value
+            updateSymbolValue(symTab, $1, valueBuffer);
+
             $$ = malloc(sizeof(ASTNode));
             $$->type = NodeType_AssignStmt;
             $$->assignStmt.varName = strdup($1);
             $$->assignStmt.operator = strdup($2);
             $$->assignStmt.expr = $3;
-        // } else {
-        //     printf("Error: Variable %s not declared\n", $1);
-        //     yyerror("Undeclared variable");
-        // }
+        } else {
+            printf("Error: Variable %s not declared\n", $1);
+            yyerror("Undeclared variable");
+        }
     }
     | WRITE ID SEMICOLON {
-        // Symbol* existingSymbol = findSymbol(symTab, $2);
-        // if (existingSymbol != NULL) {
+        Symbol* existingSymbol = findSymbol(symTab, $2);
+        if (existingSymbol != NULL) {
             printf("Parsed Write Statement: %s\n", $2);
             $$ = createNode(NodeType_WriteStmt);
             $$->writeStmt.varName = strdup($2);
-        // } else {
-        //     printf("Error: Variable %s not declared\n", $2);
-        //     yyerror("Undeclared variable");
-        // }
+        } else {
+            printf("Error: Variable %s not declared\n", $2);
+            yyerror("Undeclared variable");
+        }
     }
     | IF Expr THEN Block ELSE Block {
         printf("Parsed If-Else Statement\n");
@@ -187,16 +200,16 @@ Expr:
         $$ = $2;
     }
     | ID {
-        // Symbol* existingSymbol = findSymbol(symTab, $1);
-        // if (existingSymbol != NULL) {
+        Symbol* existingSymbol = findSymbol(symTab, $1);
+        if (existingSymbol != NULL) {
             printf("Parsed Identifier: %s\n", $1);
 	        $$ = malloc(sizeof(ASTNode));
 	        $$->type = NodeType_SimpleID;
 	        $$->simpleID.name = $1;
-        // } else {
-        //     printf("Error: Variable %s not declared\n", $1);
-        //     yyerror("Undeclared variable");
-        // }
+        } else {
+            printf("Error: Variable %s not declared\n", $1);
+            yyerror("Undeclared variable");
+        }
     } 
     | NUMBER {
         printf("Parsed Number: %d\n", $1);
