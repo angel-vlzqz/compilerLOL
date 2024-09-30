@@ -6,13 +6,20 @@
 // Hash function: Hash based on the ASCII values of the string's characters
 unsigned int hashFunction(const char *name, int tableSize)
 {
+    // Check if the name is NULL
+    if (name == NULL) {
+        fprintf(stderr, "Error: Tried to hash a NULL name.\n");
+        return 0; // Or handle it appropriately
+    }
+
     unsigned long hash = 0;
-    while (*name)
+    while (*name) // Proceed only if name is non-NULL
     {
-        hash = abs((hash * 31) + (unsigned char)(*name)); // 31 is used as a multiplier for hashing
+        hash = abs((hash * 31) + (unsigned char)(*name));
         name++;
     }
-    return hash % tableSize; // Use the prime number size for better distribution
+
+    return hash % tableSize;
 }
 
 // Create a new symbol with the given name, type, and index
@@ -64,15 +71,7 @@ Symbol *findSymbol(SymbolTable *symbolTable, const char *name)
     {
         if (strcmp(current->name, name) == 0)
         {
-<<<<<<< HEAD
-            printf("Symbol found: Name = %s, Type = %s, Index = %d, Value = %s\n",
-                   current->name,
-                   current->type,
-                   index,
-                   current->value);
-=======
             printf("Symbol found: Name = %s, Type = %s, Index = %d, Value = %s\n", current->name, current->type, index, current->value ? current->value : "NULL");
->>>>>>> 8975319 (did some things, including absolute value in hash method)
             return current;
         }
         current = current->next;
