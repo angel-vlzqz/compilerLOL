@@ -5,13 +5,21 @@
 // Hash function: Hash based on the ASCII values of the string's characters
 unsigned int hashFunction(const char *name, int tableSize)
 {
-    unsigned long hash = 0;
-    while (*name)
+    // Check if the name is NULL
+    if (name == NULL)
     {
-        hash = (hash * 31) + (unsigned char)(*name); // 31 is used as a multiplier for hashing
+        fprintf(stderr, "Error: Tried to hash a NULL name.\n");
+        return 0; // Or handle it appropriately
+    }
+
+    unsigned long hash = 0;
+    while (*name) // Proceed only if name is non-NULL
+    {
+        hash = (hash * 31) + (unsigned char)(*name);
         name++;
     }
-    return hash % tableSize; // Use the prime number size for better distribution
+
+    return hash % tableSize;
 }
 
 // Create a new symbol with the given name, type, and index

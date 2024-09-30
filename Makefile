@@ -2,7 +2,8 @@
 
 # Compiler and flags
 CC = gcc
-CFLAGS = -Wall -g
+CFLAGS = -Wall -g -Wextra -Werror
+LDFLAGS = -g
 BISON = bison
 FLEX = flex
 
