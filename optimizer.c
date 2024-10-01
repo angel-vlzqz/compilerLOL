@@ -102,26 +102,84 @@ bool isVariable(const char* str) {
 
 
 // A simplified constant folding example that only handles addition of integer constants. 
-void constantFolding(TAC** head) {
-    TAC* current = *head; // Current TAC instruction
+void constantFolding(TAC **head)
+{
+    TAC *current = *head; // Current TAC instruction
 
     // Apply constant folding optimization
-    while (current != NULL) {
-        if (strcmp(current->op, "+") == 0) {
-            // Check if both operands are constants
-            if (isConstant(current->arg1) && isConstant(current->arg2)) {
-                int result = atoi(current->arg1) + atoi(current->arg2); // Perform the addition
+    while (current != NULL)
+    {
+        printf("Constant folding started\n");
+
+        if (current->op != NULL) 
+        {
+            printf("Operator: %s\n", current->op);
+        }
+
+        // Check for a binary operation (+, -, *, /)
+        if (current->op != NULL && (strcmp(current->op, "+") == 0 || strcmp(current->op, "-") == 0 ||
+                                    strcmp(current->op, "*") == 0 || strcmp(current->op, "/") == 0))
+        {
+            printf("Constant folding if\n");
+
+            // If both operands are constants
+            if (isConstant(current->arg1) && isConstant(current->arg2))
+            {
+                printf("Constant folding nested if debug\n");
+
+                // Perform the operation
+                int operand1 = atoi(current->arg1);
+                int operand2 = atoi(current->arg2);
+                int result;
+
+                // Apply the operation based on the operator
+                if (strcmp(current->op, "+") == 0)
+                {
+                    result = operand1 + operand2;
+                }
+                else if (strcmp(current->op, "-") == 0)
+                {
+                    result = operand1 - operand2;
+                }
+                else if (strcmp(current->op, "*") == 0)
+                {
+                    result = operand1 * operand2;
+                }
+                else if (strcmp(current->op, "/") == 0)
+                {
+                    if (operand2 != 0)
+                    {
+                        result = operand1 / operand2;
+                    }
+                    else
+                    {
+                        fprintf(stderr, "Error: Division by zero in constant folding\n");
+                        return;
+                    }
+                }
+
+                // Replace the TAC with the folded result
                 char resultStr[20];
                 sprintf(resultStr, "%d", result); // Convert the result to a string
                 free(current->arg1);
                 free(current->arg2);
-                current->arg1 = strdup(resultStr);
-                current->op = "="; // Change the operation to assignment";
-                current->arg2 = NULL;
-                printf("Constant folding applied\n");
-                printCurrentOptimizedTAC(current);
+                current->arg1 = strdup(resultStr); // Replace arg1 with the result
+                current->op = strdup("=");         // Change the operation to assignment
+                current->arg2 = NULL;              // No second operand needed
+
+                printf("Constant folding applied: %s = %s\n", current->result, current->arg1);
+                printCurrentOptimizedTAC(current); // Print the optimized TAC
+            }
+            // If only one operand is a constant, we can't fold, but we can optimize partially
+            else if (isConstant(current->arg1) || isConstant(current->arg2))
+            {
+                printf("Constant folding partial if\n");
+
+                // Example: t5 = a + 1 becomes t5 = a + 1 (partial folding, can't fully optimize)
+                // You could optimize more cases here depending on your use case
             }
         }
+
         current = current->next; // Move to the next TAC instruction
     }
 }

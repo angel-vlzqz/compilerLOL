@@ -247,17 +247,22 @@ int main() {
     
     if (yyparse() == 0) {
 
+        printf("=================Semantic=================\n");
+
         // Semantic Analysis
         semanticAnalysis(root, symTab);
 
         // printTACToFile("TACsem.txt", &tacHead);
         // printTAC(&tacHead);
 
+        printf("=================Optimizer=================\n");
         // TAC Optimization
         optimizeTAC(&tacHead);  // 'tacHead' is the global head of the TAC linked list
 
         // printTACToFile("TACopt.txt", &tacHead);
         // printCurrentOptimizedTAC(&tacHead);
+        
+        printf("=================Code Generation=================\n");
         
         // Code Generation
         initCodeGenerator("output.asm");

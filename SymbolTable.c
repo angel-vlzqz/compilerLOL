@@ -62,6 +62,7 @@ void insertSymbol(SymbolTable *symbolTable, const char *name, const char *type)
 // Find a symbol in the symbol table by name
 Symbol *findSymbol(SymbolTable *symbolTable, const char *name)
 {
+    printf("=================Finding symbol %s=================\n", name);
     unsigned int index = hashFunction(name, symbolTable->size);
     printf("Finding symbol: Name = %s, Index = %u\n", name, index);
     Symbol *current = symbolTable->table[index];

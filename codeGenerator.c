@@ -52,47 +52,128 @@ void generateMIPS(TAC *tacInstructions)
     TAC *current = tacInstructions;
     fprintf(outputFile, ".text\n.globl main\nmain:\n");
 
-    int regIndex = allocateRegister(); // Allocate a register, e.g., $t0
-    if (regIndex == -1)
-    {
-        // Handle register allocation failure
-        fprintf(stderr, "Error: Register allocation failed\n");
-        return;
-    }
-
     printf("Generating MIPS code...\n");
     while (current != NULL)
     {
         printCurrentTAC(current);
+
         if (strcmp(current->op, "=") == 0)
         {
-            printf("Generating MIPS for Assignment operation\n");
-            fprintf(outputFile, "\tli $t0, %s\n\tsw $t0, %s\n", current->arg1, current->result);
+            int reg = allocateRegister();
+            if (reg == -1)
+            {
+                fprintf(stderr, "Error: No available register for assignment operation\n");
+                return;
+            }
+
+            if (isConstant(current->arg1)) {
+                // Load immediate value for constant assignment
+                printf("Generating MIPS for constant assignment\n");
+                fprintf(outputFile, "\tli %s, %s\n", tempRegisters[reg].name, current->arg1);
+            } else {
+                // Load value from a variable
+                int argReg = allocateRegister();
+                if (argReg == -1)
+                {
+                    fprintf(stderr, "Error: No available register for loading variable\n");
+                    return;
+                }
+                printf("Generating MIPS for variable assignment\n");
+                fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[argReg].name, current->arg1);
+                fprintf(outputFile, "\tmove %s, %s\n", tempRegisters[reg].name, tempRegisters[argReg].name);
+                deallocateRegister(argReg); // Deallocate the temporary register used for loading
+            }
+
+            fprintf(outputFile, "\tsw %s, %s\n", tempRegisters[reg].name, current->result);
+            deallocateRegister(reg); // Deallocate the register after use
         }
         else if (strcmp(current->op, "+") == 0)
         {
-            // Modify the command below, to properly allocate registers for the operands
+            int reg1 = allocateRegister();
+            int reg2 = allocateRegister();
+            int resultReg = allocateRegister();
+
+            if (reg1 == -1 || reg2 == -1 || resultReg == -1)
+            {
+                fprintf(stderr, "Error: No available registers for addition operation\n");
+                return;
+            }
+
             printf("Generating MIPS code for addition operation\n");
-            fprintf(outputFile, "\tlw $t0, %s\n\tlw $t1, %s\n\tadd $t2, $t0, $t1\n\tsw $t2, %s\n", current->arg1, current->arg2, current->result);
+            fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg1].name, current->arg1);
+            fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg2].name, current->arg2);
+            fprintf(outputFile, "\tadd %s, %s, %s\n", tempRegisters[resultReg].name, tempRegisters[reg1].name, tempRegisters[reg2].name);
+            fprintf(outputFile, "\tsw %s, %s\n", tempRegisters[resultReg].name, current->result);
+
+            // Deallocate the registers after use
+            deallocateRegister(reg1);
+            deallocateRegister(reg2);
+            deallocateRegister(resultReg);
         }
         else if (strcmp(current->op, "-") == 0)
         {
+            int reg1 = allocateRegister();
+            int reg2 = allocateRegister();
+            int resultReg = allocateRegister();
+
+            if (reg1 == -1 || reg2 == -1 || resultReg == -1)
+            {
+                fprintf(stderr, "Error: No available registers for subtraction operation\n");
+                return;
+            }
+
             printf("Generating MIPS code for subtraction operation\n");
-            fprintf(outputFile, "\tlw $t0, %s\n\tlw $t1, %s\n\tsub $t2, $t0, $t1\n\tsw $t2, %s\n", current->arg1, current->arg2, current->result);
+            fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg1].name, current->arg1);
+            fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg2].name, current->arg2);
+            fprintf(outputFile, "\tsub %s, %s, %s\n", tempRegisters[resultReg].name, tempRegisters[reg1].name, tempRegisters[reg2].name);
+            fprintf(outputFile, "\tsw %s, %s\n", tempRegisters[resultReg].name, current->result);
+
+            // Deallocate the registers after use
+            deallocateRegister(reg1);
+            deallocateRegister(reg2);
+            deallocateRegister(resultReg);
         }
         else if (strcmp(current->op, "*") == 0)
         {
+            int reg1 = allocateRegister();
+            int reg2 = allocateRegister();
+            int resultReg = allocateRegister();
+
+            if (reg1 == -1 || reg2 == -1 || resultReg == -1)
+            {
+                fprintf(stderr, "Error: No available registers for multiplication operation\n");
+                return;
+            }
+
             printf("Generating MIPS code for multiplication operation\n");
-            fprintf(outputFile, "\tlw $t0, %s\n\tlw $t1, %s\n\tmul $t2, $t0, $t1\n\tsw $t2, %s\n", current->arg1, current->arg2, current->result);
+            fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg1].name, current->arg1);
+            fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg2].name, current->arg2);
+            fprintf(outputFile, "\tmul %s, %s, %s\n", tempRegisters[resultReg].name, tempRegisters[reg1].name, tempRegisters[reg2].name);
+            fprintf(outputFile, "\tsw %s, %s\n", tempRegisters[resultReg].name, current->result);
+
+            // Deallocate the registers after use
+            deallocateRegister(reg1);
+            deallocateRegister(reg2);
+            deallocateRegister(resultReg);
         }
-        else if (strcmp(current->op, "write") == 0) {
-            // Handle the write operation (print a variable's value)
+        else if (strcmp(current->op, "write") == 0)
+        {
+            int reg = allocateRegister();
+            if (reg == -1)
+            {
+                fprintf(stderr, "Error: No available register for write operation\n");
+                return;
+            }
+
             printf("Generating MIPS code for WRITE operation\n");
-            fprintf(outputFile, "\tlw $a0, %s\n", current->arg1);  // Load the value to be printed into $a0
+            fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg].name, current->arg1);
+            fprintf(outputFile, "\tmove $a0, %s\n", tempRegisters[reg].name);  // Load the value into $a0
             fprintf(outputFile, "\tli $v0, 1\n");  // MIPS syscall code for printing an integer
-            fprintf(outputFile, "\tsyscall\n");  // Make the syscall to print the integer
+            fprintf(outputFile, "\tsyscall\n");    // Make the syscall to print the integer
+
+            // Deallocate the register after use
+            deallocateRegister(reg);
         }
-        // Add more operations here (subtraction, multiplication, etc.)
 
         current = current->next;
     }
