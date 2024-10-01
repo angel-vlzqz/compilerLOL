@@ -1,6 +1,7 @@
 // codeGenerator.c
 
 #include "codeGenerator.h"
+#include "optimizer.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
