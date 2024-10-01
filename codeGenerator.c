@@ -75,6 +75,16 @@ void generateMIPS(TAC *tacInstructions)
             printf("Generating MIPS code for addition operation\n");
             fprintf(outputFile, "\tlw $t0, %s\n\tlw $t1, %s\n\tadd $t2, $t0, $t1\n\tsw $t2, %s\n", current->arg1, current->arg2, current->result);
         }
+        else if (strcmp(current->op, "-") == 0)
+        {
+            printf("Generating MIPS code for subtraction operation\n");
+            fprintf(outputFile, "\tlw $t0, %s\n\tlw $t1, %s\n\tsub $t2, $t0, $t1\n\tsw $t2, %s\n", current->arg1, current->arg2, current->result);
+        }
+        else if (strcmp(current->op, "*") == 0)
+        {
+            printf("Generating MIPS code for multiplication operation\n");
+            fprintf(outputFile, "\tlw $t0, %s\n\tlw $t1, %s\n\tmul $t2, $t0, $t1\n\tsw $t2, %s\n", current->arg1, current->arg2, current->result);
+        }
         else if (strcmp(current->op, "write") == 0) {
             // Handle the write operation (print a variable's value)
             printf("Generating MIPS code for WRITE operation\n");

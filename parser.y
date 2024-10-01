@@ -250,13 +250,21 @@ int main() {
         // Semantic Analysis
         semanticAnalysis(root, symTab);
 
+        // printTACToFile("TACsem.txt", &tacHead);
+        // printTAC(&tacHead);
+
         // TAC Optimization
         optimizeTAC(&tacHead);  // 'tacHead' is the global head of the TAC linked list
+
+        // printTACToFile("TACopt.txt", &tacHead);
+        // printCurrentOptimizedTAC(&tacHead);
         
         // Code Generation
         initCodeGenerator("output.asm");
         generateMIPS(tacHead);  // Generate MIPS code from optimized TAC
         finalizeCodeGenerator("output.asm");
+        // printTACToFile("TACgen.txt", &tacHead);
+        // printCurrentTAC(&tacHead);
     }
 
     // Traverse and print the AST

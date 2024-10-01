@@ -149,115 +149,112 @@ TAC *generateTACForExpr(ASTNode *expr)
 
     TAC *instruction = (TAC *)malloc(sizeof(TAC));
     if (!instruction)
+    {
+        perror("Failed to allocate memory for TAC");
         return NULL;
+    }
+
+    // Initialize TAC fields to NULL
+    instruction->op = NULL;
+    instruction->arg1 = NULL;
+    instruction->arg2 = NULL;
+    instruction->result = NULL;
+    instruction->next = NULL;
 
     switch (expr->type)
     {
     case NodeType_Expr:
-    {
         printf("Generating TAC for expression\n");
         instruction->arg1 = createOperand(expr->expr.left);
         instruction->arg2 = createOperand(expr->expr.right);
-        instruction->op = strdup("+"); // Or other binary operators
-        instruction->result = createTempVar();
+        instruction->op = strdup("+"); // Make sure to strdup the operator
+        if (!instruction->result)
+            instruction->result = createTempVar();
         break;
-    }
+
     case NodeType_SimpleExpr:
-    {
         printf("Generating TAC for simple expression\n");
         char buffer[20];
         snprintf(buffer, 20, "%d", expr->simpleExpr.number);
-        instruction->arg1 = strdup(buffer);
-        instruction->op = "=";
+        instruction->arg1 = strdup(buffer);  // Duplicate the number as a string
+        instruction->op = strdup("=");       // Assign '=' as the operation
         instruction->arg2 = NULL;
-        instruction->result = createTempVar();
+        if (!instruction->result)
+            instruction->result = createTempVar();
         break;
-    }
+
     case NodeType_SimpleID:
-    {
         printf("Generating TAC for simple ID\n");
-        instruction->arg1 = strdup(expr->simpleID.name);
+        instruction->arg1 = strdup(expr->simpleID.name);  // Duplicate the variable name
         instruction->op = strdup("assign");
-        instruction->result = createTempVar();
+        if (!instruction->result)
+            instruction->result = createTempVar();
         break;
-    }
+
     case NodeType_AssignStmt:
-    {
         printf("Generating TAC for assignment statement\n");
         instruction->arg1 = createOperand(expr->assignStmt.expr);
         instruction->op = strdup("=");
-        instruction->result = strdup(expr->assignStmt.varName);
+        instruction->result = strdup(expr->assignStmt.varName);  // Duplicate the assigned variable name
         break;
-    }
+
     case NodeType_BinOp:
-    {
         printf("Generating TAC for binary operation\n");
         instruction->arg1 = createOperand(expr->binOp.left);
         instruction->arg2 = createOperand(expr->binOp.right);
-        instruction->op = strdup(&expr->binOp.operator); // Handle the operator dynamically
-        instruction->result = createTempVar();
+        switch (expr->binOp.operator)
+        {
+            case '+':
+                instruction->op = strdup("+");
+                break;
+            case '-':
+                instruction->op = strdup("-");
+                break;
+            case '*':
+                instruction->op = strdup("*");
+                break;
+            case '/':
+                instruction->op = strdup("/");
+                break;
+            default:
+                fprintf(stderr, "Error: Unsupported operator '%c'\n", expr->binOp.operator);
+                free(instruction);
+                return NULL;
+        }
+        if (!instruction->result)
+            instruction->result = createTempVar();
         break;
-    }
+
     case NodeType_LogicalOp:
-    {
         printf("Generating TAC for logical operation\n");
         instruction->arg1 = createOperand(expr->logicalOp.left);
         instruction->arg2 = createOperand(expr->logicalOp.right);
-        instruction->op = strdup(expr->logicalOp.logicalOp);
-        instruction->result = createTempVar();
+        instruction->op = strdup(expr->logicalOp.logicalOp);  // Duplicate the logical operator
+        if (!instruction->result)
+            instruction->result = createTempVar();
         break;
-    }
+
     case NodeType_WriteStmt:
-    {
         printf("Generating TAC for WRITE statement\n");
-        instruction->arg1 = strdup(expr->writeStmt.varName);  // Variable to be written
-        instruction->op = strdup("write");  // Operation is 'write'
+        instruction->arg1 = strdup(expr->writeStmt.varName);  // Duplicate the variable name
+        instruction->op = strdup("write");
         instruction->result = strdup(expr->writeStmt.varName);  // The result is the variable being written
         break;
-    }
-    case NodeType_IfStmt:
-    {
-        printf("Generating TAC for IF statement\n");
-        TAC *condTac = generateTACForExpr(expr->ifStmt.condition);
-        appendTAC(&tacHead, condTac);
 
-        TAC *thenTac = generateTACForExpr(expr->ifStmt.thenBlock);
-        appendTAC(&tacHead, thenTac);
-
-        if (expr->ifStmt.elseBlock != NULL)
-        {
-            TAC *elseTac = generateTACForExpr(expr->ifStmt.elseBlock);
-            appendTAC(&tacHead, elseTac);
-        }
-        break;
-    }
-    case NodeType_WhileStmt:
-    {
-        printf("Generating TAC for WHILE statement\n");
-        TAC *condTac = generateTACForExpr(expr->whileStmt.condition);
-        appendTAC(&tacHead, condTac);
-
-        TAC *bodyTac = generateTACForExpr(expr->whileStmt.block);
-        appendTAC(&tacHead, bodyTac);
-        break;
-    }
     case NodeType_ReturnStmt:
-    {
         printf("Generating TAC for RETURN statement\n");
         instruction->arg1 = createOperand(expr->returnStmt.expr);
         instruction->op = strdup("return");
         instruction->result = NULL;
         break;
-    }
 
     default:
+        fprintf(stderr, "Error: Unsupported node type\n");
         free(instruction);
         return NULL;
     }
 
-    instruction->next = NULL; // Make sure to null-terminate the new instruction
-
-    // Append to the global TAC list
+    // Append the instruction to the global TAC list
     appendTAC(&tacHead, instruction);
 
     return instruction;
@@ -349,33 +346,78 @@ void printTAC(TAC *tac)
 
 void printTACToFile(const char *filename, TAC *tac)
 {
+    printf("Opening file: %s\n", filename);
     FILE *file = fopen(filename, "w");
     if (!file)
     {
         perror("Failed to open file");
         return;
     }
+
     TAC *current = tac;
+    int tacCounter = 0; // To track the TAC instruction number
+
     while (current != NULL)
     {
+        printf("Processing TAC instruction %d\n", tacCounter);
+
+        // Check if 'op' is NULL before attempting to use it
+        if (current->op != NULL)
+        {
+            printf("TAC instruction %d: operation = %s\n", tacCounter, current->op);
+        }
+        else
+        {
+            printf("TAC instruction %d: operation is NULL or corrupted\n", tacCounter);
+            current = current->next;
+            tacCounter++;
+            continue; // Skip further processing for this instruction
+        }
+
         if (strcmp(current->op, "=") == 0)
         {
-            fprintf(file, "%s = %s\n", current->result, current->arg1);
+            // Ensure 'result' and 'arg1' are not NULL before printing
+            if (current->result != NULL && current->arg1 != NULL)
+            {
+                printf("TAC instruction %d: result = %s, arg1 = %s\n", tacCounter, current->result, current->arg1);
+                fprintf(file, "%s = %s\n", current->result, current->arg1);
+            }
+            else
+            {
+                printf("TAC instruction %d: result or arg1 is NULL\n", tacCounter);
+            }
         }
         else
         {
             if (current->result != NULL)
+            {
+                printf("TAC instruction %d: result = %s\n", tacCounter, current->result);
                 fprintf(file, "%s = ", current->result);
+            }
             if (current->arg1 != NULL)
+            {
+                printf("TAC instruction %d: arg1 = %s\n", tacCounter, current->arg1);
                 fprintf(file, "%s ", current->arg1);
+            }
             if (current->op != NULL)
+            {
+                printf("TAC instruction %d: op = %s\n", tacCounter, current->op);
                 fprintf(file, "%s ", current->op);
+            }
             if (current->arg2 != NULL)
+            {
+                printf("TAC instruction %d: arg2 = %s\n", tacCounter, current->arg2);
                 fprintf(file, "%s ", current->arg2);
+            }
             fprintf(file, "\n");
         }
+
+        // Move to the next TAC instruction
         current = current->next;
+        tacCounter++; // Increment TAC counter
     }
+
+    printf("Closing file: %s\n", filename);
     fclose(file);
     printf("TAC written to %s\n", filename);
 }
