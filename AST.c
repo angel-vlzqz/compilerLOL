@@ -107,16 +107,6 @@ void traverseAST(ASTNode *node, int level)
         printf("Block\n");
         traverseAST(node->block.stmtList, level + 1);
         break;
-        //    case NodeType_StmtList:
-        //        printIndent(level);
-        //        traverseAST(node->stmtList.stmt, level + 1);
-        //        traverseAST(node->stmtList.stmtList, level + 1);
-        //        break;
-        //    case NodeType_AssignStmt:
-        //        printIndent(level);
-        //        printf("Stmt: %s = ", node->assignStmt.varName);
-        //        traverseAST(node->assignStmt.expr, level + 1);
-        //        break;
     }
 }
 
@@ -196,10 +186,15 @@ ASTNode *createNode(NodeType type)
     if (newNode == NULL)
     {
         // Handle memory allocation failure if needed
-        return NULL;
+        printf("Memory allocation failed for AST node\n");
+        exit(1);
+        //return NULL;
     }
 
     newNode->type = type;
+
+    // debugging: log the node creation
+    // printf("Created AST node of type %d\n", type);
 
     // Initialize the node based on its type
     switch (type)
