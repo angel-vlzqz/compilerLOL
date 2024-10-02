@@ -188,7 +188,7 @@ ASTNode *createNode(NodeType type)
         // Handle memory allocation failure if needed
         printf("Memory allocation failed for AST node\n");
         exit(1);
-        // return NULL;
+        //return NULL;
     }
 
     newNode->type = type;
