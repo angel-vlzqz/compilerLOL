@@ -115,5 +115,13 @@ main:
 	lw $t1, (null)
 	move $t0, $t1
 	sw $t0, y
+	lw $t0, x
+	move $a0, $t0
+	li $v0, 1
+	syscall
+	lw $t0, y
+	move $a0, $t0
+	li $v0, 1
+	syscall
 	li $v0, 10
 	syscall

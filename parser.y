@@ -118,7 +118,8 @@ Stmt:
     ID ASSIGNOP Expr SEMICOLON 
     {
         Symbol* existingSymbol = findSymbol(symTab, $1);
-        if (existingSymbol != NULL) {
+        if (existingSymbol != NULL) 
+        {
             printf("Parsed Assignment Statement: %s = ...\n", $1);
 
             // Use a local buffer to store the value string
@@ -290,14 +291,22 @@ int main()
         // Semantic Analysis
         semanticAnalysis(root, symTab);
 
+<<<<<<< HEAD
         printTACToFile("TACsem.ir", &tacHead);
+=======
+        printTACToFile("TACsem.ir", tacHead);
+>>>>>>> 2e6ee48 (wat?)
         printTAC(&tacHead);
 
         printf("=================Optimizer=================\n");
         // TAC Optimization
         optimizeTAC(&tacHead);  // 'tacHead' is the global head of the TAC linked list
 
+<<<<<<< HEAD
         printTACToFile("TACopt.ir", &tacHead);
+=======
+        printTACToFile("TACopt.ir", tacHead);
+>>>>>>> 2e6ee48 (wat?)
         printCurrentOptimizedTAC(&tacHead);
         
         printf("=================Code Generation=================\n");

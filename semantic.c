@@ -262,7 +262,7 @@ TAC *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
                 return NULL;
             }
 
-            writeTAC->op = strdup("WRITE");
+            writeTAC->op = strdup("write");
             writeTAC->arg1 = strdup(expr->writeStmt.varName);
             writeTAC->arg2 = NULL;
             writeTAC->result = NULL;
@@ -327,6 +327,7 @@ char *createOperand(ASTNode *node, SymbolTable *symTab)
             fprintf(stderr, "Unhandled node type %d in createOperand\n", node->type);
             return NULL;
     }
+
 }
 
 void printTAC(TAC *tac)
@@ -364,12 +365,21 @@ void printTACToFile(const char *filename, TAC *tac)
 
     while (current != NULL)
     {
+        if (current->op != NULL)
+        {
+            printf("TAC instruction %d: operation is: %s\n", tacCounter, current->op);
+        }
+        else
+        {
+            printf("TAC instruction %d: operation is NULL\n", tacCounter);
+        }
+
         printf("Processing TAC instruction %d\n", tacCounter);
 
         // Check if 'op' is NULL before attempting to use it
         if (current->op != NULL)
         {
-            printf("TAC instruction %d: operation = %s\n", tacCounter, current->op);
+            printf("TAC instruction %d: operation is: %s\n", tacCounter, current->op);
         }
         else
         {
