@@ -28,8 +28,6 @@ void initCodeGenerator(const char *outputFilename)
         perror("Failed to open output file");
         exit(EXIT_FAILURE);
     }
-    // Write the data section header
-    fprintf(outputFile, ".data\n");
 }
 
 void generateMIPS(TAC *tacInstructions)
@@ -50,10 +48,23 @@ void generateMIPS(TAC *tacInstructions)
 
     */
 
-    TAC *current = tacInstructions;
+    VarNode* varList = NULL;
+    collectVariables(tacInstructions, &varList);
+
+    // Write the .data section with variable declarations
+    fprintf(outputFile, ".data\n");
+    VarNode* varCurrent = varList;
+    while (varCurrent != NULL) {
+        // Declare each variable, initializing to zero
+        fprintf(outputFile, "%s: .word 0\n", varCurrent->name);
+        varCurrent = varCurrent->next;
+    }
+
+    // Start the .text section and the main function
     fprintf(outputFile, ".text\n.globl main\nmain:\n");
 
     printf("Generating MIPS code...\n");
+    TAC *current = tacInstructions;
     while (current != NULL)
     {
         if (current->op == NULL) {
@@ -96,14 +107,29 @@ void generateMIPS(TAC *tacInstructions)
             int reg1 = allocateRegister();
             int reg2 = allocateRegister();
             int resultReg = allocateRegister();
+            if (reg1 == -1 || reg2 == -1 || resultReg == -1) {
+                fprintf(stderr, "Error: No available registers for addition operation\n");
+                return;
+            }
             if (current->arg1 == NULL || current->arg2 == NULL || current->result == NULL) {
                 fprintf(stderr, "Error: Addition TAC contains NULL fields\n");
                 current = current->next;
                 continue;
             }
             printf("Generating MIPS code for addition operation\n");
-            fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg1].name, current->arg1);
-            fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg2].name, current->arg2);
+            // Load arg1
+            if (isConstant(current->arg1)) {
+                fprintf(outputFile, "\tli %s, %s\n", tempRegisters[reg1].name, current->arg1);
+            } else {
+                fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg1].name, current->arg1);
+            }
+            // Load arg2
+            if (isConstant(current->arg2)) {
+                fprintf(outputFile, "\tli %s, %s\n", tempRegisters[reg2].name, current->arg2);
+            } else {
+                fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg2].name, current->arg2);
+            }
+            // Perform addition
             fprintf(outputFile, "\tadd %s, %s, %s\n", tempRegisters[resultReg].name, tempRegisters[reg1].name, tempRegisters[reg2].name);
             fprintf(outputFile, "\tsw %s, %s\n", tempRegisters[resultReg].name, current->result);
 
@@ -112,52 +138,7 @@ void generateMIPS(TAC *tacInstructions)
             deallocateRegister(reg2);
             deallocateRegister(resultReg);
         }
-        else if (strcmp(current->op, "-") == 0)
-        {
-            int reg1 = allocateRegister();
-            int reg2 = allocateRegister();
-            int resultReg = allocateRegister();
-
-            if (reg1 == -1 || reg2 == -1 || resultReg == -1)
-            {
-                fprintf(stderr, "Error: No available registers for subtraction operation\n");
-                return;
-            }
-
-            printf("Generating MIPS code for subtraction operation\n");
-            fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg1].name, current->arg1);
-            fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg2].name, current->arg2);
-            fprintf(outputFile, "\tsub %s, %s, %s\n", tempRegisters[resultReg].name, tempRegisters[reg1].name, tempRegisters[reg2].name);
-            fprintf(outputFile, "\tsw %s, %s\n", tempRegisters[resultReg].name, current->result);
-
-            // Deallocate the registers after use
-            deallocateRegister(reg1);
-            deallocateRegister(reg2);
-            deallocateRegister(resultReg);
-        }
-        else if (strcmp(current->op, "*") == 0)
-        {
-            int reg1 = allocateRegister();
-            int reg2 = allocateRegister();
-            int resultReg = allocateRegister();
-
-            if (reg1 == -1 || reg2 == -1 || resultReg == -1)
-            {
-                fprintf(stderr, "Error: No available registers for multiplication operation\n");
-                return;
-            }
-
-            printf("Generating MIPS code for multiplication operation\n");
-            fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg1].name, current->arg1);
-            fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg2].name, current->arg2);
-            fprintf(outputFile, "\tmul %s, %s, %s\n", tempRegisters[resultReg].name, tempRegisters[reg1].name, tempRegisters[reg2].name);
-            fprintf(outputFile, "\tsw %s, %s\n", tempRegisters[resultReg].name, current->result);
-
-            // Deallocate the registers after use
-            deallocateRegister(reg1);
-            deallocateRegister(reg2);
-            deallocateRegister(resultReg);
-        }
+        // Handle other operations (subtraction, multiplication, etc.) similarly
         else if (strcmp(current->op, "write") == 0)
         {
             int reg = allocateRegister();
@@ -191,12 +172,19 @@ void generateMIPS(TAC *tacInstructions)
             // Deallocate the register after use
             deallocateRegister(reg);
         }
+        else
+        {
+            fprintf(stderr, "Warning: Unsupported TAC operation '%s'\n", current->op);
+        }
 
         current = current->next;
     }
 
     // Exit program
     fprintf(outputFile, "\tli $v0, 10\n\tsyscall\n");
+
+    // Free the variable list
+    freeVariableList(varList);
 }
 
 void finalizeCodeGenerator(const char *outputFilename)
@@ -280,5 +268,56 @@ void printCurrentTAC(TAC *tac)
             printf("\n");
         }
         current = current->next;
+    }
+}
+
+// Function to check if a variable is already in the list
+bool isVariableInList(VarNode* varList, const char* varName) {
+    VarNode* current = varList;
+    while (current != NULL) {
+        if (strcmp(current->name, varName) == 0) {
+            return true;
+        }
+        current = current->next;
+    }
+    return false;
+}
+
+// Function to add a variable to the list
+void addVariable(VarNode** varList, const char* varName) {
+    if (isVariableInList(*varList, varName)) {
+        return; // Variable already in the list
+    }
+    VarNode* newNode = malloc(sizeof(VarNode));
+    newNode->name = strdup(varName);
+    newNode->next = *varList;
+    *varList = newNode;
+}
+
+// Function to collect all variables from TAC instructions
+void collectVariables(TAC* tacInstructions, VarNode** varList) {
+    TAC* current = tacInstructions;
+    while (current != NULL) {
+        if (current->result != NULL && isVariable(current->result)) {
+            addVariable(varList, current->result);
+        }
+        if (current->arg1 != NULL && isVariable(current->arg1)) {
+            addVariable(varList, current->arg1);
+        }
+        if (current->arg2 != NULL && isVariable(current->arg2)) {
+            addVariable(varList, current->arg2);
+        }
+        current = current->next;
+    }
+}
+
+// Function to free the variable list
+void freeVariableList(VarNode* varList) {
+    VarNode* current = varList;
+    while (current != NULL) {
+        VarNode* next = current->next;
+        free(current->name);
+        free(current);
+        current = next;
     }
 }

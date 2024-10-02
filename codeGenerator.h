@@ -10,6 +10,11 @@
 
 #define NUM_TEMP_REGISTERS 10
 
+typedef struct VarNode {
+    char* name;
+    struct VarNode* next;
+} VarNode;
+
 // Initializes code generation, setting up any necessary structures
 void initCodeGenerator(const char *outputFilename);
 

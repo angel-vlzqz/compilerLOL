@@ -29,6 +29,7 @@ void deallocateTempVar(int tempVars[], int index);
 int allocateNextAvailableTempVar(int tempVars[]);
 void appendTAC(TAC** head, TAC* newInstruction);
 void printTACToFile(const char* filename, TAC* tac);
+void freeTACList(TAC* head);
 // You can add more function declarations related to semantic analysis here
 
 #endif // SEMANTIC_H

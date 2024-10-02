@@ -311,9 +311,12 @@ int main()
         //printCurrentTAC(&tacHead);
     }
 
+    freeTACList(tacHead);
+
     // Traverse and print the AST
     if (root != NULL) 
     {
+        printf("Starting to free AST\n");
         traverseAST(root, 0);
         freeAST(root);
     }

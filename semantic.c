@@ -483,3 +483,19 @@ void appendTAC(TAC **head, TAC *newInstruction)
         current->next = newInstruction;
     }
 }
+
+void freeTACList(TAC* head) 
+{
+    TAC* current = head;
+    printf("Starting to free TAC\n");
+    while (current != NULL) 
+    {
+        TAC* next = current->next;
+        free(current->op);
+        free(current->arg1);
+        free(current->arg2);
+        free(current->result);
+        free(current);
+        current = next;
+    }
+}
