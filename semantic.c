@@ -187,7 +187,7 @@ TAC *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
             // Create a new TAC instruction
             TAC *instruction = (TAC *)malloc(sizeof(TAC));
-            instruction->op = expr->binOp.operator; // e.g., "+", "-", etc.
+            instruction->op = strdup(&expr->binOp.operator); // e.g., "+", "-", etc.
             instruction->arg1 = strdup(leftOperand);
             instruction->arg2 = strdup(rightOperand);
             instruction->result = createTempVar();
