@@ -3,7 +3,7 @@
 #include "semantic.h"
 #include "temp.h"
 
-int tempVars[20] = {0}; // Definition and initialization
+int tempVars[50] = {0}; // Definition and initialization
 
 // Perform semantic analysis on the AST
 TAC *tacHead = NULL;
@@ -263,13 +263,12 @@ TAC *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
             }
 
             writeTAC->op = strdup("write");
-            writeTAC->arg1 = strdup(expr->writeStmt.varName);
-            writeTAC->arg2 = NULL;
-            writeTAC->result = NULL;
+            writeTAC->arg1 = strdup(expr->writeStmt.varName); // Ensure this is valid
+            writeTAC->arg2 = NULL;  // No second argument for write
+            writeTAC->result = NULL; // No result for write
             writeTAC->next = NULL;
 
             appendTAC(&tacHead, writeTAC);
-
             return writeTAC;
         }
         break;
@@ -288,12 +287,18 @@ TAC *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 // Function to create a new temporary variable for TAC
 char *createTempVar()
 {
-    static int count = 0;
+    int index = allocateNextAvailableTempVar(tempVars);
+    if (index == -1)
+    {
+        fprintf(stderr, "Error: No available temporary variables\n");
+        return NULL;
+    }
+
     char *tempVar = malloc(10); // Enough space for "t" + number
     if (!tempVar)
         return NULL;
-    count = allocateNextAvailableTempVar(tempVars);
-    sprintf(tempVar, "t%d", count++);
+
+    sprintf(tempVar, "t%d", index);
     return tempVar;
 }
 
@@ -361,11 +366,13 @@ void printTACToFile(const char *filename, TAC *tac)
     }
 
     TAC *current = tac;
-    int tacCounter = 0; // To track the TAC instruction number
+    int tacCounter = 0;
 
     while (current != NULL)
     {
         printf("------------------------------------------------------------------------------\n");
+        printf("Processing TAC instruction %d\n", tacCounter);
+
         if (current->op != NULL)
         {
             printf("TAC instruction %d: operation is: %s\n", tacCounter, current->op);
@@ -373,29 +380,15 @@ void printTACToFile(const char *filename, TAC *tac)
         else
         {
             printf("TAC instruction %d: operation is NULL\n", tacCounter);
-        }
-
-        printf("Processing TAC instruction %d\n", tacCounter);
-
-        // Check if 'op' is NULL before attempting to use it
-        if (current->op != NULL)
-        {
-            printf("TAC instruction %d: operation is: %s\n", tacCounter, current->op);
-        }
-        else
-        {
-            printf("TAC instruction %d: operation is NULL or corrupted\n", tacCounter);
             current = current->next;
             tacCounter++;
-            continue; // Skip further processing for this instruction
+            continue;
         }
 
         if (strcmp(current->op, "=") == 0)
         {
-            // Ensure 'result' and 'arg1' are not NULL before printing
             if (current->result != NULL && current->arg1 != NULL)
             {
-                printf("TAC instruction %d: result = %s, arg1 = %s\n", tacCounter, current->result, current->arg1);
                 fprintf(file, "%s = %s\n", current->result, current->arg1);
             }
             else
@@ -405,49 +398,35 @@ void printTACToFile(const char *filename, TAC *tac)
         }
         else
         {
-            // Print only if 'result', 'arg1', and 'arg2' are not NULL
+            // Check before printing 'result'
             if (current->result != NULL)
             {
-                printf("TAC instruction %d: result = %s\n", tacCounter, current->result);
                 fprintf(file, "%s = ", current->result);
             }
-            else
-            {
-                printf("TAC instruction %d: result is NULL\n", tacCounter);
-            }
 
+            // Print 'arg1' safely
             if (current->arg1 != NULL)
             {
-                printf("TAC instruction %d: arg1 = %s\n", tacCounter, current->arg1);
                 fprintf(file, "%s ", current->arg1);
             }
-            else
-            {
-                printf("TAC instruction %d: arg1 is NULL\n", tacCounter);
-            }
 
+            // Print 'op' safely
             if (current->op != NULL)
             {
-                printf("TAC instruction %d: op = %s\n", tacCounter, current->op);
                 fprintf(file, "%s ", current->op);
             }
 
+            // Print 'arg2' safely
             if (current->arg2 != NULL)
             {
-                printf("TAC instruction %d: arg2 = %s\n", tacCounter, current->arg2);
                 fprintf(file, "%s ", current->arg2);
-            }
-            else
-            {
-                printf("TAC instruction %d: arg2 is NULL\n", tacCounter);
             }
 
             fprintf(file, "\n");
         }
 
-        // Move to the next TAC instruction
         current = current->next;
-        tacCounter++; // Increment TAC counter
+        tacCounter++;
     }
 
     printf("Closing file: %s\n", filename);
@@ -458,7 +437,7 @@ void printTACToFile(const char *filename, TAC *tac)
 
 void initializeTempVars()
 {
-    for (int i = 0; i < 20; i++)
+    for (int i = 0; i < 50; i++)
     {
         tempVars[i] = 0;
     }
@@ -470,7 +449,7 @@ int allocateNextAvailableTempVar(int tempVars[])
     // use the tempVars array to keep track of allocated temp vars
 
     // search for the next available temp var
-    for (int i = 0; i < 20; i++)
+    for (int i = 0; i < 50; i++)
     {
         if (tempVars[i] == 0)
         {
@@ -485,7 +464,7 @@ void deallocateTempVar(int tempVars[], int index)
 {
     // implement the temp var deallocation logic
     // use the tempVars array to keep track of allocated temp vars
-    if (index >= 0 && index < 20)
+    if (index >= 0 && index < 50)
     {
         tempVars[index] = 0;
     }

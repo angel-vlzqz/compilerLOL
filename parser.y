@@ -291,8 +291,13 @@ int main()
         // Semantic Analysis
         semanticAnalysis(root, symTab);
 
+<<<<<<< HEAD
         // printTACToFile("TACsem.ir", &tacHead);
         // printTAC(&tacHead);
+=======
+        //printTACToFile("TACsem.ir", &tacHead);
+        //printTAC(&tacHead);
+>>>>>>> 3746db8 (added more temp variables to the TAC)
 
         printf("=================Optimizer=================\n");
         // TAC Optimization
@@ -307,8 +312,13 @@ int main()
         initCodeGenerator("output.asm");
         generateMIPS(tacHead);  // Generate MIPS code from optimized TAC
         finalizeCodeGenerator("output.asm");
+<<<<<<< HEAD
         printTACToFile("TACgen.ir", &tacHead);
         // printCurrentTAC(&tacHead);
+=======
+        //printTACToFile("TACgen.ir", &tacHead);
+        //printCurrentTAC(&tacHead);
+>>>>>>> 3746db8 (added more temp variables to the TAC)
     }
 
     // Traverse and print the AST

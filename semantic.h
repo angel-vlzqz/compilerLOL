@@ -15,7 +15,7 @@ typedef struct TAC {
     struct TAC* next; // Next instruction
 } TAC;
 
-extern int tempVars[20];
+extern int tempVars[50];
 extern TAC* tacHead; // Global head of the TAC instructions list
 
 int allocateNextAvailableTempVar(int tempVars[]);

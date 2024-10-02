@@ -79,39 +79,39 @@ main:
 	lw $t0, x
 	lw $t1, b
 	add $t2, $t0, $t1
-	sw $t2, t-1
+	sw $t2, t20
 	lw $t0, x
 	lw $t1, c
 	add $t2, $t0, $t1
-	sw $t2, t-1
+	sw $t2, t21
 	lw $t0, x
 	lw $t1, a
 	add $t2, $t0, $t1
-	sw $t2, t-1
+	sw $t2, t22
 	li $t0, 5
-	sw $t0, t-1
+	sw $t0, t23
 	lw $t0, x
 	lw $t1, a
 	add $t2, $t0, $t1
-	sw $t2, t-1
+	sw $t2, t24
 	lw $t0, x
 	lw $t1, b
 	add $t2, $t0, $t1
-	sw $t2, t-1
+	sw $t2, t25
 	lw $t0, x
 	lw $t1, c
 	add $t2, $t0, $t1
-	sw $t2, t-1
+	sw $t2, t26
 	lw $t0, x
 	lw $t1, a
 	add $t2, $t0, $t1
-	sw $t2, t-1
+	sw $t2, t27
 	li $t0, 5
-	sw $t0, t-1
+	sw $t0, t28
 	lw $t0, x
-	lw $t1, x
+	lw $t1, t28
 	add $t2, $t0, $t1
-	sw $t2, t-1
+	sw $t2, t29
 	lw $t1, (null)
 	move $t0, $t1
 	sw $t0, y
