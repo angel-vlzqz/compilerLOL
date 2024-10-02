@@ -6,7 +6,8 @@
 unsigned int hashFunction(const char *name, int tableSize)
 {
     // Check if the name is NULL
-    if (name == NULL) {
+    if (name == NULL)
+    {
         fprintf(stderr, "Error: Tried to hash a NULL name.\n");
         return 0; // Or handle it appropriately
     }
@@ -96,42 +97,43 @@ void freeSymbolTable(SymbolTable *symbolTable)
         Symbol *symbol = symbolTable->table[i];
 
         // Print current bucket being processed
-        printf("Processing bucket %d\n", i);
+        // printf("Processing bucket %d\n", i);
 
         while (symbol != NULL)
         {
-            printf("Freeing symbol: %s\n", symbol->name ? symbol->name : "NULL");
+            // printf("Freeing symbol: %s\n", symbol->name ? symbol->name : "NULL");
 
             Symbol *next = symbol->next;
 
             // Safely free the symbol's name if it exists
             if (symbol->name != NULL)
             {
-                printf("Freeing symbol name: %s\n", symbol->name);
+                // printf("Freeing symbol name: %s\n", symbol->name);
                 free(symbol->name);
                 symbol->name = NULL; // Avoid double free
             }
 
             // Safely free the symbol's value if it exists
-            if (symbol->value != NULL) {
-                printf("Freeing symbol value: %s\n", symbol->value);
+            if (symbol->value != NULL)
+            {
+                // printf("Freeing symbol value: %s\n", symbol->value);
                 free(symbol->value);
                 symbol->value = NULL; // Avoid double free
             }
 
             // Free the symbol itself
-            printf("Freeing symbol structure\n");
+            // printf("Freeing symbol structure\n");
             free(symbol);
             symbol = next;
 
             // Print status of next symbol to process
             if (symbol != NULL)
             {
-                printf("Next symbol in bucket: %s\n", symbol->name ? symbol->name : "NULL");
+                // printf("Next symbol in bucket: %s\n", symbol->name ? symbol->name : "NULL");
             }
             else
             {
-                printf("No more symbols in this bucket.\n");
+                // printf("No more symbols in this bucket.\n");
             }
         }
     }
@@ -146,7 +148,6 @@ void freeSymbolTable(SymbolTable *symbolTable)
 
     printf("Symbol table freed successfully.\n");
 }
-
 
 // Function to create a new symbol table
 SymbolTable *createSymbolTable(int size)

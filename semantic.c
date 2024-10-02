@@ -128,8 +128,8 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         semanticAnalysis(node->block.stmtList, symTab);
         fprintf(stderr, "Node Type: %d\n", node->type);
         break;
-    break;
-    // ... handle other node types ...
+        break;
+        // ... handle other node types ...
 
     default:
         fprintf(stderr, "Unknown Node Type\n");
@@ -208,52 +208,14 @@ TAC *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
             }
             appendTAC(&tacHead, instruction);  // Append the instruction to the global TAC list
             break;
-
-        case NodeType_SimpleExpr:
-            printf("Generating TAC for simple expression\n");
-            char buffer[20];
-            snprintf(buffer, 20, "%d", expr->simpleExpr.number);
-            instruction->arg1 = strdup(buffer);  // Duplicate the number as a string
-            instruction->op = strdup("=");       // Assign '=' as the operation
-            instruction->arg2 = NULL;
-            if (!instruction->result)
-                instruction->result = createTempVar();
+        case '-':
+            instruction->op = strdup("-");
             break;
-
-        case NodeType_SimpleID:
-            printf("Generating TAC for simple ID\n");
-            // Check if the variable is declared in the symbol table
-            Symbol *symbol = findSymbol(symTab, expr->simpleID.name);
-            if (symbol)
-            {
-                instruction->arg1 = strdup(expr->simpleID.name);  // Variable name
-                instruction->op = strdup("assign");
-                instruction->result = strdup(expr->simpleID.name);  // Result is the variable name
-            }
-            else
-            {
-                fprintf(stderr, "Error: Variable %s has not been declared\n", expr->simpleID.name);
-                free(instruction);
-                return NULL;
-            }
+        case '*':
+            instruction->op = strdup("*");
             break;
-
-        case NodeType_AssignStmt:
-            printf("Generating TAC for assignment statement\n");
-            Symbol *assignSymbol = findSymbol(symTab, expr->assignStmt.varName);
-            if (assignSymbol)
-            {
-                // Generate TAC for assigning an expression to a variable
-                instruction->arg1 = createOperand(expr->assignStmt.expr, symTab); // The value to assign
-                instruction->op = strdup("="); // Assignment operation
-                instruction->result = strdup(expr->assignStmt.varName); // The variable being assigned to
-            }
-            else
-            {
-                fprintf(stderr, "Error: Variable %s has not been declared\n", expr->assignStmt.varName);
-                free(instruction);
-                return NULL;
-            }
+        case '/':
+            instruction->op = strdup("/");
             break;
 
         case NodeType_WriteStmt:
@@ -280,9 +242,66 @@ TAC *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
         }
 
         default:
-            fprintf(stderr, "Error: Unsupported node type in TAC generation\n");
+            fprintf(stderr, "Error: Unsupported binary operator '%c'\n", expr->binOp.operator);
             free(instruction);
             return NULL;
+        }
+
+        if (!instruction->result)
+            instruction->result = createTempVar(); // Create a temporary variable for the result
+        break;
+
+    case NodeType_SimpleExpr:
+        printf("Generating TAC for simple expression\n");
+        char buffer[20];
+        snprintf(buffer, 20, "%d", expr->simpleExpr.number);
+        instruction->arg1 = strdup(buffer); // Duplicate the number as a string
+        instruction->op = strdup("=");      // Assign '=' as the operation
+        instruction->arg2 = NULL;
+        if (!instruction->result)
+            instruction->result = createTempVar();
+        break;
+
+    case NodeType_SimpleID:
+        printf("Generating TAC for simple ID\n");
+        // Check if the variable is declared in the symbol table
+        Symbol *symbol = findSymbol(symTab, expr->simpleID.name);
+        if (symbol)
+        {
+            instruction->arg1 = strdup(expr->simpleID.name); // Variable name
+            instruction->op = strdup("assign");
+            instruction->result = strdup(expr->simpleID.name); // Result is the variable name
+        }
+        else
+        {
+            fprintf(stderr, "Error: Variable %s has not been declared\n", expr->simpleID.name);
+            free(instruction);
+            return NULL;
+        }
+        break;
+
+    case NodeType_AssignStmt:
+        printf("Generating TAC for assignment statement\n");
+        Symbol *assignSymbol = findSymbol(symTab, expr->assignStmt.varName);
+        if (assignSymbol)
+        {
+            // Generate TAC for assigning an expression to a variable
+            instruction->arg1 = createOperand(expr->assignStmt.expr, symTab); // The value to assign
+            instruction->op = strdup("=");                                    // Assignment operation
+            instruction->result = strdup(expr->assignStmt.varName);           // The variable being assigned to
+        }
+        else
+        {
+            fprintf(stderr, "Error: Variable %s has not been declared\n", expr->assignStmt.varName);
+            free(instruction);
+            return NULL;
+        }
+        break;
+
+    default:
+        fprintf(stderr, "Error: Unsupported node type in TAC generation\n");
+        free(instruction);
+        return NULL;
     }
 
     appendTAC(&tacHead, instruction);
@@ -349,6 +368,35 @@ char *createOperand(ASTNode *node, SymbolTable *symTab)
         default:
             fprintf(stderr, "Unhandled node type in createOperand\n");
             return NULL;
+        snprintf(buffer, 20, "%d", node->simpleExpr.number);
+        return buffer;
+    }
+    case NodeType_SimpleID:
+    {
+        // Check if the variable is declared
+        Symbol *symbol = findSymbol(symTab, node->simpleID.name);
+        if (symbol)
+        {
+            return strdup(node->simpleID.name); // Variable name
+        }
+        else
+        {
+            fprintf(stderr, "Error: Variable %s has not been declared\n", node->simpleID.name);
+            return NULL;
+        }
+    }
+    case NodeType_Expr:
+    case NodeType_BinOp:
+    case NodeType_LogicalOp:
+    {
+        // Generate TAC code for the expression and get the result variable
+        char *resultVar = generateTACForExpr(node, symTab);
+        return resultVar;
+    }
+    // Handle other cases as needed
+    default:
+        fprintf(stderr, "Unhandled node type in createOperand\n");
+        return NULL;
     }
 }
 
@@ -503,4 +551,3 @@ void appendTAC(TAC **head, TAC *newInstruction)
         current->next = newInstruction;
     }
 }
-
