@@ -56,4 +56,4 @@ codeGenerator.o: codeGenerator.c codeGenerator.h AST.h semantic.h
 
 # Clean rule to remove all generated files
 clean:
-	rm -f $(OBJS) $(EXEC) $(BISON_OUTPUT) parser.tab.h $(FLEX_OUTPUT) semantic.o optimizer.o codeGenerator.o
+	rm -f $(OBJS) $(EXEC) $(BISON_OUTPUT) parser.tab.h $(FLEX_OUTPUT) semantic.o optimizer.o codeGenerator.o TACgen.ir TACopt.ir Tacsem.ir
