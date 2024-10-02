@@ -48,140 +48,76 @@ void generateMIPS(TAC *tacInstructions)
 
     */
 
-    VarNode* varList = NULL;
+    VarNode *varList = NULL; // Declare and initialize varList
+
+    // Collect variables from TAC instructions
     collectVariables(tacInstructions, &varList);
 
-    // Write the .data section with variable declarations
+    // Generate the .data section
     fprintf(outputFile, ".data\n");
-    VarNode* varCurrent = varList;
+    VarNode *varCurrent = varList;
     while (varCurrent != NULL) {
-        // Declare each variable, initializing to zero
-        fprintf(outputFile, "%s: .word 0\n", varCurrent->name);
+        if (varCurrent->isInitialized) {
+            fprintf(outputFile, "%s: .word %d\n", varCurrent->name, varCurrent->initialValue);
+        } else {
+            fprintf(outputFile, "%s: .word 0\n", varCurrent->name);
+        }
         varCurrent = varCurrent->next;
     }
 
-    // Start the .text section and the main function
-    fprintf(outputFile, ".text\n.globl main\nmain:\n");
+    // Start the .text section and main function
+    fprintf(outputFile, ".text\n");
+    fprintf(outputFile, ".globl main\n");
+    fprintf(outputFile, "main:\n");
 
-    printf("Generating MIPS code...\n");
     TAC *current = tacInstructions;
-    while (current != NULL)
-    {
-        if (current->op == NULL) {
-            fprintf(stderr, "Error: TAC operation is NULL\n");
-            current = current->next;
-            continue;
-        }
-
-        if (strcmp(current->op, "=") == 0)
-        {
-            if (current->result == NULL || current->arg1 == NULL) {
-                fprintf(stderr, "Error: Assignment TAC contains NULL fields\n");
-                current = current->next;
-                continue;
-            }
-
-            int reg = allocateRegister();
-            if (reg == -1)
-            {
-                fprintf(stderr, "Error: No available register for assignment operation\n");
-                return;
-            }
-
-            if (isConstant(current->arg1))
-            {
-                // Load immediate value for constant assignment
-                fprintf(outputFile, "\tli %s, %s\n", tempRegisters[reg].name, current->arg1);
-            }
-            else
-            {
-                // Load value from a variable
-                fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg].name, current->arg1);
-            }
-
-            fprintf(outputFile, "\tsw %s, %s\n", tempRegisters[reg].name, current->result);
-            deallocateRegister(reg);
-        }
-        else if (strcmp(current->op, "+") == 0)
-        {
-            int reg1 = allocateRegister();
-            int reg2 = allocateRegister();
-            int resultReg = allocateRegister();
-            if (reg1 == -1 || reg2 == -1 || resultReg == -1) {
-                fprintf(stderr, "Error: No available registers for addition operation\n");
-                return;
-            }
-            if (current->arg1 == NULL || current->arg2 == NULL || current->result == NULL) {
-                fprintf(stderr, "Error: Addition TAC contains NULL fields\n");
-                current = current->next;
-                continue;
-            }
-            printf("Generating MIPS code for addition operation\n");
-            // Load arg1
-            if (isConstant(current->arg1)) {
-                fprintf(outputFile, "\tli %s, %s\n", tempRegisters[reg1].name, current->arg1);
+    while (current != NULL) {
+        if (current->op != NULL) {
+            if (strcmp(current->op, "+") == 0 || strcmp(current->op, "-") == 0 ||
+                strcmp(current->op, "*") == 0 || strcmp(current->op, "/") == 0) {
+                // Generate code for binary operations
+                fprintf(outputFile, "# Generating MIPS code for operation %s\n", current->op);
+                // Load operands
+                loadOperand(current->arg1, "$t0");
+                loadOperand(current->arg2, "$t1");
+                // Perform operation
+                if (strcmp(current->op, "+") == 0) {
+                    fprintf(outputFile, "\tadd $t2, $t0, $t1\n");
+                } else if (strcmp(current->op, "-") == 0) {
+                    fprintf(outputFile, "\tsub $t2, $t0, $t1\n");
+                } else if (strcmp(current->op, "*") == 0) {
+                    fprintf(outputFile, "\tmul $t2, $t0, $t1\n");
+                } else if (strcmp(current->op, "/") == 0) {
+                    fprintf(outputFile, "\tdiv $t0, $t1\n");
+                    fprintf(outputFile, "\tmflo $t2\n");
+                }
+                // Store result
+                fprintf(outputFile, "\tsw $t2, %s\n", current->result);
+            } else if (strcmp(current->op, "=") == 0) {
+                // Assignment operation
+                fprintf(outputFile, "# Generating MIPS code for assignment\n");
+                loadOperand(current->arg1, "$t0");
+                fprintf(outputFile, "\tsw $t0, %s\n", current->result);
+            } else if (strcmp(current->op, "write") == 0) {
+                // Write operation
+                fprintf(outputFile, "# Generating MIPS code for write operation\n");
+                loadOperand(current->arg1, "$a0");
+                fprintf(outputFile, "\tli $v0, 1\n");      // Syscall code for print_int
+                fprintf(outputFile, "\tsyscall\n");
+                // Print newline character
+                fprintf(outputFile, "\tli $a0, 10\n");     // ASCII code for newline
+                fprintf(outputFile, "\tli $v0, 11\n");     // Syscall code for print_char
+                fprintf(outputFile, "\tsyscall\n");
             } else {
-                fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg1].name, current->arg1);
+                fprintf(stderr, "Warning: Unsupported TAC operation '%s'\n", current->op);
             }
-            // Load arg2
-            if (isConstant(current->arg2)) {
-                fprintf(outputFile, "\tli %s, %s\n", tempRegisters[reg2].name, current->arg2);
-            } else {
-                fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg2].name, current->arg2);
-            }
-            // Perform addition
-            fprintf(outputFile, "\tadd %s, %s, %s\n", tempRegisters[resultReg].name, tempRegisters[reg1].name, tempRegisters[reg2].name);
-            fprintf(outputFile, "\tsw %s, %s\n", tempRegisters[resultReg].name, current->result);
-
-            // Deallocate the registers after use
-            deallocateRegister(reg1);
-            deallocateRegister(reg2);
-            deallocateRegister(resultReg);
         }
-        // Handle other operations (subtraction, multiplication, etc.) similarly
-        else if (strcmp(current->op, "write") == 0)
-        {
-            int reg = allocateRegister();
-            if (reg == -1)
-            {
-                fprintf(stderr, "Error: No available register for write operation\n");
-                return;
-            }
-
-            printf("Generating MIPS code for WRITE operation\n");
-
-            // Check if arg1 is a constant (if it is a number)
-            if (isConstant(current->arg1))
-            {
-                // Handle the case where arg1 is a constant value
-                fprintf(outputFile, "\tli %s, %s\n", tempRegisters[reg].name, current->arg1); // Load immediate constant into the register
-            }
-            else
-            {
-                // Handle the case where arg1 is a variable (load it from memory)
-                fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg].name, current->arg1); // Load from memory into the register
-            }
-
-            // Move the value into $a0 for printing
-            fprintf(outputFile, "\tmove $a0, %s\n", tempRegisters[reg].name);  // Load the value into $a0
-
-            // MIPS syscall code for printing an integer
-            fprintf(outputFile, "\tli $v0, 1\n");  // Syscall code 1 for print integer
-            fprintf(outputFile, "\tsyscall\n");    // Perform the syscall
-
-            // Deallocate the register after use
-            deallocateRegister(reg);
-        }
-        else
-        {
-            fprintf(stderr, "Warning: Unsupported TAC operation '%s'\n", current->op);
-        }
-
         current = current->next;
     }
 
     // Exit program
-    fprintf(outputFile, "\tli $v0, 10\n\tsyscall\n");
+    fprintf(outputFile, "\tli $v0, 10\n");
+    fprintf(outputFile, "\tsyscall\n");
 
     // Free the variable list
     freeVariableList(varList);
@@ -284,28 +220,49 @@ bool isVariableInList(VarNode* varList, const char* varName) {
 }
 
 // Function to add a variable to the list
-void addVariable(VarNode** varList, const char* varName) {
-    if (isVariableInList(*varList, varName)) {
-        return; // Variable already in the list
+void addVariable(VarNode** varList, const char* varName, int initialValue, bool isInitialized) {
+    VarNode* existingNode = *varList;
+    while (existingNode != NULL) {
+        if (strcmp(existingNode->name, varName) == 0) {
+            // Update initial value if variable already exists and is uninitialized
+            if (!existingNode->isInitialized && isInitialized) {
+                existingNode->initialValue = initialValue;
+                existingNode->isInitialized = true;
+            }
+            return; // Variable already in the list
+        }
+        existingNode = existingNode->next;
     }
+    // Variable not found, create a new one
     VarNode* newNode = malloc(sizeof(VarNode));
     newNode->name = strdup(varName);
+    newNode->initialValue = initialValue;
+    newNode->isInitialized = isInitialized;
     newNode->next = *varList;
     *varList = newNode;
 }
+
 
 // Function to collect all variables from TAC instructions
 void collectVariables(TAC* tacInstructions, VarNode** varList) {
     TAC* current = tacInstructions;
     while (current != NULL) {
         if (current->result != NULL && isVariable(current->result)) {
-            addVariable(varList, current->result);
+            int initialValue = 0;
+            bool isInitialized = false;
+            if (strcmp(current->op, "=") == 0 && isConstant(current->arg1)) {
+                // Assignment of a constant to a variable (e.g., a = 5)
+                initialValue = atoi(current->arg1);
+                isInitialized = true;
+                printf("Variable '%s' initialized to %d\n", current->result, initialValue);
+            }
+            addVariable(varList, current->result, initialValue, isInitialized);
         }
         if (current->arg1 != NULL && isVariable(current->arg1)) {
-            addVariable(varList, current->arg1);
+            addVariable(varList, current->arg1, 0, false);
         }
         if (current->arg2 != NULL && isVariable(current->arg2)) {
-            addVariable(varList, current->arg2);
+            addVariable(varList, current->arg2, 0, false);
         }
         current = current->next;
     }
@@ -319,5 +276,24 @@ void freeVariableList(VarNode* varList) {
         free(current->name);
         free(current);
         current = next;
+    }
+}
+
+VarNode* findVariable(VarNode* varList, const char* varName) {
+    VarNode* current = varList;
+    while (current != NULL) {
+        if (strcmp(current->name, varName) == 0) {
+            return current;
+        }
+        current = current->next;
+    }
+    return NULL;
+}
+
+void loadOperand(const char *operand, const char *registerName) {
+    if (isConstant(operand)) {
+        fprintf(outputFile, "\tli %s, %s\n", registerName, operand);
+    } else {
+        fprintf(outputFile, "\tlw %s, %s\n", registerName, operand);
     }
 }

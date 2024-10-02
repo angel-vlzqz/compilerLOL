@@ -7,43 +7,47 @@
 
 void optimizeTAC(TAC **head)
 {
-    constantFolding(head);
-    constantPropagation(head);
-    copyPropagation(head);
-    deadCodeElimination(head);
+    int changes;
+    do
+    {
+        changes = 0;
+        changes += constantFolding(head);
+        changes += constantPropagation(head);
+        changes += copyPropagation(head);
+        changes += deadCodeElimination(head);
+    } while (changes > 0);
 }
 
 bool isConstant(const char *str)
 {
     if (str == NULL || *str == '\0')
     {
-        return false; // Empty string is not a constant
+        return false;
     }
 
-    // Optional: Handle negative numbers
+    // Handle negative numbers
     if (*str == '-')
     {
         ++str;
     }
 
-    // Check if string is numeric
     while (*str)
     {
         if (!isdigit((unsigned char)*str))
         {
-            return false; // Found a non-digit character
+            return false;
         }
         ++str;
     }
 
-    return true; // All characters were digits
+    return true;
 }
 
 bool isVariable(const char *str)
 {
     if (str == NULL || *str == '\0')
     {
-        return false; // Null or empty string is not a variable
+        return false;
     }
 
     // Check if the first character is a letter or underscore
@@ -52,23 +56,23 @@ bool isVariable(const char *str)
         return false;
     }
 
-    // Check remaining characters for letters, digits, or underscores
-    ++str; // Move past the first character
+    ++str;
     while (*str)
     {
         if (!isalnum((unsigned char)*str) && *str != '_')
         {
-            return false; // Invalid character found
+            return false;
         }
         ++str;
     }
 
-    return true; // String meets the criteria for a variable name
+    return true;
 }
 
 // Constant Folding Optimization
-void constantFolding(TAC **head)
+int constantFolding(TAC **head)
 {
+    int changes = 0;
     TAC *current = *head;
 
     while (current != NULL)
@@ -104,7 +108,8 @@ void constantFolding(TAC **head)
                     else
                     {
                         fprintf(stderr, "Error: Division by zero\n");
-                        return;
+                        current = current->next;
+                        continue;
                     }
                 }
 
@@ -120,16 +125,20 @@ void constantFolding(TAC **head)
                 current->arg1 = strdup(resultStr);
                 current->op = strdup("=");
                 current->arg2 = NULL;
+
+                changes++;
             }
         }
 
         current = current->next;
     }
+    return changes;
 }
 
 // Constant Propagation Optimization
-void constantPropagation(TAC **head)
+int constantPropagation(TAC **head)
 {
+    int changes = 0;
     TAC *current = *head;
     while (current != NULL)
     {
@@ -138,21 +147,28 @@ void constantPropagation(TAC **head)
             // Check if the argument is a constant
             if (isConstant(current->arg1))
             {
-                // Propagate the constant value to all uses of the variable
+                // Propagate the constant value to all uses of the variable until it's redefined
                 char *constValue = current->arg1;
                 char *varName = current->result;
                 TAC *temp = current->next;
                 while (temp != NULL)
                 {
+                    if (temp->result != NULL && strcmp(temp->result, varName) == 0)
+                    {
+                        // Variable is redefined
+                        break;
+                    }
                     if (temp->arg1 != NULL && strcmp(temp->arg1, varName) == 0)
                     {
                         free(temp->arg1);
                         temp->arg1 = strdup(constValue);
+                        changes++;
                     }
                     if (temp->arg2 != NULL && strcmp(temp->arg2, varName) == 0)
                     {
                         free(temp->arg2);
                         temp->arg2 = strdup(constValue);
+                        changes++;
                     }
                     temp = temp->next;
                 }
@@ -160,11 +176,13 @@ void constantPropagation(TAC **head)
         }
         current = current->next;
     }
+    return changes;
 }
 
 // Copy Propagation Optimization
-void copyPropagation(TAC **head)
+int copyPropagation(TAC **head)
 {
+    int changes = 0;
     TAC *current = *head;
     while (current != NULL)
     {
@@ -173,21 +191,28 @@ void copyPropagation(TAC **head)
             // Check if arg1 is a variable
             if (isVariable(current->arg1))
             {
-                // Propagate the variable value to all uses of the variable
+                // Propagate the variable value to all uses of the variable until it's redefined
                 char *sourceVar = current->arg1;
                 char *destVar = current->result;
                 TAC *temp = current->next;
                 while (temp != NULL)
                 {
+                    if (temp->result != NULL && strcmp(temp->result, destVar) == 0)
+                    {
+                        // Variable is redefined
+                        break;
+                    }
                     if (temp->arg1 != NULL && strcmp(temp->arg1, destVar) == 0)
                     {
                         free(temp->arg1);
                         temp->arg1 = strdup(sourceVar);
+                        changes++;
                     }
                     if (temp->arg2 != NULL && strcmp(temp->arg2, destVar) == 0)
                     {
                         free(temp->arg2);
                         temp->arg2 = strdup(sourceVar);
+                        changes++;
                     }
                     temp = temp->next;
                 }
@@ -195,11 +220,13 @@ void copyPropagation(TAC **head)
         }
         current = current->next;
     }
+    return changes;
 }
 
 // Dead Code Elimination Optimization
-void deadCodeElimination(TAC **head)
+int deadCodeElimination(TAC **head)
 {
+    int changes = 0;
     TAC *current = *head;
     TAC *prev = NULL;
 
@@ -208,14 +235,20 @@ void deadCodeElimination(TAC **head)
         int isUsed = 0;
         if (current->result != NULL)
         {
-            // Check if the result is used in any of the following instructions
+            // Check if the result is used in any of the following instructions before being redefined
             TAC *temp = current->next;
             while (temp != NULL)
             {
+                // If the variable is used
                 if ((temp->arg1 != NULL && strcmp(temp->arg1, current->result) == 0) ||
                     (temp->arg2 != NULL && strcmp(temp->arg2, current->result) == 0))
                 {
                     isUsed = 1;
+                    break;
+                }
+                // If the variable is redefined
+                if (temp->result != NULL && strcmp(temp->result, current->result) == 0)
+                {
                     break;
                 }
                 temp = temp->next;
@@ -235,7 +268,6 @@ void deadCodeElimination(TAC **head)
                     TAC *toDelete = current;
                     current = current->next;
                     free(toDelete);
-                    continue;
                 }
                 else
                 {
@@ -248,13 +280,15 @@ void deadCodeElimination(TAC **head)
                     TAC *toDelete = current;
                     current = current->next;
                     free(toDelete);
-                    continue;
                 }
+                changes++;
+                continue; // Skip prev update
             }
         }
         prev = current;
         current = current->next;
     }
+    return changes;
 }
 
 // Print the optimized TAC list to a file
@@ -274,7 +308,7 @@ void printOptimizedTAC(const char *filename, TAC *head)
             fprintf(outputFile, "%s = ", current->result);
         if (current->arg1 != NULL)
             fprintf(outputFile, "%s ", current->arg1);
-        if (current->op != NULL && (strcmp(current->op, "=") != 0)) // Skip printing the "=" operator
+        if (current->op != NULL && (strcmp(current->op, "=") != 0))
             fprintf(outputFile, "%s ", current->op);
         if (current->arg2 != NULL)
             fprintf(outputFile, "%s ", current->arg2);

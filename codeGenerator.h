@@ -12,8 +12,11 @@
 
 typedef struct VarNode {
     char* name;
+    int initialValue;
+    bool isInitialized;
     struct VarNode* next;
 } VarNode;
+
 
 // Initializes code generation, setting up any necessary structures
 void initCodeGenerator(const char *outputFilename);
@@ -32,5 +35,9 @@ void deallocateRegister(int regIndex);
 
 // Print the current TAC instruction
 void printCurrentTAC(TAC *tac);
+
+VarNode* findVariable(VarNode* varList, const char* varName);
+
+void loadOperand(const char *registerName, const char *operand);
 
 #endif // CODE_GENERATOR_H

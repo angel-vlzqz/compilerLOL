@@ -20,7 +20,7 @@ extern TAC* tacHead; // Global head of the TAC instructions list
 
 int allocateNextAvailableTempVar(int tempVars[]);
 void semanticAnalysis(ASTNode* node, SymbolTable* symTab);
-TAC *generateTACForExpr(ASTNode *expr, SymbolTable *symTab); //returns the TAC for the expression to print on console
+char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab); //returns the TAC for the expression to print on console
 char* createTempVar();
 char *createOperand(ASTNode *node, SymbolTable *symTab);
 void printTAC(TAC* tac);

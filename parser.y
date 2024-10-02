@@ -10,7 +10,6 @@
 
 #define TABLE_SIZE 101
 
-
 extern int yylex();
 extern FILE* yyin;
 extern int yylineno;
@@ -19,17 +18,16 @@ void yyerror(const char *s);
 
 ASTNode* root = NULL;
 SymbolTable* symTab = NULL;
-Symbol* symbol = NULL;
 
 %}
 
 %union 
 {
-	int number;
-	char character;
-	char* string;
-	char* operator;
-	struct ASTNode* ast;
+    int number;
+    char character;
+    char* string;
+    char* operator;
+    struct ASTNode* ast;
 }
          
 %token <number> NUMBER       
@@ -51,7 +49,7 @@ Program:
     VarDeclList Block 
     {
         printf("Parsed Program\n");
-	    root = malloc(sizeof(ASTNode));
+        root = malloc(sizeof(ASTNode));
         root->type = NodeType_Program;
         root->program.varDeclList = $1;
         root->program.block = $2;
@@ -81,10 +79,9 @@ VarDecl:
         $$ = createNode(NodeType_VarDecl);
         $$->varDecl.varType = strdup($1);
         $$->varDecl.varName = strdup($2);
-        // Insert into symbol table.
-        insertSymbol(symTab, $2, $1);
+        // Removed insertSymbol; symbol table insertion will be handled in semantic analysis
     } 
-    |TYPE ID 
+    | TYPE ID 
     {
         printf("Missing semicolon after declaring variable: %s\n", $2);
     }
@@ -94,7 +91,7 @@ Block:
     StmtList 
     {
         printf("Parsed Block\n");
-	    $$ = createNode(NodeType_Block);
+        $$ = createNode(NodeType_Block);
         $$->block.stmtList = $1;
     }
     ;
@@ -103,7 +100,7 @@ StmtList:
     Stmt StmtList 
     {
         printf("Parsed Statement List\n");
-	    $$ = malloc(sizeof(ASTNode));
+        $$ = malloc(sizeof(ASTNode));
         $$->type = NodeType_StmtList;
         $$->stmtList.stmt = $1;
         $$->stmtList.stmtList = $2;
@@ -111,58 +108,26 @@ StmtList:
     | /* empty */ 
     {
         printf("Parsed Empty Statement List\n");
+        $$ = NULL;
     }
     ;
 
 Stmt:
     ID ASSIGNOP Expr SEMICOLON 
     {
-        Symbol* existingSymbol = findSymbol(symTab, $1);
-        if (existingSymbol != NULL) 
-        {
-            printf("Parsed Assignment Statement: %s = ...\n", $1);
+        printf("Parsed Assignment Statement: %s = ...\n", $1);
 
-            // Use a local buffer to store the value string
-            char valueBuffer[20];  // No need to free this
-
-            if ($3->type == NodeType_SimpleExpr) 
-            {
-                snprintf(valueBuffer, sizeof(valueBuffer), "%d", $3->simpleExpr.number);
-            } 
-            else 
-            {
-                // Handle other expression types
-            }
-
-            // Update the symbol with the extracted value
-            updateSymbolValue(symTab, $1, valueBuffer);
-
-            $$ = malloc(sizeof(ASTNode));
-            $$->type = NodeType_AssignStmt;
-            $$->assignStmt.varName = strdup($1);
-            $$->assignStmt.operator = strdup($2);
-            $$->assignStmt.expr = $3;
-        } 
-        else 
-        {
-            printf("Error: Variable %s not declared\n", $1);
-            yyerror("Undeclared variable");
-        }
+        $$ = malloc(sizeof(ASTNode));
+        $$->type = NodeType_AssignStmt;
+        $$->assignStmt.varName = strdup($1);
+        $$->assignStmt.operator = strdup($2);
+        $$->assignStmt.expr = $3;
     }
     | WRITE ID SEMICOLON 
     {
-        Symbol* existingSymbol = findSymbol(symTab, $2);
-        if (existingSymbol != NULL) 
-        {
-            printf("Parsed Write Statement: %s\n", $2);
-            $$ = createNode(NodeType_WriteStmt);
-            $$->writeStmt.varName = strdup($2);
-        } 
-        else 
-        {
-            printf("Error: Variable %s not declared\n", $2);
-            yyerror("Undeclared variable");
-        }
+        printf("Parsed Write Statement: %s\n", $2);
+        $$ = createNode(NodeType_WriteStmt);
+        $$->writeStmt.varName = strdup($2);
     }
     | IF Expr THEN Block ELSE Block 
     {
@@ -182,7 +147,7 @@ Stmt:
     | RETURN Expr SEMICOLON 
     {
         printf("Parsed Return Statement\n");
-	    $$ = createNode(NodeType_ReturnStmt);
+        $$ = createNode(NodeType_ReturnStmt);
         $$->returnStmt.expr = $2;
     }
     ;
@@ -230,29 +195,19 @@ Expr:
     }
     | ID 
     {
-        Symbol* existingSymbol = findSymbol(symTab, $1);
-        if (existingSymbol != NULL) 
-        {
-            printf("Parsed Identifier: %s\n", $1);
-	        $$ = malloc(sizeof(ASTNode));
-	        $$->type = NodeType_SimpleID;
-	        $$->simpleID.name = $1;
-        } 
-        else 
-        {
-            printf("Error: Variable %s not declared\n", $1);
-            yyerror("Undeclared variable");
-        }
+        printf("Parsed Identifier: %s\n", $1);
+        $$ = malloc(sizeof(ASTNode));
+        $$->type = NodeType_SimpleID;
+        $$->simpleID.name = strdup($1);
     } 
     | NUMBER 
     {
         printf("Parsed Number: %d\n", $1);
-	    $$ = malloc(sizeof(ASTNode));
-	    $$->type = NodeType_SimpleExpr;
-	    $$->simpleExpr.number = $1;
+        $$ = malloc(sizeof(ASTNode));
+        $$->type = NodeType_SimpleExpr;
+        $$->simpleExpr.number = $1;
     }
     ;
-
 
 %% 
 
@@ -264,56 +219,45 @@ void yyerror(const char *s)
 
 int main() 
 {
-    // initialize the input source
+    // Initialize the input source
     yyin = fopen("input.cmm", "r");
 
-    // initialize symbol table
+    // Initialize symbol table
     symTab = createSymbolTable(TABLE_SIZE);
     if (symTab == NULL) 
     {
         fprintf(stderr, "Error: Unable to initialize symbol table\n");
         exit(1);
     }
-    symbol = malloc(sizeof(Symbol));
-    if (symbol == NULL) 
-    {
-        fprintf(stderr, "Error: Unable to allocate memory for symbol\n");
-        exit(1);
-    }
 
     initializeTempVars();
-    
+
     if (yyparse() == 0) 
     {
-
         printf("=================Semantic=================\n");
 
         // Semantic Analysis
         semanticAnalysis(root, symTab);
-
-        //printTACToFile("TACsem.ir", &tacHead);
-        //printTAC(&tacHead);
 
         printf("=================Optimizer=================\n");
         // TAC Optimization
         optimizeTAC(&tacHead);  // 'tacHead' is the global head of the TAC linked list
 
         printTACToFile("TACopt.ir", tacHead);
-        printCurrentOptimizedTAC(&tacHead);
-        
+        // Optionally print the optimized TAC to console
+        // printCurrentOptimizedTAC(&tacHead);
+
         printf("=================Code Generation=================\n");
-        
+
         // Code Generation
         initCodeGenerator("output.asm");
         generateMIPS(tacHead);  // Generate MIPS code from optimized TAC
         finalizeCodeGenerator("output.asm");
-        //printTACToFile("TACgen.ir", &tacHead);
-        //printCurrentTAC(&tacHead);
     }
 
     freeTACList(tacHead);
 
-    // Traverse and print the AST
+    // Traverse and free the AST
     if (root != NULL) 
     {
         printf("Starting to free AST\n");
