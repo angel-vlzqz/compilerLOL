@@ -26,7 +26,7 @@ void traverseAST(ASTNode *node, int level)
         printIndent(level);
         printf("Program\n");
         traverseAST(node->program.varDeclList, level + 1);
-        traverseAST(node->program.stmtList, level + 1);
+        traverseAST(node->program.block, level + 1);
         break;
     case NodeType_VarDeclList:
         printIndent(level);
@@ -119,7 +119,7 @@ void freeAST(ASTNode *node)
     {
     case NodeType_Program:
         freeAST(node->program.varDeclList);
-        freeAST(node->program.stmtList);
+        freeAST(node->program.block);
         break;
     case NodeType_VarDeclList:
         freeAST(node->varDeclList.varDecl);
@@ -201,7 +201,7 @@ ASTNode *createNode(NodeType type)
     {
     case NodeType_Program:
         newNode->program.varDeclList = NULL;
-        newNode->program.stmtList = NULL;
+        newNode->program.block = NULL;
         break;
     case NodeType_VarDeclList:
         newNode->varDeclList.varDecl = NULL;

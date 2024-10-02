@@ -36,7 +36,7 @@ typedef struct ASTNode
         struct
         {
             struct ASTNode *varDeclList;
-            struct ASTNode *stmtList;
+            struct ASTNode *block;
         } program;
 
         struct

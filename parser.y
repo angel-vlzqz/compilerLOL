@@ -52,7 +52,7 @@ Program:
 	    root = malloc(sizeof(ASTNode));
         root->type = NodeType_Program;
         root->program.varDeclList = $1;
-        root->program.stmtList = $2;
+        root->program.block = $2;
     }
     ;
 
@@ -86,7 +86,7 @@ VarDecl:
 Block:
     StmtList {
         printf("Parsed Block\n");
-	$$ = createNode(NodeType_Block);
+	    $$ = createNode(NodeType_Block);
         $$->block.stmtList = $1;
     }
     ;

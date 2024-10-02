@@ -19,7 +19,7 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
     case NodeType_Program:
         printf("Performing semantic analysis on program\n");
         semanticAnalysis(node->program.varDeclList, symTab);
-        semanticAnalysis(node->program.stmtList, symTab);
+        semanticAnalysis(node->program.block, symTab);
         fprintf(stderr, "Node Type: %d\n", node->type);
         break;
     case NodeType_VarDeclList:
@@ -51,6 +51,9 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         }
         semanticAnalysis(node->assignStmt.expr, symTab);
         fprintf(stderr, "Node Type: %d\n", node->type);
+
+        // Generate TAC for the assignment statement
+        generateTACForExpr(node, symTab);
         break;
     case NodeType_Expr:
         semanticAnalysis(node->expr.left, symTab);
@@ -70,6 +73,9 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         semanticAnalysis(node->binOp.left, symTab);
         semanticAnalysis(node->binOp.right, symTab);
         fprintf(stderr, "Node Type: %d\n", node->type);
+
+        // Generate TAC for the binary operation
+        generateTACForExpr(node, symTab);
         break;
     case NodeType_LogicalOp:
         // Check logical operations
@@ -110,6 +116,11 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         {
             fprintf(stderr, "Semantic error: Variable %s has not been declared\n", node->writeStmt.varName);
             fprintf(stderr, "Node Type: %d\n", node->type);
+        }
+        else
+        {
+            // Generate TAC for the write statement
+            generateTACForExpr(node, symTab);
         }
         break;
     case NodeType_Block:
@@ -164,19 +175,20 @@ TAC *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
     switch (expr->type)
     {
+        printf("Generating TAC for %s\n", instruction->op);
+        
         case NodeType_BinOp:
             printf("Generating TAC for binary operation\n");
-            instruction->arg1 = createOperand(expr->binOp.left, symTab);
-            instruction->arg2 = createOperand(expr->binOp.right, symTab);
+            instruction->arg1 = createOperand(expr->binOp.left, symTab);  // Create TAC for left operand
+            instruction->arg2 = createOperand(expr->binOp.right, symTab); // Create TAC for right operand
 
-            // Assign the operator based on the binary operation
-            switch (expr->binOp.operator)
-            {
+            // Check the type of binary operator and set the appropriate operator in TAC
+            switch (expr->binOp.operator) {
                 case '+':
                     instruction->op = strdup("+");
                     break;
                 case '-':
-                    instruction->op = strdup("-");
+                   instruction->op = strdup("-");
                     break;
                 case '*':
                     instruction->op = strdup("*");
@@ -190,8 +202,11 @@ TAC *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
                     return NULL;
             }
 
-            if (!instruction->result)
-                instruction->result = createTempVar(); // Create a temporary variable for the result
+            // If a result variable hasn't been assigned, create a temporary variable
+            if (!instruction->result) {
+                instruction->result = createTempVar();  // Create a new temporary variable to hold the result
+            }
+            appendTAC(&tacHead, instruction);  // Append the instruction to the global TAC list
             break;
 
         case NodeType_SimpleExpr:
@@ -240,6 +255,29 @@ TAC *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
                 return NULL;
             }
             break;
+
+        case NodeType_WriteStmt:
+        {
+            printf("Generating TAC for write statement\n");
+
+            // Create a TAC instruction for the write operation
+            TAC *writeTAC = (TAC *)malloc(sizeof(TAC));
+            if (!writeTAC)
+            {
+                fprintf(stderr, "Failed to allocate memory for write TAC\n");
+                return NULL;
+            }
+
+            writeTAC->op = strdup("WRITE");
+            writeTAC->arg1 = strdup(expr->writeStmt.varName);
+            writeTAC->arg2 = NULL;
+            writeTAC->result = NULL;
+            writeTAC->next = NULL;
+
+            appendTAC(&tacHead, writeTAC);
+
+            return writeTAC;
+        }
 
         default:
             fprintf(stderr, "Error: Unsupported node type in TAC generation\n");
@@ -296,6 +334,11 @@ char *createOperand(ASTNode *node, SymbolTable *symTab)
         }
         case NodeType_Expr:
         case NodeType_BinOp:
+        {
+            // Generate TAC for the binary operation
+            TAC *tac = generateTACForExpr(node, symTab);
+            return strdup(tac->result);  // Return the result variable of the TAC
+        }
         case NodeType_LogicalOp:
         {
             // Generate TAC code for the expression and get the result variable

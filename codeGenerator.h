@@ -5,6 +5,7 @@
 
 #include "AST.h" // Include your AST definition
 #include "semantic.h" // Include your TAC definition
+#include "optimizer.h"
 #include <stdbool.h>
 
 #define NUM_TEMP_REGISTERS 10
