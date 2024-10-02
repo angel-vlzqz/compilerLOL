@@ -223,12 +223,14 @@ void copyPropagation(TAC **head)
                 TAC *temp = current->next;
                 while (temp != NULL)
                 {
-                    if (temp->arg1 != NULL && strcmp(temp->arg1, current->result) == 0)
+                    // Ensure that temp->arg1 and current->result are not NULL before using strcmp
+                    if (temp->arg1 != NULL && current->result != NULL && strcmp(temp->arg1, current->result) == 0)
                     {
                         free(temp->arg1);
                         temp->arg1 = strdup(current->arg1);
                     }
-                    if (temp->arg2 != NULL && strcmp(temp->arg2, current->result) == 0)
+                    // Ensure that temp->arg2 and current->result are not NULL before using strcmp
+                    if (temp->arg2 != NULL && current->result != NULL && strcmp(temp->arg2, current->result) == 0)
                     {
                         free(temp->arg2);
                         temp->arg2 = strdup(current->arg1);
@@ -240,7 +242,6 @@ void copyPropagation(TAC **head)
         current = current->next;
     }
 }
-
 // A simplified dead code elimination example that only handles removal of unused assignments.
 // This function removes assignments that are not used in any subsequent TAC instructions.
 // For example, if the TAC contains "assign x, 5" and "assign y, x", and "x" is not used after that,
