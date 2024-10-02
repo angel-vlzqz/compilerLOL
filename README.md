@@ -1,11 +1,14 @@
-To compile the lexer to C code, run:
-```lex lexer.l```
+To compile the compiler, run 
+```make```
 
-to compile C code to executable, run:
-```gcc lex.yy.c -o lexer```
+To run the compiler, use
+```./main_program```
 
-to run executable lexer, run:
-```./lexer```
-
-if you have an input file, run:
-```./lexer input.txt```
+If you use mac and are running into a segmentation
+fault when running the program, you will have to use
+the built-in `lldb` compiler. Do this by first
+running
+```lldb ./main_program"```
+then, type and enter
+```run```
+to run the program utilizing mac's built-in debugger
