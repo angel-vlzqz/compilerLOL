@@ -23,7 +23,8 @@ Symbol* symbol = NULL;
 
 %}
 
-%union {
+%union 
+{
 	int number;
 	char character;
 	char* string;
@@ -47,7 +48,8 @@ Symbol* symbol = NULL;
 %% 
 
 Program:
-    VarDeclList Block {
+    VarDeclList Block 
+    {
         printf("Parsed Program\n");
 	    root = malloc(sizeof(ASTNode));
         root->type = NodeType_Program;
@@ -57,13 +59,15 @@ Program:
     ;
 
 VarDeclList:
-    VarDecl VarDeclList {
+    VarDecl VarDeclList 
+    {
         // Handle recursive variable declaration list.
         $$ = createNode(NodeType_VarDeclList);
         $$->varDeclList.varDecl = $1;
         $$->varDeclList.varDeclList = $2;
     }
-    | VarDecl {
+    | VarDecl 
+    {
         // Handle single variable declaration.
         $$ = createNode(NodeType_VarDeclList);
         $$->varDeclList.varDecl = $1;
@@ -72,19 +76,23 @@ VarDeclList:
     ;
 
 VarDecl:
-    TYPE ID SEMICOLON {
+    TYPE ID SEMICOLON 
+    {
         $$ = createNode(NodeType_VarDecl);
         $$->varDecl.varType = strdup($1);
         $$->varDecl.varName = strdup($2);
         // Insert into symbol table.
         insertSymbol(symTab, $2, $1);
-    } | TYPE ID {
+    } 
+    |TYPE ID 
+    {
         printf("Missing semicolon after declaring variable: %s\n", $2);
     }
     ;
 
 Block:
-    StmtList {
+    StmtList 
+    {
         printf("Parsed Block\n");
 	    $$ = createNode(NodeType_Block);
         $$->block.stmtList = $1;
@@ -92,20 +100,23 @@ Block:
     ;
 
 StmtList:
-    Stmt StmtList {
+    Stmt StmtList 
+    {
         printf("Parsed Statement List\n");
 	    $$ = malloc(sizeof(ASTNode));
         $$->type = NodeType_StmtList;
         $$->stmtList.stmt = $1;
         $$->stmtList.stmtList = $2;
     }
-    | /* empty */ {
+    | /* empty */ 
+    {
         printf("Parsed Empty Statement List\n");
     }
     ;
 
 Stmt:
-    ID ASSIGNOP Expr SEMICOLON {
+    ID ASSIGNOP Expr SEMICOLON 
+    {
         Symbol* existingSymbol = findSymbol(symTab, $1);
         if (existingSymbol != NULL) {
             printf("Parsed Assignment Statement: %s = ...\n", $1);
@@ -113,9 +124,12 @@ Stmt:
             // Use a local buffer to store the value string
             char valueBuffer[20];  // No need to free this
 
-            if ($3->type == NodeType_SimpleExpr) {
+            if ($3->type == NodeType_SimpleExpr) 
+            {
                 snprintf(valueBuffer, sizeof(valueBuffer), "%d", $3->simpleExpr.number);
-            } else {
+            } 
+            else 
+            {
                 // Handle other expression types
             }
 
@@ -127,36 +141,45 @@ Stmt:
             $$->assignStmt.varName = strdup($1);
             $$->assignStmt.operator = strdup($2);
             $$->assignStmt.expr = $3;
-        } else {
+        } 
+        else 
+        {
             printf("Error: Variable %s not declared\n", $1);
             yyerror("Undeclared variable");
         }
     }
-    | WRITE ID SEMICOLON {
+    | WRITE ID SEMICOLON 
+    {
         Symbol* existingSymbol = findSymbol(symTab, $2);
-        if (existingSymbol != NULL) {
+        if (existingSymbol != NULL) 
+        {
             printf("Parsed Write Statement: %s\n", $2);
             $$ = createNode(NodeType_WriteStmt);
             $$->writeStmt.varName = strdup($2);
-        } else {
+        } 
+        else 
+        {
             printf("Error: Variable %s not declared\n", $2);
             yyerror("Undeclared variable");
         }
     }
-    | IF Expr THEN Block ELSE Block {
+    | IF Expr THEN Block ELSE Block 
+    {
         printf("Parsed If-Else Statement\n");
         $$ = createNode(NodeType_IfStmt);
         $$->ifStmt.condition = $2;
         $$->ifStmt.thenBlock = $4;
         $$->ifStmt.elseBlock = $6;
     }
-    | WHILE Expr DO Block {
+    | WHILE Expr DO Block 
+    {
         printf("Parsed While Statement\n");
         $$ = createNode(NodeType_WhileStmt);
         $$->whileStmt.condition = $2;
         $$->whileStmt.block = $4;
     }
-    | RETURN Expr SEMICOLON {
+    | RETURN Expr SEMICOLON 
+    {
         printf("Parsed Return Statement\n");
 	    $$ = createNode(NodeType_ReturnStmt);
         $$->returnStmt.expr = $2;
@@ -164,7 +187,8 @@ Stmt:
     ;
 
 Expr:
-    Expr PLUS Expr {
+    Expr PLUS Expr 
+    {
         printf("PARSER: Recognized addition expression\n");
         $$ = malloc(sizeof(ASTNode));
         $$->type = NodeType_BinOp;
@@ -172,7 +196,8 @@ Expr:
         $$->binOp.left = $1;
         $$->binOp.right = $3;
     }
-    | Expr MINUS Expr {
+    | Expr MINUS Expr 
+    {
         printf("PARSER: Recognized subtraction expression\n");
         $$ = malloc(sizeof(ASTNode));
         $$->type = NodeType_BinOp;
@@ -180,7 +205,8 @@ Expr:
         $$->binOp.left = $1;
         $$->binOp.right = $3;
     }
-    | Expr MUL Expr {
+    | Expr MUL Expr 
+    {
         printf("PARSER: Recognized multiplication expression\n");
         $$ = malloc(sizeof(ASTNode));
         $$->type = NodeType_BinOp;
@@ -188,30 +214,37 @@ Expr:
         $$->binOp.left = $1;
         $$->binOp.right = $3;
     }
-    | Expr LOGICOP Expr {
+    | Expr LOGICOP Expr 
+    {
         printf("Parsed Logical Expression: %s %s %s\n", $1, $2, $3);
         $$ = createNode(NodeType_LogicalOp);
         $$->logicalOp.logicalOp = strdup($2);  // Store the operator string
         $$->logicalOp.left = $1;
         $$->logicalOp.right = $3;
     }
-    | '(' Expr ')' {
+    | '(' Expr ')' 
+    {
         printf("Parsed Expression in parentheses\n");
         $$ = $2;
     }
-    | ID {
+    | ID 
+    {
         Symbol* existingSymbol = findSymbol(symTab, $1);
-        if (existingSymbol != NULL) {
+        if (existingSymbol != NULL) 
+        {
             printf("Parsed Identifier: %s\n", $1);
 	        $$ = malloc(sizeof(ASTNode));
 	        $$->type = NodeType_SimpleID;
 	        $$->simpleID.name = $1;
-        } else {
+        } 
+        else 
+        {
             printf("Error: Variable %s not declared\n", $1);
             yyerror("Undeclared variable");
         }
     } 
-    | NUMBER {
+    | NUMBER 
+    {
         printf("Parsed Number: %d\n", $1);
 	    $$ = malloc(sizeof(ASTNode));
 	    $$->type = NodeType_SimpleExpr;
@@ -222,30 +255,35 @@ Expr:
 
 %% 
 
-void yyerror(const char *s) {
+void yyerror(const char *s) 
+{
     printf("Error: %s\n", s);
     exit(1);
 }
 
-int main() {
+int main() 
+{
     // initialize the input source
     yyin = fopen("input.cmm", "r");
 
     // initialize symbol table
     symTab = createSymbolTable(TABLE_SIZE);
-    if (symTab == NULL) {
+    if (symTab == NULL) 
+    {
         fprintf(stderr, "Error: Unable to initialize symbol table\n");
         exit(1);
     }
     symbol = malloc(sizeof(Symbol));
-    if (symbol == NULL) {
+    if (symbol == NULL) 
+    {
         fprintf(stderr, "Error: Unable to allocate memory for symbol\n");
         exit(1);
     }
 
     initializeTempVars();
     
-    if (yyparse() == 0) {
+    if (yyparse() == 0) 
+    {
 
         printf("=================Semantic=================\n");
 
@@ -273,7 +311,8 @@ int main() {
     }
 
     // Traverse and print the AST
-    if (root != NULL) {
+    if (root != NULL) 
+    {
         traverseAST(root, 0);
         freeAST(root);
     }

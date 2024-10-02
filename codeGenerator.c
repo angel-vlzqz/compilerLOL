@@ -67,11 +67,14 @@ void generateMIPS(TAC *tacInstructions)
                 return;
             }
 
-            if (isConstant(current->arg1)) {
+            if (isConstant(current->arg1))
+            {
                 // Load immediate value for constant assignment
                 printf("Generating MIPS for constant assignment\n");
                 fprintf(outputFile, "\tli %s, %s\n", tempRegisters[reg].name, current->arg1);
-            } else {
+            }
+            else
+            {
                 // Load value from a variable
                 int argReg = allocateRegister();
                 if (argReg == -1)
@@ -168,9 +171,9 @@ void generateMIPS(TAC *tacInstructions)
 
             printf("Generating MIPS code for WRITE operation\n");
             fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg].name, current->arg1);
-            fprintf(outputFile, "\tmove $a0, %s\n", tempRegisters[reg].name);  // Load the value into $a0
-            fprintf(outputFile, "\tli $v0, 1\n");  // MIPS syscall code for printing an integer
-            fprintf(outputFile, "\tsyscall\n");    // Make the syscall to print the integer
+            fprintf(outputFile, "\tmove $a0, %s\n", tempRegisters[reg].name); // Load the value into $a0
+            fprintf(outputFile, "\tli $v0, 1\n");                             // MIPS syscall code for printing an integer
+            fprintf(outputFile, "\tsyscall\n");                               // Make the syscall to print the integer
 
             // Deallocate the register after use
             deallocateRegister(reg);
