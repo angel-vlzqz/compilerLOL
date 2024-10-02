@@ -177,24 +177,21 @@ TAC *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
     {
         case NodeType_BinOp:
         {
-            // Recursively generate TAC for left and right operands
             TAC *leftTAC = generateTACForExpr(expr->binOp.left, symTab);
             TAC *rightTAC = generateTACForExpr(expr->binOp.right, symTab);
 
-            // The operands are the results of the left and right TACs
-            char *leftOperand = leftTAC->result;
-            char *rightOperand = rightTAC->result;
+            if (leftTAC == NULL || rightTAC == NULL || leftTAC->result == NULL || rightTAC->result == NULL) {
+                fprintf(stderr, "Error: Invalid operands for binary operation\n");
+                free(instruction);
+                return NULL;
+            }
 
-            // Create a new TAC instruction
-            TAC *instruction = (TAC *)malloc(sizeof(TAC));
             instruction->op = strdup(&expr->binOp.operator); // e.g., "+", "-", etc.
-            instruction->arg1 = strdup(leftOperand);
-            instruction->arg2 = strdup(rightOperand);
-            instruction->result = createTempVar();
-            instruction->next = NULL;
+            instruction->arg1 = strdup(leftTAC->result);
+            instruction->arg2 = strdup(rightTAC->result);
+            instruction->result = createTempVar(); // Allocate a new temporary variable for the result
 
             appendTAC(&tacHead, instruction);
-
             return instruction;
         }
         break;

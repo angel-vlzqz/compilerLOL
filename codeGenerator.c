@@ -56,10 +56,20 @@ void generateMIPS(TAC *tacInstructions)
     printf("Generating MIPS code...\n");
     while (current != NULL)
     {
-        printCurrentTAC(current);
+        if (current->op == NULL) {
+            fprintf(stderr, "Error: TAC operation is NULL\n");
+            current = current->next;
+            continue;
+        }
 
         if (strcmp(current->op, "=") == 0)
         {
+            if (current->result == NULL || current->arg1 == NULL) {
+                fprintf(stderr, "Error: Assignment TAC contains NULL fields\n");
+                current = current->next;
+                continue;
+            }
+
             int reg = allocateRegister();
             if (reg == -1)
             {
@@ -70,39 +80,27 @@ void generateMIPS(TAC *tacInstructions)
             if (isConstant(current->arg1))
             {
                 // Load immediate value for constant assignment
-                printf("Generating MIPS for constant assignment\n");
                 fprintf(outputFile, "\tli %s, %s\n", tempRegisters[reg].name, current->arg1);
             }
             else
             {
                 // Load value from a variable
-                int argReg = allocateRegister();
-                if (argReg == -1)
-                {
-                    fprintf(stderr, "Error: No available register for loading variable\n");
-                    return;
-                }
-                printf("Generating MIPS for variable assignment\n");
-                fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[argReg].name, current->arg1);
-                fprintf(outputFile, "\tmove %s, %s\n", tempRegisters[reg].name, tempRegisters[argReg].name);
-                deallocateRegister(argReg); // Deallocate the temporary register used for loading
+                fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg].name, current->arg1);
             }
 
             fprintf(outputFile, "\tsw %s, %s\n", tempRegisters[reg].name, current->result);
-            deallocateRegister(reg); // Deallocate the register after use
+            deallocateRegister(reg);
         }
         else if (strcmp(current->op, "+") == 0)
         {
             int reg1 = allocateRegister();
             int reg2 = allocateRegister();
             int resultReg = allocateRegister();
-
-            if (reg1 == -1 || reg2 == -1 || resultReg == -1)
-            {
-                fprintf(stderr, "Error: No available registers for addition operation\n");
-                return;
+            if (current->arg1 == NULL || current->arg2 == NULL || current->result == NULL) {
+                fprintf(stderr, "Error: Addition TAC contains NULL fields\n");
+                current = current->next;
+                continue;
             }
-
             printf("Generating MIPS code for addition operation\n");
             fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg1].name, current->arg1);
             fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg2].name, current->arg2);
@@ -170,10 +168,25 @@ void generateMIPS(TAC *tacInstructions)
             }
 
             printf("Generating MIPS code for WRITE operation\n");
-            fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg].name, current->arg1);
-            fprintf(outputFile, "\tmove $a0, %s\n", tempRegisters[reg].name); // Load the value into $a0
-            fprintf(outputFile, "\tli $v0, 1\n");                             // MIPS syscall code for printing an integer
-            fprintf(outputFile, "\tsyscall\n");                               // Make the syscall to print the integer
+
+            // Check if arg1 is a constant (if it is a number)
+            if (isConstant(current->arg1))
+            {
+                // Handle the case where arg1 is a constant value
+                fprintf(outputFile, "\tli %s, %s\n", tempRegisters[reg].name, current->arg1); // Load immediate constant into the register
+            }
+            else
+            {
+                // Handle the case where arg1 is a variable (load it from memory)
+                fprintf(outputFile, "\tlw %s, %s\n", tempRegisters[reg].name, current->arg1); // Load from memory into the register
+            }
+
+            // Move the value into $a0 for printing
+            fprintf(outputFile, "\tmove $a0, %s\n", tempRegisters[reg].name);  // Load the value into $a0
+
+            // MIPS syscall code for printing an integer
+            fprintf(outputFile, "\tli $v0, 1\n");  // Syscall code 1 for print integer
+            fprintf(outputFile, "\tsyscall\n");    // Perform the syscall
 
             // Deallocate the register after use
             deallocateRegister(reg);
