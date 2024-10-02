@@ -222,11 +222,11 @@ Expr:
         $$->logicalOp.left = $1;
         $$->logicalOp.right = $3;
     }
-    | '(' Expr ')' 
-    {
-        printf("Parsed Expression in parentheses\n");
-        $$ = $2;
-    }
+    // | '(' Expr ')' 
+    // {
+    //     printf("Parsed Expression in parentheses\n");
+    //     $$ = $2;
+    // }
     | ID 
     {
         Symbol* existingSymbol = findSymbol(symTab, $1);
@@ -290,15 +290,15 @@ int main()
         // Semantic Analysis
         semanticAnalysis(root, symTab);
 
-        // printTACToFile("TACsem.txt", &tacHead);
-        // printTAC(&tacHead);
+        printTACToFile("TACsem.ir", &tacHead);
+        printTAC(&tacHead);
 
         printf("=================Optimizer=================\n");
         // TAC Optimization
         optimizeTAC(&tacHead);  // 'tacHead' is the global head of the TAC linked list
 
-        // printTACToFile("TACopt.txt", &tacHead);
-        // printCurrentOptimizedTAC(&tacHead);
+        printTACToFile("TACopt.ir", &tacHead);
+        printCurrentOptimizedTAC(&tacHead);
         
         printf("=================Code Generation=================\n");
         
@@ -306,8 +306,8 @@ int main()
         initCodeGenerator("output.asm");
         generateMIPS(tacHead);  // Generate MIPS code from optimized TAC
         finalizeCodeGenerator("output.asm");
-        // printTACToFile("TACgen.txt", &tacHead);
-        // printCurrentTAC(&tacHead);
+        printTACToFile("TACgen.ir", &tacHead);
+        printCurrentTAC(&tacHead);
     }
 
     // Traverse and print the AST

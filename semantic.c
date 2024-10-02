@@ -394,26 +394,43 @@ void printTACToFile(const char *filename, TAC *tac)
         }
         else
         {
+            // Print only if 'result', 'arg1', and 'arg2' are not NULL
             if (current->result != NULL)
             {
                 printf("TAC instruction %d: result = %s\n", tacCounter, current->result);
                 fprintf(file, "%s = ", current->result);
             }
+            else
+            {
+                printf("TAC instruction %d: result is NULL\n", tacCounter);
+            }
+
             if (current->arg1 != NULL)
             {
                 printf("TAC instruction %d: arg1 = %s\n", tacCounter, current->arg1);
                 fprintf(file, "%s ", current->arg1);
             }
+            else
+            {
+                printf("TAC instruction %d: arg1 is NULL\n", tacCounter);
+            }
+
             if (current->op != NULL)
             {
                 printf("TAC instruction %d: op = %s\n", tacCounter, current->op);
                 fprintf(file, "%s ", current->op);
             }
+
             if (current->arg2 != NULL)
             {
                 printf("TAC instruction %d: arg2 = %s\n", tacCounter, current->arg2);
                 fprintf(file, "%s ", current->arg2);
             }
+            else
+            {
+                printf("TAC instruction %d: arg2 is NULL\n", tacCounter);
+            }
+
             fprintf(file, "\n");
         }
 
@@ -426,7 +443,6 @@ void printTACToFile(const char *filename, TAC *tac)
     fclose(file);
     printf("TAC written to %s\n", filename);
 }
-
 // Temporary variable allocation and deallocation functions //
 
 void initializeTempVars()

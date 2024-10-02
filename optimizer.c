@@ -116,13 +116,16 @@ void constantFolding(TAC **head)
 
     while (current != NULL)
     {
+        printf("FUCK YOU");
         if (current->op != NULL && (strcmp(current->op, "+") == 0 || strcmp(current->op, "-") == 0 ||
                                     strcmp(current->op, "*") == 0 || strcmp(current->op, "/") == 0))
         {
+            printf("bussy");
             // If both operands are constants
             if (isConstant(current->arg1) && isConstant(current->arg2))
             {
                 printf("Constant folding started\n");
+                printf("penis");
 
                 int operand1 = atoi(current->arg1);
                 int operand2 = atoi(current->arg2);
@@ -167,7 +170,7 @@ void constantFolding(TAC **head)
 
         current = current->next;
     }
-}// A simplified constant propagation example that only handles assignment of integer constants to variables.
+} // A simplified constant propagation example that only handles assignment of integer constants to variables.
 void constantPropagation(TAC **head)
 {
     /*
