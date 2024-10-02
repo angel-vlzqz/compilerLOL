@@ -365,6 +365,7 @@ void printTACToFile(const char *filename, TAC *tac)
 
     while (current != NULL)
     {
+        printf("------------------------------------------------------------------------------\n");
         if (current->op != NULL)
         {
             printf("TAC instruction %d: operation is: %s\n", tacCounter, current->op);
