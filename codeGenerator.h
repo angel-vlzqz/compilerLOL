@@ -40,4 +40,8 @@ VarNode* findVariable(VarNode* varList, const char* varName);
 
 void loadOperand(const char *registerName, const char *operand);
 
+void freeVariableList(VarNode* varList);
+
+void collectVariables(TAC* tacInstructions, VarNode** varList);
+
 #endif // CODE_GENERATOR_H
