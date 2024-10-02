@@ -166,7 +166,7 @@ TAC *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
         return NULL;
     }
 
-    // Initialize TAC fields to NULL
+    // Initialize TAC fields
     instruction->op = NULL;
     instruction->arg1 = NULL;
     instruction->arg2 = NULL;
@@ -175,70 +175,63 @@ TAC *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
     switch (expr->type)
     {
-        printf("Generating TAC for %s\n", instruction->op);
-        
         case NodeType_BinOp:
-            printf("Generating TAC for binary operation\n");
-            instruction->arg1 = createOperand(expr->binOp.left, symTab);  // Create TAC for left operand
-            instruction->arg2 = createOperand(expr->binOp.right, symTab); // Create TAC for right operand
+        {
+            // Recursively generate TAC for left and right operands
+            TAC *leftTAC = generateTACForExpr(expr->binOp.left, symTab);
+            TAC *rightTAC = generateTACForExpr(expr->binOp.right, symTab);
 
-            // Check the type of binary operator and set the appropriate operator in TAC
-            switch (expr->binOp.operator) {
-                case '+':
-                    instruction->op = strdup("+");
-                    break;
-                case '-':
-                   instruction->op = strdup("-");
-                    break;
-                case '*':
-                    instruction->op = strdup("*");
-                    break;
-                case '/':
-                    instruction->op = strdup("/");
-                    break;
-                default:
-                    fprintf(stderr, "Error: Unsupported binary operator '%c'\n", expr->binOp.operator);
-                    free(instruction);
-                    return NULL;
-            }
+            // The operands are the results of the left and right TACs
+            char *leftOperand = leftTAC->result;
+            char *rightOperand = rightTAC->result;
 
-            // If a result variable hasn't been assigned, create a temporary variable
-            if (!instruction->result) {
-                instruction->result = createTempVar();  // Create a new temporary variable to hold the result
-            }
-            appendTAC(&tacHead, instruction);  // Append the instruction to the global TAC list
-            break;
+            // Create a new TAC instruction
+            TAC *instruction = (TAC *)malloc(sizeof(TAC));
+            instruction->op = expr->binOp.operator; // e.g., "+", "-", etc.
+            instruction->arg1 = strdup(leftOperand);
+            instruction->arg2 = strdup(rightOperand);
+            instruction->result = createTempVar();
+            instruction->next = NULL;
+
+            appendTAC(&tacHead, instruction);
+
+            return instruction;
+        }
+        break;
 
         case NodeType_SimpleExpr:
-            printf("Generating TAC for simple expression\n");
-            char buffer[20];
-            snprintf(buffer, 20, "%d", expr->simpleExpr.number);
-            instruction->arg1 = strdup(buffer);  // Duplicate the number as a string
-            instruction->op = strdup("=");       // Assign '=' as the operation
+        {
+            // Handle numeric literals
+            TAC *instruction = (TAC *)malloc(sizeof(TAC));
+            instruction->op = strdup("="); // Assign operation
+            instruction->arg1 = createOperand(expr, symTab); // Should return the numeric value as string
             instruction->arg2 = NULL;
-            if (!instruction->result)
-                instruction->result = createTempVar();
-            break;
+            instruction->result = createTempVar();
+            instruction->next = NULL;
+
+            appendTAC(&tacHead, instruction);
+
+            return instruction;
+        }
+        break;
 
         case NodeType_SimpleID:
-            printf("Generating TAC for simple ID\n");
-            // Check if the variable is declared in the symbol table
-            Symbol *symbol = findSymbol(symTab, expr->simpleID.name);
-            if (symbol)
-            {
-                instruction->arg1 = strdup(expr->simpleID.name);  // Variable name
-                instruction->op = strdup("assign");
-                instruction->result = strdup(expr->simpleID.name);  // Result is the variable name
-            }
-            else
-            {
-                fprintf(stderr, "Error: Variable %s has not been declared\n", expr->simpleID.name);
-                free(instruction);
-                return NULL;
-            }
-            break;
+        {
+            // Handle variable identifiers
+            // No need to generate a TAC instruction, just return the variable name
+            TAC *instruction = (TAC *)malloc(sizeof(TAC));
+            instruction->op = NULL;
+            instruction->arg1 = NULL;
+            instruction->arg2 = NULL;
+            instruction->result = strdup(expr->simpleID.name);
+            instruction->next = NULL;
+
+            return instruction;
+        }
+        break;
 
         case NodeType_AssignStmt:
+        {
             printf("Generating TAC for assignment statement\n");
             Symbol *assignSymbol = findSymbol(symTab, expr->assignStmt.varName);
             if (assignSymbol)
@@ -254,7 +247,8 @@ TAC *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
                 free(instruction);
                 return NULL;
             }
-            break;
+        }
+        break;
 
         case NodeType_WriteStmt:
         {
@@ -278,6 +272,7 @@ TAC *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
             return writeTAC;
         }
+        break;
 
         default:
             fprintf(stderr, "Error: Unsupported node type in TAC generation\n");
@@ -312,42 +307,24 @@ char *createOperand(ASTNode *node, SymbolTable *symTab)
         case NodeType_SimpleExpr:
         {
             // Numeric literal
-            char *buffer = malloc(20);
-            if (!buffer)
-                return NULL;
+            char buffer[20];
             snprintf(buffer, 20, "%d", node->simpleExpr.number);
-            return buffer;
+            return strdup(buffer);
         }
         case NodeType_SimpleID:
         {
-            // Check if the variable is declared
+            // Variable identifier
             Symbol *symbol = findSymbol(symTab, node->simpleID.name);
             if (symbol)
-            {
-                return strdup(node->simpleID.name);  // Variable name
-            }
+                return strdup(node->simpleID.name);
             else
             {
                 fprintf(stderr, "Error: Variable %s has not been declared\n", node->simpleID.name);
                 return NULL;
             }
         }
-        case NodeType_Expr:
-        case NodeType_BinOp:
-        {
-            // Generate TAC for the binary operation
-            TAC *tac = generateTACForExpr(node, symTab);
-            return strdup(tac->result);  // Return the result variable of the TAC
-        }
-        case NodeType_LogicalOp:
-        {
-            // Generate TAC code for the expression and get the result variable
-            char *resultVar = generateTACForExpr(node, symTab);
-            return resultVar;
-        }
-        // Handle other cases as needed
         default:
-            fprintf(stderr, "Unhandled node type in createOperand\n");
+            fprintf(stderr, "Unhandled node type %d in createOperand\n", node->type);
             return NULL;
     }
 }
@@ -503,4 +480,3 @@ void appendTAC(TAC **head, TAC *newInstruction)
         current->next = newInstruction;
     }
 }
-
