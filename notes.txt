@@ -1,0 +1,33 @@
+- type match
+int x;
+float y;
+float z;
+int m;
+x = 5;
+y = 2.3;
+z = x + y;    z = (float)x + y;
+m = x + y;
+
+REQUIRED IMPLEMENTATION;
+- type casting (programmer decides)
+- type coercion (compiler decides)
+
+  for typecasting add/modify CFG rule, for example:
+  Expr: ID BinOp ID { ... }
+    LPAREN TYPE RPAREN ID BinOP LPAREN TYPE RPAREN ID { ... }
+
+    for type coercion, no need to modify rules just C FUNCTIONS
+    that execute when an expression has mixed types
+
+OPERATOR PRECEDENCE
+
+ADD OPERATIONS --> OPERATOR PRECEDENCE
+^*/+- (later... instead of x^y, POW(x,y))
+try POW(POW(x,y),x)
+3 lines of code in bison
+
+ARRAYS:
+int x[5]; 2D arrays are optional
+stringz
+
+z = x[12] + x[t];
