@@ -36,6 +36,10 @@ SymbolTable* symTab = NULL;
 %token <character> SEMICOLON '(' ')' '[' ']' '{' '}'
 %token THEN DO
 
+%left '+' '-'
+%left '*' '/'
+%nonassoc UMINUS
+
 %left PLUS MINUS
 %left MUL
 
@@ -46,6 +50,49 @@ SymbolTable* symTab = NULL;
 %% 
 
 Program:
+FuncDeclList:
+    FuncDecl
+    | FuncDeclList FuncDecl
+    ;
+
+FuncDecl:
+    TYPE ID '(' ParamList ')' '{' StmtList '}' {
+        /* Code to handle function declaration, create a symbol for the function */
+        printf("Function Declaration: %s\n", $2);
+    }
+    ;
+
+ParamList:
+    /* Handles parameters in the function */
+    TYPE ID {
+        /* Process single parameter */
+    }
+    | ParamList ',' TYPE ID {
+        /* Process multiple parameters */
+    }
+    | /* empty */ {
+        /* No parameters */
+    }
+    ;
+
+    statement:
+        Expr ';'
+        | RETURN Expr ';' {
+            /* Handle return statement */
+            printf("Returning value from function.\n");
+        }
+        | WRITE '(' Expr ')' ';' {
+            /* Handle write statement */
+            printf("Writing value: %d\n", $3);
+        }
+        ;
+
+    argument_list:
+    //Expr
+    //    | argument_list ',' Expr
+    //    | /* empty */
+    //    ;    
+    
     VarDeclList Block 
     {
         printf("Parsed Program\n");

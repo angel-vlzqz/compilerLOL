@@ -15,6 +15,7 @@ int add(int a, int b) {
     return a + b;
 }
 
-
-int result = add(10, 20);
-write(result);
+int main() {
+  int result = add(10, 20);
+  write(result);
+}

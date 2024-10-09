@@ -17,7 +17,7 @@ letter      [a-zA-Z]
 digit       [0-9]
 ID          {letter}({letter}|{digit})*
 delim       [ \t\n]
-NUMBER         {digit}+(\.{digit}+)?(E[+\-]?(digit)+)?
+NUMBER      {digit}+(\.{digit}+)?(E[+\-]?(digit)+)?
 ws          {delim}+
 
 %option yylineno
