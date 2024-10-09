@@ -33,7 +33,8 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         }
         else
         {
-            insertSymbol(symTab, node->varDecl.varName, node->varDecl.varType);
+            // For simple variable declarations, isArray is false, arrayInfo is NULL
+            insertSymbol(symTab, node->varDecl.varName, node->varDecl.varType, false, NULL);
         }
         break;
 
@@ -61,36 +62,117 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
     case NodeType_BinOp:
         semanticAnalysis(node->binOp.left, symTab);
         semanticAnalysis(node->binOp.right, symTab);
-        // No need to generate TAC here; it's handled in `generateTACForExpr`
+        // Type checking: Ensure both operands are of the same type
+        if (strcmp(node->binOp.left->dataType, node->binOp.right->dataType) != 0)
+        {
+            fprintf(stderr, "Semantic error: Type mismatch in binary operation\n");
+            exit(1);
+        }
+
+        // Set dataType to the common type
+        node->dataType = strdup(node->binOp.left->dataType);
         break;
 
     case NodeType_SimpleID:
-        if (findSymbol(symTab, node->simpleID.name) == NULL)
+    {
+        Symbol *symbol = findSymbol(symTab, node->simpleID.name);
+        if (symbol == NULL)
         {
             fprintf(stderr, "Semantic error: Variable %s has not been declared\n", node->simpleID.name);
         }
+        else
+        {
+            // Set dataType based on symbol's type
+            node->dataType = strdup(symbol->type);
+        }
         break;
+    }
 
     case NodeType_SimpleExpr:
-        // No action needed for simple expressions
+        node->dataType = strdup("int");
         break;
 
     case NodeType_WriteStmt:
-        if (findSymbol(symTab, node->writeStmt.varName) == NULL)
-        {
-            fprintf(stderr, "Semantic error: Variable %s has not been declared\n", node->writeStmt.varName);
-        }
-        else
-        {
-            // Generate TAC for the write statement
-            generateTACForExpr(node, symTab);
-        }
+        semanticAnalysis(node->writeStmt.expr, symTab);
+        // Generate TAC for the write statement
+        generateTACForExpr(node, symTab);
         break;
 
     case NodeType_Block:
         if (node->block.stmtList != NULL)
             semanticAnalysis(node->block.stmtList, symTab);
         break;
+
+    case NodeType_ArrayDecl:
+    {
+        // Check for duplicate declaration
+        if (findSymbol(symTab, node->arrayDecl.varName) != NULL)
+        {
+            fprintf(stderr, "Semantic error: Array %s is already declared\n", node->arrayDecl.varName);
+            exit(1);
+        }
+        // Create array info
+        Array *arrayInfo = createArray(node->arrayDecl.varType, node->arrayDecl.size);
+        // Insert into symbol table
+        insertSymbol(symTab, node->arrayDecl.varName, node->arrayDecl.varType, true, arrayInfo);
+        break;
+    }
+
+    case NodeType_ArrayAssign:
+    {
+        Symbol *arraySymbol = findSymbol(symTab, node->arrayAssign.arrayName);
+        if (arraySymbol == NULL || !arraySymbol->isArray)
+        {
+            fprintf(stderr, "Semantic error: %s is not a declared array\n", node->arrayAssign.arrayName);
+            exit(1);
+        }
+
+        // Analyze index and expression
+        semanticAnalysis(node->arrayAssign.index, symTab);
+        semanticAnalysis(node->arrayAssign.expr, symTab);
+
+        // Type checks
+        if (strcmp(node->arrayAssign.index->dataType, "int") != 0)
+        {
+            fprintf(stderr, "Semantic error: Array index must be an integer\n");
+            exit(1);
+        }
+
+        if (strcmp(node->arrayAssign.expr->dataType, arraySymbol->type) != 0)
+        {
+            fprintf(stderr, "Semantic error: Type mismatch in array assignment\n");
+            exit(1);
+        }
+
+        // Generate TAC for the array assignment
+        generateTACForExpr(node, symTab);
+
+        break;
+    }
+
+    case NodeType_ArrayAccess:
+    {
+        Symbol *arraySymbol = findSymbol(symTab, node->arrayAccess.arrayName);
+        if (arraySymbol == NULL || !arraySymbol->isArray)
+        {
+            fprintf(stderr, "Semantic error: %s is not a declared array\n", node->arrayAccess.arrayName);
+            exit(1);
+        }
+
+        // Analyze index
+        semanticAnalysis(node->arrayAccess.index, symTab);
+
+        // Type checks
+        if (strcmp(node->arrayAccess.index->dataType, "int") != 0)
+        {
+            fprintf(stderr, "Semantic error: Array index must be an integer\n");
+            exit(1);
+        }
+
+        // Set the data type of the array access node
+        node->dataType = strdup(arraySymbol->type);
+        break;
+    }
 
     default:
         fprintf(stderr, "Unknown Node Type: %d\n", node->type);
@@ -148,16 +230,8 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
         char buffer[20];
         snprintf(buffer, 20, "%d", expr->simpleExpr.number);
 
-        // Create a TAC instruction to load the constant
-        TAC *constTAC = (TAC *)malloc(sizeof(TAC));
-        constTAC->op = strdup("=");
-        constTAC->arg1 = strdup(buffer);
-        constTAC->arg2 = NULL;
-        constTAC->result = createTempVar();
-        constTAC->next = NULL;
-
-        appendTAC(&tacHead, constTAC);
-        return strdup(constTAC->result);
+        // Return the constant as a string
+        return strdup(buffer);
     }
     break;
 
@@ -170,16 +244,56 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
     case NodeType_WriteStmt:
     {
+        // Generate TAC for the expression to write
+        char *exprResult = generateTACForExpr(expr->writeStmt.expr, symTab);
+
         // Create a TAC instruction for the write operation
         TAC *writeTAC = (TAC *)malloc(sizeof(TAC));
         writeTAC->op = strdup("write");
-        writeTAC->arg1 = strdup(expr->writeStmt.varName);
+        writeTAC->arg1 = strdup(exprResult);
         writeTAC->arg2 = NULL;
         writeTAC->result = NULL;
         writeTAC->next = NULL;
 
         appendTAC(&tacHead, writeTAC);
         return NULL;
+    }
+    break;
+
+    case NodeType_ArrayAssign:
+    {
+        // Generate TAC for index and expression
+        char *index = generateTACForExpr(expr->arrayAssign.index, symTab);
+        char *rhs = generateTACForExpr(expr->arrayAssign.expr, symTab);
+
+        // Create a TAC instruction for the array assignment
+        TAC *arrayAssignTAC = (TAC *)malloc(sizeof(TAC));
+        arrayAssignTAC->op = strdup("[]=");
+        arrayAssignTAC->arg1 = strdup(index);
+        arrayAssignTAC->arg2 = strdup(rhs);
+        arrayAssignTAC->result = strdup(expr->arrayAssign.arrayName);
+        arrayAssignTAC->next = NULL;
+
+        appendTAC(&tacHead, arrayAssignTAC);
+        return NULL;
+    }
+    break;
+
+    case NodeType_ArrayAccess:
+    {
+        // Generate TAC for the index
+        char *index = generateTACForExpr(expr->arrayAccess.index, symTab);
+
+        // Create a TAC instruction for the array access
+        TAC *arrayAccessTAC = (TAC *)malloc(sizeof(TAC));
+        arrayAccessTAC->op = strdup("=[]");
+        arrayAccessTAC->arg1 = strdup(expr->arrayAccess.arrayName);
+        arrayAccessTAC->arg2 = strdup(index);
+        arrayAccessTAC->result = createTempVar();
+        arrayAccessTAC->next = NULL;
+
+        appendTAC(&tacHead, arrayAccessTAC);
+        return strdup(arrayAccessTAC->result);
     }
     break;
 

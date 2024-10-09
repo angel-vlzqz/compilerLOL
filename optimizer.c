@@ -7,6 +7,7 @@
 
 void optimizeTAC(TAC **head)
 {
+    printf(" 1 ");
     int changes;
     do
     {
@@ -20,6 +21,7 @@ void optimizeTAC(TAC **head)
 
 bool isConstant(const char *str)
 {
+    printf(" 2 ");
     if (str == NULL || *str == '\0')
     {
         return false;
@@ -45,6 +47,7 @@ bool isConstant(const char *str)
 
 bool isVariable(const char *str)
 {
+    printf(" 3 ");
     if (str == NULL || *str == '\0')
     {
         return false;
@@ -72,6 +75,7 @@ bool isVariable(const char *str)
 // Constant Folding Optimization
 int constantFolding(TAC **head)
 {
+    printf(" 4 ");
     int changes = 0;
     TAC *current = *head;
 
@@ -138,6 +142,7 @@ int constantFolding(TAC **head)
 // Constant Propagation Optimization
 int constantPropagation(TAC **head)
 {
+    printf(" 5 ");
     int changes = 0;
     TAC *current = *head;
     while (current != NULL)
@@ -182,6 +187,7 @@ int constantPropagation(TAC **head)
 // Copy Propagation Optimization
 int copyPropagation(TAC **head)
 {
+    printf(" 6 ");
     int changes = 0;
     TAC *current = *head;
     while (current != NULL)
@@ -226,6 +232,7 @@ int copyPropagation(TAC **head)
 // Dead Code Elimination Optimization
 int deadCodeElimination(TAC **head)
 {
+    printf(" 7 ");
     int changes = 0;
     TAC *current = *head;
     TAC *prev = NULL;
@@ -235,6 +242,15 @@ int deadCodeElimination(TAC **head)
         int isUsed = 0;
         if (current->result != NULL)
         {
+            // Check if the instruction has side effects
+            if (hasSideEffect(current))
+            {
+                // Do not remove instructions with side effects
+                prev = current;
+                current = current->next;
+                continue;
+            }
+
             // Check if the result is used in any of the following instructions before being redefined
             TAC *temp = current->next;
             while (temp != NULL)
@@ -255,32 +271,30 @@ int deadCodeElimination(TAC **head)
             }
             if (!isUsed)
             {
-                // Remove current instruction
+                // Remove current instruction from the linked list
+                TAC *toDelete = current;
+
                 if (prev == NULL)
                 {
-                    // Removing the head
+                    // Removing the head of the list
                     *head = current->next;
-                    // Free current node
-                    free(current->op);
-                    free(current->arg1);
-                    free(current->arg2);
-                    free(current->result);
-                    TAC *toDelete = current;
-                    current = current->next;
-                    free(toDelete);
                 }
                 else
                 {
+                    // Bypass the current node
                     prev->next = current->next;
-                    // Free current node
-                    free(current->op);
-                    free(current->arg1);
-                    free(current->arg2);
-                    free(current->result);
-                    TAC *toDelete = current;
-                    current = current->next;
-                    free(toDelete);
                 }
+
+                // Move to the next instruction
+                current = current->next;
+
+                // Free the memory allocated for the instruction
+                if (toDelete->op) free(toDelete->op);
+                if (toDelete->arg1) free(toDelete->arg1);
+                if (toDelete->arg2) free(toDelete->arg2);
+                if (toDelete->result) free(toDelete->result);
+                free(toDelete);
+
                 changes++;
                 continue; // Skip prev update
             }
@@ -291,9 +305,11 @@ int deadCodeElimination(TAC **head)
     return changes;
 }
 
+
 // Print the optimized TAC list to a file
 void printOptimizedTAC(const char *filename, TAC *head)
 {
+    printf(" 8 ");
     FILE *outputFile = fopen(filename, "w");
     if (outputFile == NULL)
     {
@@ -322,6 +338,7 @@ void printOptimizedTAC(const char *filename, TAC *head)
 // Print current TAC instruction
 void printCurrentOptimizedTAC(TAC *current)
 {
+    printf(" 9 ");
     if (current->result != NULL)
         printf("%s = ", current->result);
     if (current->arg1 != NULL)
@@ -331,4 +348,20 @@ void printCurrentOptimizedTAC(TAC *current)
     if (current->arg2 != NULL)
         printf("%s ", current->arg2);
     printf("\n");
+}
+
+bool hasSideEffect(TAC *instr)
+{
+    printf(" 10 ");
+    if (instr == NULL || instr->op == NULL)
+        return false;
+
+    // Instructions that modify memory or have side effects
+    if (strcmp(instr->op, "[]=") == 0)    // Array assignment
+        return true;
+    if (strcmp(instr->op, "write") == 0)  // Write operation
+        return true;
+    // Add other side-effecting operations if needed
+
+    return false;
 }

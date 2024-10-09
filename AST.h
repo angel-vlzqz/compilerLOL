@@ -13,11 +13,14 @@ typedef enum
     NodeType_Program,
     NodeType_VarDeclList,
     NodeType_VarDecl,
+    NodeType_ArrayDecl,
     NodeType_StmtList,
     NodeType_AssignStmt,
+    NodeType_ArrayAssign,
     NodeType_BinOp,
     NodeType_SimpleID,
     NodeType_SimpleExpr,
+    NodeType_ArrayAccess,
     NodeType_Block,
     NodeType_WriteStmt,
     NodeType_IfStmt,
@@ -31,6 +34,7 @@ typedef enum
 typedef struct ASTNode
 {
     NodeType type;
+    char *dataType;
     union
     {
         struct
@@ -105,7 +109,7 @@ typedef struct ASTNode
 
         struct
         {
-            char *varName;
+            struct ASTNode *expr;
         } writeStmt; // WRITE statement
 
         struct
@@ -125,6 +129,26 @@ typedef struct ASTNode
         {
             struct ASTNode *expr;
         } returnStmt; // RETURN statement
+
+        struct
+        {
+            char *varType;
+            char *varName;
+            int size;
+        } arrayDecl; // Array declaration
+
+        struct
+        {
+            char *arrayName;
+            struct ASTNode *index;
+            struct ASTNode *expr;
+        } arrayAssign; // Array assignment
+
+        struct
+        {
+            char *arrayName;
+            struct ASTNode *index;
+        } arrayAccess; // Array access
     };
 } ASTNode;
 

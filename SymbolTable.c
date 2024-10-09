@@ -1,6 +1,8 @@
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include "SymbolTable.h"
+#include "Array.h"
 
 // Hash function: Hash based on the ASCII values of the string's characters
 unsigned int hashFunction(const char *name, int tableSize)
@@ -23,7 +25,7 @@ unsigned int hashFunction(const char *name, int tableSize)
 }
 
 // Create a new symbol with the given name, type, and index
-Symbol *createSymbol(const char *name, const char *type, int index)
+Symbol *createSymbol(const char *name, const char *type, int index, bool isArray, Array *arrayInfo)
 {
     Symbol *newSymbol = (Symbol *)malloc(sizeof(Symbol));
     if (!newSymbol)
@@ -35,36 +37,38 @@ Symbol *createSymbol(const char *name, const char *type, int index)
     newSymbol->type = strdup(type);
     newSymbol->index = index;
     newSymbol->value = NULL;
+    newSymbol->isArray = isArray;
+    newSymbol->arrayInfo = arrayInfo;
     newSymbol->next = NULL;
     return newSymbol;
 }
 
 // Insert a symbol into the symbol table
-void insertSymbol(SymbolTable *symbolTable, const char *name, const char *type)
+void insertSymbol(SymbolTable *symbolTable, const char *name, const char *type, bool isArray, Array *arrayInfo)
 {
+    // Check if the symbol already exists
+    Symbol *existingSymbol = findSymbol(symbolTable, name);
+    if (existingSymbol != NULL)
+    {
+        fprintf(stderr, "Error: Symbol %s is already declared.\n", name);
+        return;
+    }
+
     unsigned int index = hashFunction(name, symbolTable->size);
-    Symbol *newSymbol = createSymbol(name, type, index);
+    Symbol *newSymbol = createSymbol(name, type, index, isArray, arrayInfo);
 
     // Insert the symbol at the head of the linked list for this index
-    if (symbolTable->table[index] == NULL)
-    {
-        symbolTable->table[index] = newSymbol;
-        printf("Inserted symbol at new index: Name = %s, Type = %s, Index = %d\n", name, type, index);
-    }
-    else
-    {
-        newSymbol->next = symbolTable->table[index];
-        symbolTable->table[index] = newSymbol;
-        printf("Inserted symbol at existing index: Name = %s, Type = %s, Index = %d\n", name, type, index);
-    }
+    newSymbol->next = symbolTable->table[index];
+    symbolTable->table[index] = newSymbol;
+
+    printf("Inserted symbol: Name = %s, Type = %s, Index = %d, isArray = %s\n",
+           name, type, index, isArray ? "true" : "false");
 }
 
 // Find a symbol in the symbol table by name
 Symbol *findSymbol(SymbolTable *symbolTable, const char *name)
 {
-    printf("=================Finding symbol %s=================\n", name);
     unsigned int index = hashFunction(name, symbolTable->size);
-    printf("Finding symbol: Name = %s, Index = %u\n", name, index);
     Symbol *current = symbolTable->table[index];
 
     // Traverse the linked list to find the symbol
@@ -72,12 +76,10 @@ Symbol *findSymbol(SymbolTable *symbolTable, const char *name)
     {
         if (strcmp(current->name, name) == 0)
         {
-            printf("Symbol found: Name = %s, Type = %s, Index = %d, Value = %s\n", current->name, current->type, index, current->value ? current->value : "NULL");
             return current;
         }
         current = current->next;
     }
-    printf("Symbol not found: Name = %s\n", name);
     return NULL; // Return NULL if the symbol is not found
 }
 
@@ -86,73 +88,61 @@ void freeSymbolTable(SymbolTable *symbolTable)
 {
     if (symbolTable == NULL)
     {
-        printf("Symbol table is NULL. Nothing to free.\n");
         return;
     }
-
-    printf("Starting to free symbol table of size %d\n", symbolTable->size);
 
     for (int i = 0; i < symbolTable->size; i++)
     {
         Symbol *symbol = symbolTable->table[i];
 
-        // Print current bucket being processed
-        // printf("Processing bucket %d\n", i);
-
         while (symbol != NULL)
         {
-            // printf("Freeing symbol: %s\n", symbol->name ? symbol->name : "NULL");
-
             Symbol *next = symbol->next;
 
-            // Safely free the symbol's name if it exists
+            // Free the symbol's name
             if (symbol->name != NULL)
             {
-                // printf("Freeing symbol name: %s\n", symbol->name);
                 free(symbol->name);
-                symbol->name = NULL; // Avoid double free
+                symbol->name = NULL;
             }
 
-            // Safely free the symbol's value if it exists
+            // Free the symbol's type
+            if (symbol->type != NULL)
+            {
+                free(symbol->type);
+                symbol->type = NULL;
+            }
+
+            // Free the symbol's value
             if (symbol->value != NULL)
             {
-                // printf("Freeing symbol value: %s\n", symbol->value);
                 free(symbol->value);
-                symbol->value = NULL; // Avoid double free
+                symbol->value = NULL;
+            }
+
+            // If the symbol is an array, free the arrayInfo
+            if (symbol->isArray && symbol->arrayInfo != NULL)
+            {
+                freeArray(symbol->arrayInfo);
+                symbol->arrayInfo = NULL;
             }
 
             // Free the symbol itself
-            // printf("Freeing symbol structure\n");
             free(symbol);
             symbol = next;
-
-            // Print status of next symbol to process
-            if (symbol != NULL)
-            {
-                // printf("Next symbol in bucket: %s\n", symbol->name ? symbol->name : "NULL");
-            }
-            else
-            {
-                // printf("No more symbols in this bucket.\n");
-            }
         }
     }
 
     // Free the table array and the symbol table itself
-    printf("Freeing the symbol table array.\n");
     free(symbolTable->table);
-    symbolTable->table = NULL; // Avoid double free
-
-    printf("Freeing the symbol table structure itself.\n");
+    symbolTable->table = NULL;
     free(symbolTable);
-
-    printf("Symbol table freed successfully.\n");
+    printf("Successfully freed symbol table\n");
 }
 
 // Function to create a new symbol table
 SymbolTable *createSymbolTable(int size)
 {
-    printf("Creating symbol table with size: %d\n", size);
     SymbolTable *newTable = (SymbolTable *)malloc(sizeof(SymbolTable));
     if (!newTable)
     {
@@ -165,16 +155,15 @@ SymbolTable *createSymbolTable(int size)
     if (!newTable->table)
     {
         free(newTable);
-        return 0;
+        return NULL;
     }
 
     // Initialize all table entries to NULL
     for (int i = 0; i < size; i++)
     {
-        newTable->table[i] = 0;
+        newTable->table[i] = NULL;
     }
 
-    printf("Symbol table created successfully.\n");
     return newTable;
 }
 
@@ -187,6 +176,13 @@ void updateSymbolValue(SymbolTable *symbolTable, const char *name, const char *v
     {
         // If the symbol is not found, print an error or handle it accordingly
         fprintf(stderr, "Error: Symbol %s not found in the table, cannot update value.\n", name);
+        return;
+    }
+
+    // If the symbol is an array, you should not update its value directly
+    if (symbol->isArray)
+    {
+        fprintf(stderr, "Error: Cannot update value of array symbol %s directly.\n", name);
         return;
     }
 
@@ -210,6 +206,13 @@ const char *getSymbolValue(SymbolTable *symbolTable, const char *name)
     {
         // If the symbol is not found, print an error or return NULL
         fprintf(stderr, "Error: Symbol %s not found in the table.\n", name);
+        return NULL;
+    }
+
+    // If the symbol is an array, you should not get its value directly
+    if (symbol->isArray)
+    {
+        fprintf(stderr, "Error: Cannot get value of array symbol %s directly.\n", name);
         return NULL;
     }
 

@@ -3,12 +3,16 @@
 #ifndef CODE_GENERATOR_H
 #define CODE_GENERATOR_H
 
-#include "AST.h"      // Include your AST definition
-#include "semantic.h" // Include your TAC definition
+#include "AST.h"      // Include AST definition
+#include "semantic.h" // Include TAC definition
+#include "Array.h"
+#include "SymbolTable.h"
 #include "optimizer.h"
 #include <stdbool.h>
+#include <ctype.h>
 
 #define NUM_TEMP_REGISTERS 10
+#define MAX_REGISTER_MAP_SIZE 32  // Adjusted to accommodate more variables if needed
 
 typedef struct VarNode {
     char* name;
@@ -17,31 +21,45 @@ typedef struct VarNode {
     struct VarNode* next;
 } VarNode;
 
+// Structure for register mapping
+typedef struct {
+    char* variable;  // Variable name
+    char* regName;   // Register name
+} RegisterMapEntry;
 
 // Initializes code generation, setting up any necessary structures
 void initCodeGenerator(const char *outputFilename);
 
 // Generates MIPS assembly code from the provided TAC
-void generateMIPS(TAC *tacInstructions);
+void generateMIPS(TAC *tacInstructions, SymbolTable *symTab);
 
 // Finalizes code generation, closing files and cleaning up
 void finalizeCodeGenerator(const char *outputFilename);
 
-// Allocate a register
-int allocateRegister();
-
-// Deallocate a register
-void deallocateRegister(int regIndex);
+// Function declarations for register allocation
+const char* allocateRegister();
+void deallocateRegister(const char* regName);
+void initializeRegisterMap();
+void freeRegisterMap();
+void setRegisterForVariable(const char* variable, const char* regName);
+const char* getRegisterForVariable(const char* variable);
+bool isVariableInRegisterMap(const char* variable);
+void removeVariableFromRegisterMap(const char* variable);
 
 // Print the current TAC instruction
 void printCurrentTAC(TAC *tac);
 
 VarNode* findVariable(VarNode* varList, const char* varName);
 
-void loadOperand(const char *registerName, const char *operand);
+void loadOperand(const char *operand, const char *registerName);
 
 void freeVariableList(VarNode* varList);
 
 void collectVariables(TAC* tacInstructions, VarNode** varList);
+
+bool isTemporaryVariable(const char *operand);
+
+// Function to check if a variable is used later
+bool isVariableUsedLater(TAC* current, const char* variable);
 
 #endif // CODE_GENERATOR_H

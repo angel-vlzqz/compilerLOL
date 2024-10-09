@@ -3,19 +3,25 @@ int y;
 int a;
 int b;
 int c;
+
+int z[4];
+
 x = 1;
 a = 12;
+c = 3;
 b = 23 + 10;
 x = a + a + 1;
 y = x + a + b + c + a + 5;
+
+z[0] = 3;
+z[1] = 5;
+z[2] = 7;
+z[3] = 9;
+
 write x;
 write y;
 
-int add(int a, int b) {
-    return a + b;
-}
-
-int main() {
-  int result = add(10, 20);
-  write(result);
-}
+write z[0];
+write z[1];
+write z[2];
+write z[3];

@@ -1,8 +1,9 @@
 #ifndef SEMANTIC_H
 #define SEMANTIC_H
 
-#include "AST.h"         // Assuming this includes the definition of ASTNode
-#include "SymbolTable.h" // Assuming this includes the definition of SymbolTable
+#include "AST.h"
+#include "SymbolTable.h"
+#include "Array.h"
 #include "temp.h"
 
 // Define a structure for TAC instructions

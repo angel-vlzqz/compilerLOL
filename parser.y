@@ -50,30 +50,39 @@ SymbolTable* symTab = NULL;
 %% 
 
 Program:
-FuncDeclList:
-    FuncDecl
-    | FuncDeclList FuncDecl
+   VarDeclList Block 
+    {
+        printf("Parsed Program\n");
+        root = malloc(sizeof(ASTNode));
+        root->type = NodeType_Program;
+        root->program.varDeclList = $1;
+        root->program.block = $2;
+    }
     ;
+// FuncDeclList:
+//     FuncDecl
+//     | FuncDeclList FuncDecl
+//     ;
+// 
+// FuncDecl:
+//     TYPE ID '(' ParamList ')' '{' StmtList '}' {
+//         /* Code to handle function declaration, create a symbol for the function */
+//         printf("Function Declaration: %s\n", $2);
+//     }
+//     ;
 
-FuncDecl:
-    TYPE ID '(' ParamList ')' '{' StmtList '}' {
-        /* Code to handle function declaration, create a symbol for the function */
-        printf("Function Declaration: %s\n", $2);
-    }
-    ;
-
-ParamList:
-    /* Handles parameters in the function */
-    TYPE ID {
-        /* Process single parameter */
-    }
-    | ParamList ',' TYPE ID {
-        /* Process multiple parameters */
-    }
-    | /* empty */ {
-        /* No parameters */
-    }
-    ;
+//ParamList:
+//    /* Handles parameters in the function */
+//    TYPE ID {
+//        /* Process single parameter */
+//    }
+//    | ParamList ',' TYPE ID {
+//        /* Process multiple parameters */
+//    }
+//    | /* empty */ {
+//        /* No parameters */
+//    }
+//    ;
 
     statement:
         Expr ';'
@@ -93,15 +102,7 @@ ParamList:
     //    | /* empty */
     //    ;    
     
-    VarDeclList Block 
-    {
-        printf("Parsed Program\n");
-        root = malloc(sizeof(ASTNode));
-        root->type = NodeType_Program;
-        root->program.varDeclList = $1;
-        root->program.block = $2;
-    }
-    ;
+    
 
 VarDeclList:
     VarDecl VarDeclList 
@@ -121,14 +122,20 @@ VarDeclList:
     ;
 
 VarDecl:
-    TYPE ID SEMICOLON 
+    TYPE ID SEMICOLON
     {
         $$ = createNode(NodeType_VarDecl);
         $$->varDecl.varType = strdup($1);
         $$->varDecl.varName = strdup($2);
-        // Removed insertSymbol; symbol table insertion will be handled in semantic analysis
-    } 
-    | TYPE ID 
+    }
+    | TYPE ID '[' NUMBER ']' SEMICOLON
+    {
+        $$ = createNode(NodeType_ArrayDecl);
+        $$->arrayDecl.varType = strdup($1);
+        $$->arrayDecl.varName = strdup($2);
+        $$->arrayDecl.size = $4; // $4 is NUMBER
+    }
+    | TYPE ID
     {
         printf("Missing semicolon after declaring variable: %s\n", $2);
     }
@@ -170,11 +177,19 @@ Stmt:
         $$->assignStmt.operator = strdup($2);
         $$->assignStmt.expr = $3;
     }
-    | WRITE ID SEMICOLON 
+    | ID '[' Expr ']' ASSIGNOP Expr SEMICOLON
+    {
+        printf("Parsed Array Assignment: %s[%s] = ...\n", $1, $3);
+        $$ = createNode(NodeType_ArrayAssign);
+        $$->arrayAssign.arrayName = strdup($1);
+        $$->arrayAssign.index = $3;
+        $$->arrayAssign.expr = $6;
+    }
+    | WRITE Expr SEMICOLON 
     {
         printf("Parsed Write Statement: %s\n", $2);
         $$ = createNode(NodeType_WriteStmt);
-        $$->writeStmt.varName = strdup($2);
+        $$->writeStmt.expr = $2;
     }
     | IF Expr THEN Block ELSE Block 
     {
@@ -254,6 +269,13 @@ Expr:
         $$->type = NodeType_SimpleExpr;
         $$->simpleExpr.number = $1;
     }
+    | ID '[' Expr ']'
+    {
+        printf("Parsed Array Access: %s[%s]\n", $1, $3);
+        $$ = createNode(NodeType_ArrayAccess);
+        $$->arrayAccess.arrayName = strdup($1);
+        $$->arrayAccess.index = $3;
+    }
     ;
 
 %% 
@@ -286,6 +308,8 @@ int main()
         // Semantic Analysis
         semanticAnalysis(root, symTab);
 
+        printTACToFile("TACsem.ir", tacHead);
+
         printf("=================Optimizer=================\n");
         // TAC Optimization
         optimizeTAC(&tacHead);  // 'tacHead' is the global head of the TAC linked list
@@ -298,8 +322,9 @@ int main()
 
         // Code Generation
         initCodeGenerator("output.asm");
-        generateMIPS(tacHead);  // Generate MIPS code from optimized TAC
+        generateMIPS(tacHead, symTab);  // Generate MIPS code from optimized TAC
         finalizeCodeGenerator("output.asm");
+        printTACToFile("TACgen.ir", tacHead);
     }
 
     freeTACList(tacHead);
