@@ -1,2 +1,16 @@
 .vscode
 .DS_Store
+AST.o
+codeGenerator.o
+lex.yy.c
+lex.yy.o
+main_program
+optimizer.o
+parser.tab.c
+parser.tab.h
+parser.tab.o
+semantic.o
+SymbolTable.o
+TACsem.ir
+TACopt.ir
+TACgen.ir
