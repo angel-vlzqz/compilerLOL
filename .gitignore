@@ -14,3 +14,4 @@ SymbolTable.o
 TACsem.ir
 TACopt.ir
 TACgen.ir
+Array.o
