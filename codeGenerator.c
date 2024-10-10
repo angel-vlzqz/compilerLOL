@@ -9,10 +9,14 @@
 
 static FILE *outputFile;
 
-// Available registers and their usage status
-const char* availableRegisters[] = {"$t0", "$t1", "$t2", "$t3", "$t4", "$t5", "$t6", "$t7", "$t8", "$t9"};
-#define NUM_AVAILABLE_REGISTERS 10
+// Available registers (excluding $t8 and $t9)
+const char* availableRegisters[] = {"$t0", "$t1", "$t2", "$t3", "$t4", "$t5", "$t6", "$t7"};
+#define NUM_AVAILABLE_REGISTERS 8
 bool registerInUse[NUM_AVAILABLE_REGISTERS] = {false};
+
+// Reserved registers
+#define ADDRESS_CALC_REGISTER "$t9"
+#define BASE_ADDRESS_REGISTER "$t8"
 
 // Register map to keep track of variable to register mappings
 RegisterMapEntry registerMap[MAX_REGISTER_MAP_SIZE];
@@ -75,13 +79,16 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
         }
     }
 
-    // Declare temporary variables not in register map
+    // Declare temporary variables not in symbol table
     VarNode *currentVar = varList;
     while (currentVar != NULL)
     {
         if (!findSymbol(symTab, currentVar->name))
         {
-            fprintf(outputFile, "%s: .word 0\n", currentVar->name);
+            if (!isConstant(currentVar->name))
+            {
+                fprintf(outputFile, "%s: .word 0\n", currentVar->name);
+            }
         }
         currentVar = currentVar->next;
     }
@@ -154,12 +161,15 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
                     loadOperand(current->arg1, srcReg);
                 }
                 // Map result variable to a register
-                const char* destReg = allocateRegister();
+                const char* destReg = getRegisterForVariable(current->result);
                 if (!destReg) {
-                    fprintf(stderr, "Error: No available registers for result %s\n", current->result);
-                    exit(1);
+                    destReg = allocateRegister();
+                    if (!destReg) {
+                        fprintf(stderr, "Error: No available registers for result %s\n", current->result);
+                        exit(1);
+                    }
+                    setRegisterForVariable(current->result, destReg);
                 }
-                setRegisterForVariable(current->result, destReg);
                 fprintf(outputFile, "\tmove %s, %s\n", destReg, srcReg);
                 // No need to store to memory immediately
             }
@@ -186,62 +196,109 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
             {
                 // Array assignment operation
                 fprintf(outputFile, "# Generating MIPS code for array assignment\n");
-                // Load index
-                const char* indexReg = getRegisterForVariable(current->arg1);
-                if (!indexReg) {
-                    indexReg = allocateRegister();
-                    if (!indexReg) {
-                        fprintf(stderr, "Error: No available registers for index\n");
-                        exit(1);
-                    }
-                    setRegisterForVariable(current->arg1, indexReg);
-                    loadOperand(current->arg1, indexReg);
-                }
-                // Load value
-                const char* valueReg = getRegisterForVariable(current->arg2);
-                if (!valueReg) {
-                    valueReg = allocateRegister();
+                // Load base address of array into BASE_ADDRESS_REGISTER
+                fprintf(outputFile, "\tla %s, %s\n", BASE_ADDRESS_REGISTER, current->result);
+                // Compute offset if possible
+                char* offsetValue = computeOffset(current->arg1, 4);
+                if (offsetValue != NULL) {
+                    // Index is constant, use immediate offset
+                    // Load value
+                    const char* valueReg = getRegisterForVariable(current->arg2);
                     if (!valueReg) {
-                        fprintf(stderr, "Error: No available registers for value\n");
-                        exit(1);
+                        valueReg = allocateRegister();
+                        if (!valueReg) {
+                            fprintf(stderr, "Error: No available registers for value\n");
+                            exit(1);
+                        }
+                        setRegisterForVariable(current->arg2, valueReg);
+                        loadOperand(current->arg2, valueReg);
                     }
-                    setRegisterForVariable(current->arg2, valueReg);
-                    loadOperand(current->arg2, valueReg);
+                    fprintf(outputFile, "\tsw %s, %s(%s)\n", valueReg, offsetValue, BASE_ADDRESS_REGISTER);
+                    free(offsetValue);
+                } else {
+                    // Index is variable, compute at runtime
+                    // Load index
+                    const char* indexReg = getRegisterForVariable(current->arg1);
+                    if (!indexReg) {
+                        indexReg = allocateRegister();
+                        if (!indexReg) {
+                            fprintf(stderr, "Error: No available registers for index\n");
+                            exit(1);
+                        }
+                        setRegisterForVariable(current->arg1, indexReg);
+                        loadOperand(current->arg1, indexReg);
+                    }
+                    // Load value
+                    const char* valueReg = getRegisterForVariable(current->arg2);
+                    if (!valueReg) {
+                        valueReg = allocateRegister();
+                        if (!valueReg) {
+                            fprintf(stderr, "Error: No available registers for value\n");
+                            exit(1);
+                        }
+                        setRegisterForVariable(current->arg2, valueReg);
+                        loadOperand(current->arg2, valueReg);
+                    }
+                    // Calculate offset: indexReg * 4
+                    const char* tempReg = ADDRESS_CALC_REGISTER;
+                    fprintf(outputFile, "\tmul %s, %s, 4\n", tempReg, indexReg);
+                    // Effective address: BASE_ADDRESS_REGISTER + tempReg
+                    fprintf(outputFile, "\tadd %s, %s, %s\n", tempReg, BASE_ADDRESS_REGISTER, tempReg);
+                    // Store value
+                    fprintf(outputFile, "\tsw %s, 0(%s)\n", valueReg, tempReg);
                 }
-                // Calculate address: base address + (index * element size)
-                fprintf(outputFile, "\tla $t9, %s\n", current->result); // Base address of array
-                fprintf(outputFile, "\tmul %s, %s, 4\n", indexReg, indexReg); // Multiply index by 4
-                fprintf(outputFile, "\tadd $t9, $t9, %s\n", indexReg);       // $t9 = base + offset
-                // Store value
-                fprintf(outputFile, "\tsw %s, 0($t9)\n", valueReg);
             }
             else if (strcmp(current->op, "=[]") == 0)
             {
                 // Array access operation
                 fprintf(outputFile, "# Generating MIPS code for array access\n");
-                // Load index
-                const char* indexReg = getRegisterForVariable(current->arg2);
-                if (!indexReg) {
-                    indexReg = allocateRegister();
-                    if (!indexReg) {
-                        fprintf(stderr, "Error: No available registers for index\n");
-                        exit(1);
+                // Load base address of array into BASE_ADDRESS_REGISTER
+                fprintf(outputFile, "\tla %s, %s\n", BASE_ADDRESS_REGISTER, current->arg1);
+                // Compute offset if possible
+                char* offsetValue = computeOffset(current->arg2, 4);
+                if (offsetValue != NULL) {
+                    // Index is constant, use immediate offset
+                    const char* resultReg = getRegisterForVariable(current->result);
+                    if (!resultReg) {
+                        resultReg = allocateRegister();
+                        if (!resultReg) {
+                            fprintf(stderr, "Error: No available registers for result %s\n", current->result);
+                            exit(1);
+                        }
+                        setRegisterForVariable(current->result, resultReg);
                     }
-                    setRegisterForVariable(current->arg2, indexReg);
-                    loadOperand(current->arg2, indexReg);
+                    fprintf(outputFile, "\tlw %s, %s(%s)\n", resultReg, offsetValue, BASE_ADDRESS_REGISTER);
+                    free(offsetValue);
+                } else {
+                    // Index is variable, compute at runtime
+                    // Load index
+                    const char* indexReg = getRegisterForVariable(current->arg2);
+                    if (!indexReg) {
+                        indexReg = allocateRegister();
+                        if (!indexReg) {
+                            fprintf(stderr, "Error: No available registers for index\n");
+                            exit(1);
+                        }
+                        setRegisterForVariable(current->arg2, indexReg);
+                        loadOperand(current->arg2, indexReg);
+                    }
+                    // Calculate offset: indexReg * 4
+                    const char* tempReg = ADDRESS_CALC_REGISTER;
+                    fprintf(outputFile, "\tmul %s, %s, 4\n", tempReg, indexReg);
+                    // Effective address: BASE_ADDRESS_REGISTER + tempReg
+                    fprintf(outputFile, "\tadd %s, %s, %s\n", tempReg, BASE_ADDRESS_REGISTER, tempReg);
+                    // Load value into a register
+                    const char* resultReg = getRegisterForVariable(current->result);
+                    if (!resultReg) {
+                        resultReg = allocateRegister();
+                        if (!resultReg) {
+                            fprintf(stderr, "Error: No available registers for result %s\n", current->result);
+                            exit(1);
+                        }
+                        setRegisterForVariable(current->result, resultReg);
+                    }
+                    fprintf(outputFile, "\tlw %s, 0(%s)\n", resultReg, tempReg);
                 }
-                // Calculate address: base address + (index * element size)
-                fprintf(outputFile, "\tla $t9, %s\n", current->arg1); // Base address of array
-                fprintf(outputFile, "\tmul %s, %s, 4\n", indexReg, indexReg); // Multiply index by 4
-                fprintf(outputFile, "\tadd $t9, $t9, %s\n", indexReg);       // $t9 = base + offset
-                // Load value into a register
-                const char* resultReg = allocateRegister();
-                if (!resultReg) {
-                    fprintf(stderr, "Error: No available registers for result %s\n", current->result);
-                    exit(1);
-                }
-                setRegisterForVariable(current->result, resultReg);
-                fprintf(outputFile, "\tlw %s, 0($t9)\n", resultReg);
             }
             else
             {
@@ -256,8 +313,8 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
             if (var != NULL && isVariableInRegisterMap(var)) {
                 if (!isVariableUsedLater(current, var)) {
                     const char* regName = getRegisterForVariable(var);
-                    // Store the variable back to memory if it's a user-defined variable
-                    if (findSymbol(symTab, var)) {
+                    // Store the variable back to memory if it's a user-defined variable or a temporary variable
+                    if (findSymbol(symTab, var) || isTemporaryVariable(var)) {
                         fprintf(outputFile, "# Storing variable %s back to memory\n", var);
                         fprintf(outputFile, "\tsw %s, %s\n", regName, var);
                     }
@@ -275,7 +332,7 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
         if (registerMap[i].variable != NULL) {
             const char* var = registerMap[i].variable;
             const char* regName = registerMap[i].regName;
-            if (findSymbol(symTab, var)) {
+            if (findSymbol(symTab, var) || isTemporaryVariable(var)) {
                 fprintf(outputFile, "# Storing variable %s back to memory\n", var);
                 fprintf(outputFile, "\tsw %s, %s\n", regName, var);
             }
@@ -377,30 +434,16 @@ void removeVariableFromRegisterMap(const char* variable) {
 
 /* Other Helper Functions */
 
-void printCurrentTAC(TAC *tac)
-{
-    TAC *current = tac;
-    while (current != NULL)
-    {
-        printf("\n--- CURRENT TAC %s ---\n", current->op);
-        if (strcmp(current->op, "=") == 0)
-        {
-            printf("%s = %s\n", current->result, current->arg1);
-        }
-        else
-        {
-            if (current->result != NULL)
-                printf("%s = ", current->result);
-            if (current->arg1 != NULL)
-                printf("%s ", current->arg1);
-            if (current->op != NULL)
-                printf("%s ", current->op);
-            if (current->arg2 != NULL)
-                printf("%s ", current->arg2);
-            printf("\n");
-        }
-        current = current->next;
+// Function to compute offset for array access if index is a constant
+char* computeOffset(const char* indexOperand, int elementSize) {
+    if (isConstant(indexOperand)) {
+        int indexValue = atoi(indexOperand);
+        int offset = indexValue * elementSize;
+        char* offsetStr = (char*)malloc(16);
+        snprintf(offsetStr, 16, "%d", offset);
+        return offsetStr;
     }
+    return NULL; // Index is not constant
 }
 
 // Function to check if a variable is already in the list
@@ -488,8 +531,7 @@ void loadOperand(const char *operand, const char *registerName) {
         }
     } else {
         // Load variable from memory into register
-        fprintf(outputFile, "\tla $t9, %s\n", operand);
-        fprintf(outputFile, "\tlw %s, 0($t9)\n", registerName);
+        fprintf(outputFile, "\tlw %s, %s\n", registerName, operand);
     }
 }
 

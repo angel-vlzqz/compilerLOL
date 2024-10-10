@@ -11,6 +11,6 @@ parser.tab.h
 parser.tab.o
 semantic.o
 SymbolTable.o
-Tacsem.ir
+TACsem.ir
 TACopt.ir
 TACgen.ir

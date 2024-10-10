@@ -7,7 +7,7 @@
 
 void optimizeTAC(TAC **head)
 {
-    printf(" 1 ");
+    printf("run optimizer\n");
     int changes;
     do
     {
@@ -21,7 +21,6 @@ void optimizeTAC(TAC **head)
 
 bool isConstant(const char *str)
 {
-    printf(" 2 ");
     if (str == NULL || *str == '\0')
     {
         return false;
@@ -47,7 +46,6 @@ bool isConstant(const char *str)
 
 bool isVariable(const char *str)
 {
-    printf(" 3 ");
     if (str == NULL || *str == '\0')
     {
         return false;
@@ -75,7 +73,7 @@ bool isVariable(const char *str)
 // Constant Folding Optimization
 int constantFolding(TAC **head)
 {
-    printf(" 4 ");
+    printf("Constant Folding \n");
     int changes = 0;
     TAC *current = *head;
 
@@ -142,7 +140,7 @@ int constantFolding(TAC **head)
 // Constant Propagation Optimization
 int constantPropagation(TAC **head)
 {
-    printf(" 5 ");
+    printf("Constant Propagaion \n");
     int changes = 0;
     TAC *current = *head;
     while (current != NULL)
@@ -187,7 +185,7 @@ int constantPropagation(TAC **head)
 // Copy Propagation Optimization
 int copyPropagation(TAC **head)
 {
-    printf(" 6 ");
+    printf("Copy Propagation \n");
     int changes = 0;
     TAC *current = *head;
     while (current != NULL)
@@ -232,7 +230,7 @@ int copyPropagation(TAC **head)
 // Dead Code Elimination Optimization
 int deadCodeElimination(TAC **head)
 {
-    printf(" 7 ");
+    printf("Dead-Code Elimination \n");
     int changes = 0;
     TAC *current = *head;
     TAC *prev = NULL;
@@ -309,7 +307,7 @@ int deadCodeElimination(TAC **head)
 // Print the optimized TAC list to a file
 void printOptimizedTAC(const char *filename, TAC *head)
 {
-    printf(" 8 ");
+    printf("Print Optimized TAC \n");
     FILE *outputFile = fopen(filename, "w");
     if (outputFile == NULL)
     {
@@ -338,7 +336,7 @@ void printOptimizedTAC(const char *filename, TAC *head)
 // Print current TAC instruction
 void printCurrentOptimizedTAC(TAC *current)
 {
-    printf(" 9 ");
+    printf("Print Current Optimized TAC");
     if (current->result != NULL)
         printf("%s = ", current->result);
     if (current->arg1 != NULL)
@@ -352,7 +350,6 @@ void printCurrentOptimizedTAC(TAC *current)
 
 bool hasSideEffect(TAC *instr)
 {
-    printf(" 10 ");
     if (instr == NULL || instr->op == NULL)
         return false;
 

@@ -171,6 +171,10 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
 
         // Set the data type of the array access node
         node->dataType = strdup(arraySymbol->type);
+
+        // Generate TAC for the array access
+        generateTACForExpr(node, symTab);
+
         break;
     }
 
@@ -269,9 +273,9 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
         // Create a TAC instruction for the array assignment
         TAC *arrayAssignTAC = (TAC *)malloc(sizeof(TAC));
         arrayAssignTAC->op = strdup("[]=");
-        arrayAssignTAC->arg1 = strdup(index);
-        arrayAssignTAC->arg2 = strdup(rhs);
-        arrayAssignTAC->result = strdup(expr->arrayAssign.arrayName);
+        arrayAssignTAC->arg1 = strdup(index);    // This holds the index
+        arrayAssignTAC->arg2 = strdup(rhs);      // This holds the value being assigned
+        arrayAssignTAC->result = strdup(expr->arrayAssign.arrayName);  // This holds the array name
         arrayAssignTAC->next = NULL;
 
         appendTAC(&tacHead, arrayAssignTAC);
@@ -287,13 +291,13 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
         // Create a TAC instruction for the array access
         TAC *arrayAccessTAC = (TAC *)malloc(sizeof(TAC));
         arrayAccessTAC->op = strdup("=[]");
-        arrayAccessTAC->arg1 = strdup(expr->arrayAccess.arrayName);
-        arrayAccessTAC->arg2 = strdup(index);
-        arrayAccessTAC->result = createTempVar();
+        arrayAccessTAC->arg1 = strdup(expr->arrayAccess.arrayName);  // This holds the array name
+        arrayAccessTAC->arg2 = strdup(index);  // This holds the index
+        arrayAccessTAC->result = createTempVar();  // Create a temporary variable to hold the result
         arrayAccessTAC->next = NULL;
 
         appendTAC(&tacHead, arrayAccessTAC);
-        return strdup(arrayAccessTAC->result);
+        return strdup(arrayAccessTAC->result);  // Return the temporary variable
     }
     break;
 
@@ -410,6 +414,14 @@ void printTACToFile(const char *filename, TAC *tac)
             else if (strcmp(current->op, "write") == 0)
             {
                 fprintf(file, "write %s\n", current->arg1);
+            }
+            else if (strcmp(current->op, "[]=") == 0)
+            {
+                fprintf(file, "%s [ %s ] = %s\n", current->result, current->arg1, current->arg2);
+            }
+            else if (strcmp(current->op, "=[]") == 0)
+            {
+                fprintf(file, "%s = %s [ %s ]\n", current->result, current->arg1, current->arg2);
             }
             else
             {

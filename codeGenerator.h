@@ -11,8 +11,14 @@
 #include <stdbool.h>
 #include <ctype.h>
 
-#define NUM_TEMP_REGISTERS 10
 #define MAX_REGISTER_MAP_SIZE 32  // Adjusted to accommodate more variables if needed
+
+// Number of available registers, excluding reserved ones
+#define NUM_AVAILABLE_REGISTERS 9
+
+// Reserved registers
+#define ADDRESS_CALC_REGISTER "$t9"
+#define BASE_ADDRESS_REGISTER "$t8"
 
 typedef struct VarNode {
     char* name;
@@ -61,5 +67,8 @@ bool isTemporaryVariable(const char *operand);
 
 // Function to check if a variable is used later
 bool isVariableUsedLater(TAC* current, const char* variable);
+
+//helper function
+char* computeOffset(const char* indexOperand, int elementSize);
 
 #endif // CODE_GENERATOR_H

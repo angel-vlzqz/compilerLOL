@@ -12,17 +12,21 @@ t5 = t4 + c
 t6 = t5 + a
 t7 = t6 + 5
 y = t7
-z = 0 []= 3
-z = 1 []= 5
-z = 2 []= 7
-z = 3 []= 9
+z [ 0 ] = 3
+z [ 1 ] = 5
+z [ 2 ] = 7
+z [ 3 ] = 9
 write x
 write y
-t8 = z =[] 0
-write t8
-t9 = z =[] 1
+t8 = z [ 0 ]
+t9 = z [ 0 ]
 write t9
-t10 = z =[] 2
-write t10
-t11 = z =[] 3
+t10 = z [ 1 ]
+t11 = z [ 1 ]
 write t11
+t12 = z [ 2 ]
+t13 = z [ 2 ]
+write t13
+t14 = z [ 3 ]
+t15 = z [ 3 ]
+write t15
