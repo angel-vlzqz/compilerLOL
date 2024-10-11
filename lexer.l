@@ -47,6 +47,30 @@ ws          {delim}+
 		return TYPE;
 		}
 
+"float"	{words++; chars += strlen(yytext);
+		printf("%s : TYPE\n", yytext);
+		yylval.string = strdup(yytext);
+		return TYPE;
+		}
+
+"char"	{words++; chars += strlen(yytext);
+		printf("%s : TYPE\n", yytext);
+		yylval.string = strdup(yytext);
+		return TYPE;
+		}
+
+"bool"	{words++; chars += strlen(yytext);
+		printf("%s : TYPE\n", yytext);
+		yylval.string = strdup(yytext);
+		return TYPE;
+		}
+
+"void"	{words++; chars += strlen(yytext);
+		printf("%s : TYPE\n", yytext);
+		yylval.string = strdup(yytext);
+		return TYPE;
+		}
+
 "write"	{words++; 
 		chars += strlen(yytext);
 		printf("%s : WRITE\n", yytext);

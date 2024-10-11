@@ -27,14 +27,27 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         break;
 
     case NodeType_VarDecl:
-        if (findSymbol(symTab, node->varDecl.varName) != NULL)
+        // Check for valid 
+        if (strcmp(node->varDecl.varType, "int") == 0 || 
+            strcmp(node->varDecl.varType, "float") == 0 || 
+            strcmp(node->varDecl.varType, "char") == 0 || 
+            strcmp(node->varDecl.varType, "bool") == 0 || 
+            strcmp(node->varDecl.varType, "void") == 0) 
         {
-            fprintf(stderr, "Semantic error: Variable %s is already declared\n", node->varDecl.varName);
-        }
-        else
+            // Valid type, proceed with the insertion into the symbol table
+            if (findSymbol(symTab, node->varDecl.varName) != NULL)
+            {
+                fprintf(stderr, "Semantic error: Variable %s is already declared\n", node->varDecl.varName);
+            }
+            else
+            {
+                // For simple variable declarations, isArray is false, arrayInfo is NULL
+                insertSymbol(symTab, node->varDecl.varName, node->varDecl.varType, false, NULL);
+            }
+        } 
+        else 
         {
-            // For simple variable declarations, isArray is false, arrayInfo is NULL
-            insertSymbol(symTab, node->varDecl.varName, node->varDecl.varType, false, NULL);
+            fprintf(stderr, "Semantic error: Invalid type %s\n", node->varDecl.varType);
         }
         break;
 
@@ -105,16 +118,29 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
 
     case NodeType_ArrayDecl:
     {
-        // Check for duplicate declaration
-        if (findSymbol(symTab, node->arrayDecl.varName) != NULL)
+        // In NodeType_VarDecl or NodeType_ArrayDecl
+        if (strcmp(node->varDecl.varType, "int") == 0 || 
+            strcmp(node->varDecl.varType, "float") == 0 || 
+            strcmp(node->varDecl.varType, "char") == 0 || 
+            strcmp(node->varDecl.varType, "bool") == 0 || 
+            strcmp(node->varDecl.varType, "void") == 0) 
         {
-            fprintf(stderr, "Semantic error: Array %s is already declared\n", node->arrayDecl.varName);
-            exit(1);
+            // Valid type, proceed with the insertion into the symbol table
+            // Check for duplicate declaration
+            if (findSymbol(symTab, node->arrayDecl.varName) != NULL)
+            {
+                fprintf(stderr, "Semantic error: Array %s is already declared\n", node->arrayDecl.varName);
+                exit(1);
+            }
+            // Create array info
+            Array *arrayInfo = createArray(node->arrayDecl.varType, node->arrayDecl.size);
+            // Insert into symbol table
+            insertSymbol(symTab, node->arrayDecl.varName, node->arrayDecl.varType, true, arrayInfo);
+        } 
+        else 
+        {
+            fprintf(stderr, "Semantic error: Invalid type %s\n", node->varDecl.varType);
         }
-        // Create array info
-        Array *arrayInfo = createArray(node->arrayDecl.varType, node->arrayDecl.size);
-        // Insert into symbol table
-        insertSymbol(symTab, node->arrayDecl.varName, node->arrayDecl.varType, true, arrayInfo);
         break;
     }
 
