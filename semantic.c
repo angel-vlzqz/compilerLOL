@@ -45,6 +45,11 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
                 insertSymbol(symTab, node->varDecl.varName, node->varDecl.varType, false, NULL);
             }
         } 
+        else if (strcmp(getSymbolValue(symTab, node->varDecl.varName), "void") == 0) 
+        {
+            fprintf(stderr, "Semantic error: Cannot assign value to variable of type void\n");
+            exit(1);
+        }
         else 
         {
             fprintf(stderr, "Semantic error: Invalid type %s\n", node->varDecl.varType);
@@ -75,15 +80,22 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
     case NodeType_BinOp:
         semanticAnalysis(node->binOp.left, symTab);
         semanticAnalysis(node->binOp.right, symTab);
-        // Type checking: Ensure both operands are of the same type
-        if (strcmp(node->binOp.left->dataType, node->binOp.right->dataType) != 0)
+        // Ensure both operands are either int or float for arithmetic
+        if ((strcmp(node->binOp.left->dataType, "int") == 0 || strcmp(node->binOp.left->dataType, "float") == 0) &&
+            (strcmp(node->binOp.right->dataType, "int") == 0 || strcmp(node->binOp.right->dataType, "float") == 0)) 
         {
-            fprintf(stderr, "Semantic error: Type mismatch in binary operation\n");
+            // Allow the operation
+            node->dataType = strdup("float"); // Handle implicit promotion to float if needed
+        } 
+        else if(strcmp(node->binOp.left->dataType, node->binOp.right->dataType))
+        {
+            node->dataType = strdup(node->binOp.left->dataType);
+        }
+        else 
+        {
+            fprintf(stderr, "Semantic error: Invalid operand types for binary operation\n");
             exit(1);
         }
-
-        // Set dataType to the common type
-        node->dataType = strdup(node->binOp.left->dataType);
         break;
 
     case NodeType_SimpleID:
