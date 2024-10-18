@@ -27,12 +27,12 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         break;
 
     case NodeType_VarDecl:
-        // Check for valid 
-        if (strcmp(node->varDecl.varType, "int") == 0 || 
-            strcmp(node->varDecl.varType, "float") == 0 || 
-            strcmp(node->varDecl.varType, "char") == 0 || 
-            strcmp(node->varDecl.varType, "bool") == 0 || 
-            strcmp(node->varDecl.varType, "void") == 0) 
+        // Check for valid
+        if (strcmp(node->varDecl.varType, "int") == 0 ||
+            strcmp(node->varDecl.varType, "float") == 0 ||
+            strcmp(node->varDecl.varType, "char") == 0 ||
+            strcmp(node->varDecl.varType, "bool") == 0 ||
+            strcmp(node->varDecl.varType, "void") == 0)
         {
             // Valid type, proceed with the insertion into the symbol table
             if (findSymbol(symTab, node->varDecl.varName) != NULL)
@@ -44,13 +44,13 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
                 // For simple variable declarations, isArray is false, arrayInfo is NULL
                 insertSymbol(symTab, node->varDecl.varName, node->varDecl.varType, false, NULL);
             }
-        } 
-        else if (strcmp(getSymbolValue(symTab, node->varDecl.varName), "void") == 0) 
+        }
+        else if (strcmp(getSymbolValue(symTab, node->varDecl.varName), "void") == 0)
         {
             fprintf(stderr, "Semantic error: Cannot assign value to variable of type void\n");
             exit(1);
         }
-        else 
+        else
         {
             fprintf(stderr, "Semantic error: Invalid type %s\n", node->varDecl.varType);
         }
@@ -82,16 +82,16 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         semanticAnalysis(node->binOp.right, symTab);
         // Ensure both operands are either int or float for arithmetic
         if ((strcmp(node->binOp.left->dataType, "int") == 0 || strcmp(node->binOp.left->dataType, "float") == 0) &&
-            (strcmp(node->binOp.right->dataType, "int") == 0 || strcmp(node->binOp.right->dataType, "float") == 0)) 
+            (strcmp(node->binOp.right->dataType, "int") == 0 || strcmp(node->binOp.right->dataType, "float") == 0))
         {
             // Allow the operation
             node->dataType = strdup("float"); // Handle implicit promotion to float if needed
-        } 
-        else if(strcmp(node->binOp.left->dataType, node->binOp.right->dataType))
+        }
+        else if (strcmp(node->binOp.left->dataType, node->binOp.right->dataType))
         {
             node->dataType = strdup(node->binOp.left->dataType);
         }
-        else 
+        else
         {
             fprintf(stderr, "Semantic error: Invalid operand types for binary operation\n");
             exit(1);
@@ -131,11 +131,11 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
     case NodeType_ArrayDecl:
     {
         // In NodeType_VarDecl or NodeType_ArrayDecl
-        if (strcmp(node->varDecl.varType, "int") == 0 || 
-            strcmp(node->varDecl.varType, "float") == 0 || 
-            strcmp(node->varDecl.varType, "char") == 0 || 
-            strcmp(node->varDecl.varType, "bool") == 0 || 
-            strcmp(node->varDecl.varType, "void") == 0) 
+        if (strcmp(node->varDecl.varType, "int") == 0 ||
+            strcmp(node->varDecl.varType, "float") == 0 ||
+            strcmp(node->varDecl.varType, "char") == 0 ||
+            strcmp(node->varDecl.varType, "bool") == 0 ||
+            strcmp(node->varDecl.varType, "void") == 0)
         {
             // Valid type, proceed with the insertion into the symbol table
             // Check for duplicate declaration
@@ -148,8 +148,8 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
             Array *arrayInfo = createArray(node->arrayDecl.varType, node->arrayDecl.size);
             // Insert into symbol table
             insertSymbol(symTab, node->arrayDecl.varName, node->arrayDecl.varType, true, arrayInfo);
-        } 
-        else 
+        }
+        else
         {
             fprintf(stderr, "Semantic error: Invalid type %s\n", node->varDecl.varType);
         }
@@ -254,7 +254,7 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
         // Create a new TAC instruction for the binary operation
         TAC *binOpTAC = (TAC *)malloc(sizeof(TAC));
-        char opStr[2] = {expr->binOp.operator, '\0'};
+        char opStr[2] = {expr->binOp.operator, '\0' };
         binOpTAC->op = strdup(opStr);
         binOpTAC->arg1 = strdup(left);
         binOpTAC->arg2 = strdup(right);
@@ -292,33 +292,30 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
         // Create a TAC instruction for the write operation
         TAC *writeTAC = (TAC *)malloc(sizeof(TAC));
         Symbol *foundSymbol = findSymbol(symTab, exprResult);
-        if(foundSymbol->type == "bool")
+
+        if (foundSymbol == NULL)
         {
-            if(foundSymbol->value == "true")
-            {
-                writeTAC->op = strdup("write");
-                writeTAC->arg1 = strdup("1");
-                writeTAC->arg2 = NULL;
-                writeTAC->result = NULL;
-                writeTAC->next = NULL;
-            }
-            else
-            {
-                writeTAC->op = strdup("write");
-                writeTAC->arg1 = strdup("0");
-                writeTAC->arg2 = NULL;
-                writeTAC->result = NULL;
-                writeTAC->next = NULL;
-            }
+            fprintf(stderr, "Error: Symbol '%s' not found in the symbol table.\n", exprResult);
+            return NULL; // Handle the error gracefully
+        }
+
+        if (strcmp(foundSymbol->type, "bool") == 0)
+        {
+            // Handle boolean write
+            writeTAC->op = strdup("write");
+            writeTAC->arg1 = strdup(strcmp(foundSymbol->value, "true") == 0 ? "1" : "0");
         }
         else
         {
+            // Handle non-boolean write
             writeTAC->op = strdup("write");
             writeTAC->arg1 = strdup(exprResult);
-            writeTAC->arg2 = NULL;
-            writeTAC->result = NULL;
-            writeTAC->next = NULL;
         }
+
+        // Common TAC fields
+        writeTAC->arg2 = NULL;
+        writeTAC->result = NULL;
+        writeTAC->next = NULL;
 
         appendTAC(&tacHead, writeTAC);
         return NULL;
@@ -334,9 +331,9 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
         // Create a TAC instruction for the array assignment
         TAC *arrayAssignTAC = (TAC *)malloc(sizeof(TAC));
         arrayAssignTAC->op = strdup("[]=");
-        arrayAssignTAC->arg1 = strdup(index);    // This holds the index
-        arrayAssignTAC->arg2 = strdup(rhs);      // This holds the value being assigned
-        arrayAssignTAC->result = strdup(expr->arrayAssign.arrayName);  // This holds the array name
+        arrayAssignTAC->arg1 = strdup(index);                         // This holds the index
+        arrayAssignTAC->arg2 = strdup(rhs);                           // This holds the value being assigned
+        arrayAssignTAC->result = strdup(expr->arrayAssign.arrayName); // This holds the array name
         arrayAssignTAC->next = NULL;
 
         appendTAC(&tacHead, arrayAssignTAC);
@@ -352,13 +349,13 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
         // Create a TAC instruction for the array access
         TAC *arrayAccessTAC = (TAC *)malloc(sizeof(TAC));
         arrayAccessTAC->op = strdup("=[]");
-        arrayAccessTAC->arg1 = strdup(expr->arrayAccess.arrayName);  // This holds the array name
-        arrayAccessTAC->arg2 = strdup(index);  // This holds the index
-        arrayAccessTAC->result = createTempVar();  // Create a temporary variable to hold the result
+        arrayAccessTAC->arg1 = strdup(expr->arrayAccess.arrayName); // This holds the array name
+        arrayAccessTAC->arg2 = strdup(index);                       // This holds the index
+        arrayAccessTAC->result = createTempVar();                   // Create a temporary variable to hold the result
         arrayAccessTAC->next = NULL;
 
         appendTAC(&tacHead, arrayAccessTAC);
-        return strdup(arrayAccessTAC->result);  // Return the temporary variable
+        return strdup(arrayAccessTAC->result); // Return the temporary variable
     }
     break;
 
@@ -403,12 +400,12 @@ void appendTAC(TAC **head, TAC *newInstruction)
     }
 }
 
-void freeTACList(TAC* head) 
+void freeTACList(TAC *head)
 {
-    TAC* current = head;
-    while (current != NULL) 
+    TAC *current = head;
+    while (current != NULL)
     {
-        TAC* next = current->next;
+        TAC *next = current->next;
         if (current->op)
             free(current->op);
         if (current->arg1)
