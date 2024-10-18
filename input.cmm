@@ -6,7 +6,11 @@ int c;
 
 int z[4];
 
-bool adon = true;
+bool adon;
+bool angel;
+
+adon = true;
+angel = false;
 
 x = 1;
 a = 12;
@@ -29,3 +33,4 @@ write z[2];
 write z[3];
 
 write adon;
+write angel;

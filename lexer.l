@@ -77,6 +77,20 @@ ws          {delim}+
 		yylval.string = strdup(yytext);
 		return WRITE;
 		}
+
+"true"	{words++; 
+		chars += strlen(yytext);
+		printf("%s : TRUE\n", yytext);
+		yylval.string = strdup(yytext);
+		return TRUE;
+		}
+
+"false"	{words++; 
+		chars += strlen(yytext);
+		printf("%s : FALSE\n", yytext);
+		yylval.string = strdup(yytext);
+		return FALSE;
+		}
 		
 {ID}	{words++; chars += strlen(yytext);
 		printf("%s : ID\n",yytext);

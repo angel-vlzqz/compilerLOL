@@ -34,7 +34,7 @@ SymbolTable* symTab = NULL;
 %token <string> IF ELSE WHILE RETURN WRITE ID TYPE
 %token <operator> ASSIGNOP PLUS MINUS MUL LOGICOP
 %token <character> SEMICOLON '(' ')' '[' ']' '{' '}'
-%token THEN DO
+%token THEN DO TRUE FALSE
 
 %left '+' '-'
 %left '*' '/'
@@ -275,6 +275,20 @@ Expr:
         $$ = createNode(NodeType_ArrayAccess);
         $$->arrayAccess.arrayName = strdup($1);
         $$->arrayAccess.index = $3;
+    }
+    | TRUE
+    {
+        printf("Parsed TRUE bool");
+        $$ = malloc(sizeof(ASTNode));
+        $$->type = NodeType_SimpleExpr;
+        $$->simpleExpr.number = 1;
+    }
+    | FALSE
+    {
+        printf("Parsed FALSE bool");
+        $$ = malloc(sizeof(ASTNode));
+        $$->type = NodeType_SimpleExpr;
+        $$->simpleExpr.number = 0;
     }
     ;
 

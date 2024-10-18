@@ -2,9 +2,13 @@
 x: .word 0
 y: .word 0
 z: .space 16
+angel: .word 0
+adon: .word 0
 a: .word 0
 b: .word 0
 c: .word 0
+false: .word 0
+true: .word 0
 t15: .word 0
 t13: .word 0
 t11: .word 0
@@ -90,5 +94,19 @@ main:
 	syscall
 # Storing variable t15 back to memory
 	sw $t1, t15
+# Generating MIPS code for write operation
+	lw $a0, true
+	li $v0, 1
+	syscall
+	li $a0, 10
+	li $v0, 11
+	syscall
+# Generating MIPS code for write operation
+	lw $a0, false
+	li $v0, 1
+	syscall
+	li $a0, 10
+	li $v0, 11
+	syscall
 	li $v0, 10
 	syscall

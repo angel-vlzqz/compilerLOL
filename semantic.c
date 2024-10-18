@@ -291,11 +291,34 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
         // Create a TAC instruction for the write operation
         TAC *writeTAC = (TAC *)malloc(sizeof(TAC));
-        writeTAC->op = strdup("write");
-        writeTAC->arg1 = strdup(exprResult);
-        writeTAC->arg2 = NULL;
-        writeTAC->result = NULL;
-        writeTAC->next = NULL;
+        Symbol *foundSymbol = findSymbol(symTab, exprResult);
+        if(foundSymbol->type == "bool")
+        {
+            if(foundSymbol->value == "true")
+            {
+                writeTAC->op = strdup("write");
+                writeTAC->arg1 = strdup("1");
+                writeTAC->arg2 = NULL;
+                writeTAC->result = NULL;
+                writeTAC->next = NULL;
+            }
+            else
+            {
+                writeTAC->op = strdup("write");
+                writeTAC->arg1 = strdup("0");
+                writeTAC->arg2 = NULL;
+                writeTAC->result = NULL;
+                writeTAC->next = NULL;
+            }
+        }
+        else
+        {
+            writeTAC->op = strdup("write");
+            writeTAC->arg1 = strdup(exprResult);
+            writeTAC->arg2 = NULL;
+            writeTAC->result = NULL;
+            writeTAC->next = NULL;
+        }
 
         appendTAC(&tacHead, writeTAC);
         return NULL;
