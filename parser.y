@@ -278,14 +278,14 @@ Expr:
     }
     | TRUE
     {
-        printf("Parsed TRUE bool");
+        printf("Parsed TRUE bool\n");
         $$ = malloc(sizeof(ASTNode));
         $$->type = NodeType_SimpleExpr;
         $$->simpleExpr.number = 1;
     }
     | FALSE
     {
-        printf("Parsed FALSE bool");
+        printf("Parsed FALSE bool\n");
         $$ = malloc(sizeof(ASTNode));
         $$->type = NodeType_SimpleExpr;
         $$->simpleExpr.number = 0;

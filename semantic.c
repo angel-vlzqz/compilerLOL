@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "semantic.h"
+#include "optimizer.h"
 #include "temp.h"
 
 int tempVars[50] = {0}; // Definition and initialization
@@ -291,23 +292,22 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
         // Create a TAC instruction for the write operation
         TAC *writeTAC = (TAC *)malloc(sizeof(TAC));
-        Symbol *foundSymbol = findSymbol(symTab, exprResult);
-
-        if (foundSymbol == NULL)
+        // Check if exprResult is a constant
+        if (isConstant(exprResult))
         {
-            fprintf(stderr, "Error: Symbol '%s' not found in the symbol table.\n", exprResult);
-            return NULL; // Handle the error gracefully
-        }
-
-        if (strcmp(foundSymbol->type, "bool") == 0)
-        {
-            // Handle boolean write
+            // Handle constant write
             writeTAC->op = strdup("write");
-            writeTAC->arg1 = strdup(strcmp(foundSymbol->value, "true") == 0 ? "1" : "0");
+            writeTAC->arg1 = strdup(exprResult);
         }
         else
         {
-            // Handle non-boolean write
+            Symbol *foundSymbol = findSymbol(symTab, exprResult);
+            if (foundSymbol == NULL)
+            {
+                fprintf(stderr, "Error: Symbol '%s' not found in the symbol table.\n", exprResult);
+                return NULL; // Handle the error gracefully
+            }
+
             writeTAC->op = strdup("write");
             writeTAC->arg1 = strdup(exprResult);
         }
