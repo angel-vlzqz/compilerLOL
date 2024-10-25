@@ -287,10 +287,14 @@ int deadCodeElimination(TAC **head)
                 current = current->next;
 
                 // Free the memory allocated for the instruction
-                if (toDelete->op) free(toDelete->op);
-                if (toDelete->arg1) free(toDelete->arg1);
-                if (toDelete->arg2) free(toDelete->arg2);
-                if (toDelete->result) free(toDelete->result);
+                if (toDelete->op)
+                    free(toDelete->op);
+                if (toDelete->arg1)
+                    free(toDelete->arg1);
+                if (toDelete->arg2)
+                    free(toDelete->arg2);
+                if (toDelete->result)
+                    free(toDelete->result);
                 free(toDelete);
 
                 changes++;
@@ -302,7 +306,6 @@ int deadCodeElimination(TAC **head)
     }
     return changes;
 }
-
 
 // Print the optimized TAC list to a file
 void printOptimizedTAC(const char *filename, TAC *head)
@@ -354,9 +357,9 @@ bool hasSideEffect(TAC *instr)
         return false;
 
     // Instructions that modify memory or have side effects
-    if (strcmp(instr->op, "[]=") == 0)    // Array assignment
+    if (strcmp(instr->op, "[]=") == 0) // Array assignment
         return true;
-    if (strcmp(instr->op, "write") == 0)  // Write operation
+    if (strcmp(instr->op, "write") == 0) // Write operation
         return true;
     // Add other side-effecting operations if needed
 

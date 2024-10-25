@@ -3,16 +3,18 @@
 
 #include <stdbool.h>
 
-typedef struct ArrayElement {
-    int index;                      // Index of the element in the array
-    char *value;                    // Value stored at this index (as a string)
-    struct ArrayElement *next;      // Pointer to the next element
+typedef struct ArrayElement
+{
+    int index;                 // Index of the element in the array
+    char *value;               // Value stored at this index (as a string)
+    struct ArrayElement *next; // Pointer to the next element
 } ArrayElement;
 
-typedef struct Array {
-    char *dataType;              // Data type of the array elements
-    int size;                       // Declared size of the array
-    ArrayElement *elements;         // Linked list of initialized elements
+typedef struct Array
+{
+    char *dataType;         // Data type of the array elements
+    int size;               // Declared size of the array
+    ArrayElement *elements; // Linked list of initialized elements
 } Array;
 
 // Function prototypes

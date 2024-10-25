@@ -11,7 +11,7 @@
 #include <stdbool.h>
 #include <ctype.h>
 
-#define MAX_REGISTER_MAP_SIZE 32  // Adjusted to accommodate more variables if needed
+#define MAX_REGISTER_MAP_SIZE 32 // Adjusted to accommodate more variables if needed
 
 // Number of available registers, excluding reserved ones
 #define NUM_AVAILABLE_REGISTERS 9
@@ -20,17 +20,19 @@
 #define ADDRESS_CALC_REGISTER "$t9"
 #define BASE_ADDRESS_REGISTER "$t8"
 
-typedef struct VarNode {
-    char* name;
+typedef struct VarNode
+{
+    char *name;
     int initialValue;
     bool isInitialized;
-    struct VarNode* next;
+    struct VarNode *next;
 } VarNode;
 
 // Structure for register mapping
-typedef struct {
-    char* variable;  // Variable name
-    char* regName;   // Register name
+typedef struct
+{
+    char *variable; // Variable name
+    char *regName;  // Register name
 } RegisterMapEntry;
 
 // Initializes code generation, setting up any necessary structures
@@ -43,32 +45,32 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab);
 void finalizeCodeGenerator(const char *outputFilename);
 
 // Function declarations for register allocation
-const char* allocateRegister();
-void deallocateRegister(const char* regName);
+const char *allocateRegister();
+void deallocateRegister(const char *regName);
 void initializeRegisterMap();
 void freeRegisterMap();
-void setRegisterForVariable(const char* variable, const char* regName);
-const char* getRegisterForVariable(const char* variable);
-bool isVariableInRegisterMap(const char* variable);
-void removeVariableFromRegisterMap(const char* variable);
+void setRegisterForVariable(const char *variable, const char *regName);
+const char *getRegisterForVariable(const char *variable);
+bool isVariableInRegisterMap(const char *variable);
+void removeVariableFromRegisterMap(const char *variable);
 
 // Print the current TAC instruction
 void printCurrentTAC(TAC *tac);
 
-VarNode* findVariable(VarNode* varList, const char* varName);
+VarNode *findVariable(VarNode *varList, const char *varName);
 
 void loadOperand(const char *operand, const char *registerName);
 
-void freeVariableList(VarNode* varList);
+void freeVariableList(VarNode *varList);
 
-void collectVariables(TAC* tacInstructions, VarNode** varList);
+void collectVariables(TAC *tacInstructions, VarNode **varList);
 
 bool isTemporaryVariable(const char *operand);
 
 // Function to check if a variable is used later
-bool isVariableUsedLater(TAC* current, const char* variable);
+bool isVariableUsedLater(TAC *current, const char *variable);
 
-//helper function
-char* computeOffset(const char* indexOperand, int elementSize);
+// helper function
+char *computeOffset(const char *indexOperand, int elementSize);
 
 #endif // CODE_GENERATOR_H
