@@ -65,6 +65,9 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
     // Generate the .data section
     fprintf(outputFile, ".data\n");
 
+    // Declare the spill area for register spilling
+    fprintf(outputFile, "spill_area: .word 0\n");
+
     // Declare variables from the symbol table
     for (int i = 0; i < symTab->size; i++)
     {
@@ -228,7 +231,14 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
                 char *offsetValue = computeOffset(current->arg1, 4);
                 if (offsetValue != NULL)
                 {
-                    // Index is constant, use immediate offset
+                    // Ensure temporary variable is in the symbol table
+                    if (isTemporaryVariable(current->arg2))
+                    {
+                        if (!findSymbol(symTab, current->arg2))
+                        {
+                            insertSymbol(symTab, current->arg2, "int", false, NULL);
+                        }
+                    }
                     // Load value
                     const char *valueReg = getRegisterForVariable(current->arg2);
                     if (!valueReg)
@@ -293,7 +303,15 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
                 char *offsetValue = computeOffset(current->arg2, 4);
                 if (offsetValue != NULL)
                 {
-                    // Index is constant, use immediate offset
+                    // Ensure temporary variable is in the symbol table
+                    if (isTemporaryVariable(current->result))
+                    {
+                        if (!findSymbol(symTab, current->result))
+                        {
+                            insertSymbol(symTab, current->result, "int", false, NULL);
+                        }
+                    }
+                    // Load value into a register
                     const char *resultReg = getRegisterForVariable(current->result);
                     if (!resultReg)
                     {
@@ -427,8 +445,14 @@ const char *allocateRegister()
             return availableRegisters[i]; // Return the register name
         }
     }
-    // No available register, implement spilling if necessary
-    return NULL; // Indicate failure
+
+    // Implement spilling logic here
+    const char *spillRegister = availableRegisters[0]; // Example: spill the first register
+    fprintf(outputFile, "# Spilling register %s to memory\n", spillRegister);
+    // Store spilled register's value in memory (e.g., on the stack)
+    fprintf(outputFile, "\tsw %s, spill_area\n", spillRegister);
+
+    return spillRegister;
 }
 
 // Deallocate a register

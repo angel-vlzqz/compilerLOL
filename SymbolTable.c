@@ -68,7 +68,19 @@ void insertSymbol(SymbolTable *symbolTable, const char *name, const char *type, 
 // Find a symbol in the symbol table by name
 Symbol *findSymbol(SymbolTable *symbolTable, const char *name)
 {
+    // Ensure the symbolTable and table are properly initialized
+    if (symbolTable == NULL || symbolTable->table == NULL)
+    {
+        fprintf(stderr, "Error: Symbol table is NULL or uninitialized.\n");
+        return NULL;
+    }
+
     unsigned int index = hashFunction(name, symbolTable->size);
+    if (index >= symbolTable->size) {
+        fprintf(stderr, "Error: Hash index out of bounds.\n");
+        return NULL;
+    }
+
     Symbol *current = symbolTable->table[index];
 
     // Traverse the linked list to find the symbol
@@ -155,6 +167,7 @@ SymbolTable *createSymbolTable(int size)
     if (!newTable->table)
     {
         free(newTable);
+        fprintf(stderr, "Error: Memory allocation failed for symbol table entries\n");
         return NULL;
     }
 

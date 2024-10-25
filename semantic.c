@@ -4,6 +4,7 @@
 #include "semantic.h"
 #include "optimizer.h"
 #include "temp.h"
+#include "codeGenerator.h"
 
 int tempVars[50] = {0}; // Definition and initialization
 
@@ -248,23 +249,32 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
     break;
 
     case NodeType_BinOp:
+{
+    // Generate TAC for left and right operands
+    char *left = generateTACForExpr(expr->binOp.left, symTab);
+    char *right = generateTACForExpr(expr->binOp.right, symTab);
+
+    // Allocate a register for the result
+    const char *resultReg = allocateRegister();
+    if (!resultReg)
     {
-        // Generate TAC for left and right operands
-        char *left = generateTACForExpr(expr->binOp.left, symTab);
-        char *right = generateTACForExpr(expr->binOp.right, symTab);
-
-        // Create a new TAC instruction for the binary operation
-        TAC *binOpTAC = (TAC *)malloc(sizeof(TAC));
-        char opStr[2] = {expr->binOp.operator, '\0' };
-        binOpTAC->op = strdup(opStr);
-        binOpTAC->arg1 = strdup(left);
-        binOpTAC->arg2 = strdup(right);
-        binOpTAC->result = createTempVar();
-        binOpTAC->next = NULL;
-
-        appendTAC(&tacHead, binOpTAC);
-        return strdup(binOpTAC->result);
+        fprintf(stderr, "Error: No available registers for result\n");
+        exit(1);
     }
+
+    // Create a TAC instruction for the binary operation
+    TAC *binOpTAC = (TAC *)malloc(sizeof(TAC));
+    char opStr[2] = {expr->binOp.operator, '\0'};
+    binOpTAC->op = strdup(opStr);
+    binOpTAC->arg1 = strdup(left);
+    binOpTAC->arg2 = strdup(right);
+    binOpTAC->result = strdup(resultReg); // Store result in the allocated register
+    binOpTAC->next = NULL;
+
+    appendTAC(&tacHead, binOpTAC);
+
+    return strdup(resultReg);
+}
     break;
 
     case NodeType_SimpleExpr:
@@ -351,7 +361,7 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
         arrayAccessTAC->op = strdup("=[]");
         arrayAccessTAC->arg1 = strdup(expr->arrayAccess.arrayName); // This holds the array name
         arrayAccessTAC->arg2 = strdup(index);                       // This holds the index
-        arrayAccessTAC->result = createTempVar();                   // Create a temporary variable to hold the result
+        arrayAccessTAC->result = createTempVar(symTab);             // Create a temporary variable to hold the result
         arrayAccessTAC->next = NULL;
 
         appendTAC(&tacHead, arrayAccessTAC);
@@ -366,7 +376,7 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 }
 
 // Function to create a new temporary variable for TAC
-char *createTempVar()
+char *createTempVar(SymbolTable *symTab)
 {
     int index = allocateNextAvailableTempVar(tempVars);
     if (index == -1)
@@ -380,6 +390,13 @@ char *createTempVar()
         return NULL;
 
     sprintf(tempVar, "t%d", index);
+
+    // Insert the temporary variable into the symbol table
+    if (findSymbol(symTab, tempVar) == NULL)
+    {
+        insertSymbol(symTab, tempVar, "int", false, NULL); // Assuming temporaries are of type int
+    }
+
     return tempVar;
 }
 
