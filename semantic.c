@@ -250,8 +250,6 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
             // float rhsValue = atof(rhs); // Ensure rhs is interpreted as a float
             updateSymbolValue(symTab, expr->assignStmt.varName, rhs);
 
-            printf("bussy: %s\n", rhs);
-
             // Create a TAC instruction for the assignment
             TAC *assignTAC = (TAC *)malloc(sizeof(TAC));
             assignTAC->op = strdup("fmov"); // Use fmov for floating-point assignment

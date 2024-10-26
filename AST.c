@@ -47,7 +47,7 @@ void traverseAST(ASTNode *node, int level)
         break;
     case NodeType_SimpleID:
         printIndent(level);
-        printf("SimpleID: %d\n", node->simpleID.name);
+        printf("SimpleID: %d", node->simpleID.name);
         printf("%s\n", node->simpleID.name);
         break;
     case NodeType_Expr:
@@ -64,7 +64,7 @@ void traverseAST(ASTNode *node, int level)
         break;
     case NodeType_AssignStmt:
         printIndent(level);
-        printf("Stmt: %s = ", node->assignStmt.varName);
+        printf("Stmt: %s = \n", node->assignStmt.varName);
         traverseAST(node->assignStmt.expr, level + 1);
         break;
     case NodeType_BinOp:
