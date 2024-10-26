@@ -15,7 +15,7 @@ BISON_SRC = parser.y
 FLEX_SRC = lexer.l
 BISON_OUTPUT = parser.tab.c
 FLEX_OUTPUT = lex.yy.c
-OBJS = parser.tab.o lex.yy.o AST.o SymbolTable.o semantic.o optimizer.o codeGenerator.o Array.o
+OBJS = parser.tab.o lex.yy.o AST.o SymbolTable.o semantic.o optimizer.o codeGenerator.o Array.o utils.o
 
 # Default rule to build the executable
 all: $(EXEC)
@@ -58,6 +58,10 @@ codeGenerator.o: codeGenerator.c codeGenerator.h AST.h semantic.h Array.h
 Array.o: Array.c Array.h
 	$(CC) $(CFLAGS) -c Array.c -o Array.o -w
 
+# Compile Utils.c
+utils.o: utils.c utils.h
+	$(CC) $(CFLAGS) -c utils.c -o utils.o -w
+
 # Clean rule to remove all generated files
 clean:
-	rm -f $(OBJS) $(EXEC) $(BISON_OUTPUT) parser.tab.h $(FLEX_OUTPUT) semantic.o optimizer.o codeGenerator.o Array.o TACgen.ir TACopt.ir Tacsem.ir
+	rm -f $(OBJS) $(EXEC) $(BISON_OUTPUT) parser.tab.h $(FLEX_OUTPUT) semantic.o optimizer.o codeGenerator.o Array.o utils.o TACgen.ir TACopt.ir Tacsem.ir

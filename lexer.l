@@ -13,12 +13,13 @@ int lines = 0;
 
 %}
 
-letter      [a-zA-Z]
-digit       [0-9]
-ID          {letter}({letter}|{digit})*
-delim       [ \t\n]
-NUMBER      {digit}+(\.{digit}+)?(E[+\-]?(digit)+)?
-ws          {delim}+
+letter       [a-zA-Z]
+digit        [0-9]
+ID           {letter}({letter}|{digit})*
+delim        [ \t\n]
+NUMBER       {digit}+
+FLOAT_NUMBER {digit}+(\.{digit}+)?([eE][+\-]?{digit}+)?
+ws           {delim}+
 
 %option yylineno
 %%
@@ -97,12 +98,23 @@ ws          {delim}+
 		yylval.string = strdup(yytext);
 		return ID;
 		}
+
+{NUMBER} {words++; chars += strlen(yytext);
+          printf("%s : NUMBER\n",yytext);
+          if (strchr(yytext, '.') != NULL) {
+              yylval.number = atof(yytext); // Use atof for floating-point numbers
+          } else {
+              yylval.number = atoi(yytext); // Still use atoi for integers
+          }
+          return NUMBER;
+         }
 			
-{NUMBER}	{words++; chars += strlen(yytext);
-			printf("%s : NUMBER\n",yytext);
-			yylval.number = atoi(yytext);
-			return NUMBER;
-			}
+{FLOAT_NUMBER} {
+          words++; chars += strlen(yytext);
+          printf("%s : FLOAT_NUMBER\n", yytext);
+          yylval.number = atof(yytext); // Use atof for floating-point numbers
+          return FLOAT_NUMBER;
+         }
 			
 ";"		{chars++;
 		printf("%s : SEMICOLON\n", yytext);

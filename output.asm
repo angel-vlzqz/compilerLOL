@@ -11,6 +11,7 @@ t7: .word 0
 x: .word 0
 y: .word 0
 z: .space 16
+floatA: .word 0
 angel: .word 0
 adon: .word 0
 a: .word 0

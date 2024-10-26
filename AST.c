@@ -40,8 +40,10 @@ void traverseAST(ASTNode *node, int level)
         break;
     case NodeType_SimpleExpr:
         printIndent(level);
-        printf("SimpleExpr: %d\n", node->simpleExpr.number);
-        printf("%d\n", node->simpleExpr.number);
+        if (node->simpleExpr.isFloat)
+            printf("SimpleExpr (float): %f\n", node->simpleExpr.floatValue);
+        else
+            printf("SimpleExpr (int): %d\n", node->simpleExpr.number);
         break;
     case NodeType_SimpleID:
         printIndent(level);
@@ -239,8 +241,9 @@ ASTNode *createNode(NodeType type)
         newNode->varDecl.varName = NULL;
         break;
     case NodeType_SimpleExpr:
-        // Initialize the number to NULL
-        newNode->simpleExpr.number = '\0';
+        newNode->simpleExpr.number = 0;
+        newNode->simpleExpr.floatValue = 0.0;
+        newNode->simpleExpr.isFloat = false;
         break;
     case NodeType_SimpleID:
         newNode->simpleID.name = NULL;

@@ -70,6 +70,10 @@ bool isTemporaryVariable(const char *operand);
 // Function to check if a variable is used later
 bool isVariableUsedLater(TAC *current, const char *variable);
 
+// Functions for float register allocation
+const char *allocateFloatRegister();
+void deallocateFloatRegister(const char *regName);
+
 // helper function
 char *computeOffset(const char *indexOperand, int elementSize);
 

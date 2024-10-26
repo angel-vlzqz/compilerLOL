@@ -5,6 +5,7 @@
 // for memory management functions
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 // NodeType enum to differentiate between different
 // kinds of AST nodes
@@ -53,11 +54,14 @@ typedef struct ASTNode
         {
             char *varType;
             char *varName;
+            bool isFloat;
         } varDecl;
 
         struct
         {
             int number;
+            float floatValue;
+            bool isFloat;
         } simpleExpr;
 
         struct
@@ -135,6 +139,7 @@ typedef struct ASTNode
             char *varType;
             char *varName;
             int size;
+            bool isFloat;
         } arrayDecl; // Array declaration
 
         struct

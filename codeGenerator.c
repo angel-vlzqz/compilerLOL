@@ -1,7 +1,7 @@
 // codeGenerator.c
 
 #include "codeGenerator.h"
-#include "optimizer.h"
+#include "utils.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,10 +9,15 @@
 
 static FILE *outputFile;
 
-// Available registers (excluding $t8 and $t9)
+// Available registers for int (excluding $t8 and $t9)
 const char *availableRegisters[] = {"$t0", "$t1", "$t2", "$t3", "$t4", "$t5", "$t6", "$t7"};
 #define NUM_AVAILABLE_REGISTERS 8
 bool registerInUse[NUM_AVAILABLE_REGISTERS] = {false};
+
+// Available registers for float (excluding $f16 and $f17)
+const char *availableFloatRegisters[] = {"$f0", "$f2", "$f4", "$f6", "$f8", "$f10", "$f12", "$f14"};
+#define NUM_AVAILABLE_FLOAT_REGISTERS 8
+bool floatRegisterInUse[NUM_AVAILABLE_FLOAT_REGISTERS] = {false};
 
 // Reserved registers
 #define ADDRESS_CALC_REGISTER "$t9"
@@ -678,4 +683,33 @@ bool isVariableUsedLater(TAC *current, const char *variable)
         temp = temp->next;
     }
     return false;
+}
+
+
+// Allocate a floating-point register
+const char *allocateFloatRegister()
+{
+    for (int i = 0; i < NUM_AVAILABLE_FLOAT_REGISTERS; i++)
+    {
+        if (!floatRegisterInUse[i])
+        {
+            floatRegisterInUse[i] = true;
+            return availableFloatRegisters[i]; // Return the register name
+        }
+    }
+    fprintf(stderr, "Error: No available floating-point registers\n");
+    return NULL;
+}
+
+// Deallocate a floating-point register
+void deallocateFloatRegister(const char *regName)
+{
+    for (int i = 0; i < NUM_AVAILABLE_FLOAT_REGISTERS; i++)
+    {
+        if (strcmp(regName, availableFloatRegisters[i]) == 0)
+        {
+            floatRegisterInUse[i] = false;
+            break;
+        }
+    }
 }

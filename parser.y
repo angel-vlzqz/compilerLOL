@@ -7,6 +7,7 @@
 #include "semantic.h"
 #include "optimizer.h"
 #include "codeGenerator.h"
+#include "utils.h"
 
 #define TABLE_SIZE 101
 
@@ -15,6 +16,7 @@ extern FILE* yyin;
 extern int yylineno;
 
 void yyerror(const char *s);
+void fatalError(const char *s);
 
 ASTNode* root = NULL;
 SymbolTable* symTab = NULL;
@@ -24,6 +26,7 @@ SymbolTable* symTab = NULL;
 %union 
 {
     int number;
+    float float_number;
     char character;
     char* string;
     char* operator;
@@ -31,6 +34,7 @@ SymbolTable* symTab = NULL;
 }
          
 %token <number> NUMBER       
+%token <float_number> FLOAT_NUMBER
 %token <string> IF ELSE WHILE RETURN WRITE ID TYPE
 %token <operator> ASSIGNOP PLUS MINUS MUL LOGICOP
 %token <character> SEMICOLON '(' ')' '[' ']' '{' '}'
@@ -127,13 +131,29 @@ VarDecl:
         $$ = createNode(NodeType_VarDecl);
         $$->varDecl.varType = strdup($1);
         $$->varDecl.varName = strdup($2);
+
+        if (strcmp($1, "float") == 0) {
+            $$->varDecl.isFloat = true;  // Add a flag to indicate float
+        } else {
+            $$->varDecl.isFloat = false;
+        }
     }
     | TYPE ID '[' NUMBER ']' SEMICOLON
     {
         $$ = createNode(NodeType_ArrayDecl);
         $$->arrayDecl.varType = strdup($1);
         $$->arrayDecl.varName = strdup($2);
-        $$->arrayDecl.size = $4; // $4 is NUMBER
+        $$->arrayDecl.size = $4;
+
+        if (strcmp($1, "float") == 0) {
+            $$->arrayDecl.isFloat = true;  // Handle float arrays
+        } else {
+            $$->arrayDecl.isFloat = false;
+        }
+    }
+    | TYPE ID '[' FLOAT_NUMBER ']' SEMICOLON
+    {
+        fatalError("Array index must be an integer, not a floating-point number.");
     }
     | TYPE ID
     {
@@ -179,6 +199,10 @@ Stmt:
     }
     | ID '[' Expr ']' ASSIGNOP Expr SEMICOLON
     {
+        if ($3->type == NodeType_SimpleExpr && $3->simpleExpr.isFloat) 
+        {
+            fatalError("Array index must be an integer, not a floating-point number.");
+        }
         printf("Parsed Array Assignment: %s[%s] = ...\n", $1, $3);
         $$ = createNode(NodeType_ArrayAssign);
         $$->arrayAssign.arrayName = strdup($1);
@@ -262,15 +286,28 @@ Expr:
         $$->type = NodeType_SimpleID;
         $$->simpleID.name = strdup($1);
     } 
+    | FLOAT_NUMBER
+    {
+        printf("Parsed Float Number: %f\n", $1);
+        $$ = malloc(sizeof(ASTNode));
+        $$->type = NodeType_SimpleExpr;
+        $$->simpleExpr.floatValue = $1;
+        $$->simpleExpr.isFloat = true;
+    }
     | NUMBER 
     {
         printf("Parsed Number: %d\n", $1);
         $$ = malloc(sizeof(ASTNode));
         $$->type = NodeType_SimpleExpr;
         $$->simpleExpr.number = $1;
+        $$->simpleExpr.isFloat = false;
     }
     | ID '[' Expr ']'
     {
+        if ($3->type == NodeType_SimpleExpr && $3->simpleExpr.isFloat) 
+        {
+            fatalError("Array index must be an integer, not a floating-point number.");
+        }
         printf("Parsed Array Access: %s[%s]\n", $1, $3);
         $$ = createNode(NodeType_ArrayAccess);
         $$->arrayAccess.arrayName = strdup($1);
@@ -300,6 +337,12 @@ void yyerror(const char *s)
     exit(1);
 }
 
+void fatalError(const char *s) 
+{
+    fprintf(stderr, "Fatal Error at line %d: %s\n", yylineno, s);
+    exit(1);  // Exit the program with a non-zero status
+}
+
 int main() 
 {
     // Initialize the input source
@@ -313,6 +356,7 @@ int main()
         exit(1);
     }
 
+    // Initialize temporary variables
     initializeTempVars();
 
     if (yyparse() == 0) 

@@ -2,7 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "semantic.h"
-#include "optimizer.h"
+#include "utils.h"
 #include "temp.h"
 #include "codeGenerator.h"
 
@@ -82,20 +82,23 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
     case NodeType_BinOp:
         semanticAnalysis(node->binOp.left, symTab);
         semanticAnalysis(node->binOp.right, symTab);
-        // Ensure both operands are either int or float for arithmetic
-        if ((strcmp(node->binOp.left->dataType, "int") == 0 || strcmp(node->binOp.left->dataType, "float") == 0) &&
-            (strcmp(node->binOp.right->dataType, "int") == 0 || strcmp(node->binOp.right->dataType, "float") == 0))
+
+        if ((strcmp(node->binOp.left->dataType, "int") == 0 && strcmp(node->binOp.right->dataType, "float") == 0) ||
+            (strcmp(node->binOp.left->dataType, "float") == 0 && strcmp(node->binOp.right->dataType, "int") == 0))
         {
-            // Allow the operation
-            node->dataType = strdup("float"); // Handle implicit promotion to float if needed
+            node->dataType = strdup("float"); // Promote to float if mixed types
         }
-        else if (strcmp(node->binOp.left->dataType, node->binOp.right->dataType))
+        else if (strcmp(node->binOp.left->dataType, "float") == 0 && strcmp(node->binOp.right->dataType, "float") == 0)
+        {
+            node->dataType = strdup("float");
+        }
+        else if (strcmp(node->binOp.left->dataType, node->binOp.right->dataType) == 0)
         {
             node->dataType = strdup(node->binOp.left->dataType);
         }
         else
         {
-            fprintf(stderr, "Semantic error: Invalid operand types for binary operation\n");
+            fprintf(stderr, "Semantic error: Type mismatch in binary operation\n");
             exit(1);
         }
         break;
@@ -235,63 +238,131 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
         // Generate TAC for the right-hand side expression
         char *rhs = generateTACForExpr(expr->assignStmt.expr, symTab);
 
-        // Create a TAC instruction for the assignment
-        TAC *assignTAC = (TAC *)malloc(sizeof(TAC));
-        assignTAC->op = strdup("=");
-        assignTAC->arg1 = strdup(rhs);
-        assignTAC->arg2 = NULL;
-        assignTAC->result = strdup(expr->assignStmt.varName);
-        assignTAC->next = NULL;
+        // Find the type of the left-hand side variable in the symbol table
+        Symbol *symbol = findSymbol(symTab, expr->assignStmt.varName);
 
-        appendTAC(&tacHead, assignTAC);
+        if (symbol && strcmp(symbol->type, "float") == 0)
+        {
+            // Float assignment
+            TAC *assignTAC = (TAC *)malloc(sizeof(TAC));
+            assignTAC->op = strdup("fmov"); // Use fmov for floating-point assignment
+            assignTAC->arg1 = strdup(rhs);
+            assignTAC->arg2 = NULL;
+            assignTAC->result = strdup(expr->assignStmt.varName);
+            assignTAC->next = NULL;
+
+            appendTAC(&tacHead, assignTAC);
+        }
+        else
+        {
+            // Integer or other type assignment (default handling)
+            TAC *assignTAC = (TAC *)malloc(sizeof(TAC));
+            assignTAC->op = strdup("=");
+            assignTAC->arg1 = strdup(rhs);
+            assignTAC->arg2 = NULL;
+            assignTAC->result = strdup(expr->assignStmt.varName);
+            assignTAC->next = NULL;
+
+            appendTAC(&tacHead, assignTAC);
+        }
+
         return strdup(expr->assignStmt.varName);
     }
     break;
 
     case NodeType_BinOp:
-{
-    // Generate TAC for left and right operands
-    char *left = generateTACForExpr(expr->binOp.left, symTab);
-    char *right = generateTACForExpr(expr->binOp.right, symTab);
-
-    // Allocate a register for the result
-    const char *resultReg = allocateRegister();
-    if (!resultReg)
     {
-        fprintf(stderr, "Error: No available registers for result\n");
-        exit(1);
+        // Generate TAC for left and right operands
+        char *left = generateTACForExpr(expr->binOp.left, symTab);
+        char *right = generateTACForExpr(expr->binOp.right, symTab);
+
+        // Check the data types of the operands
+        Symbol *leftSymbol = findSymbol(symTab, left);
+        Symbol *rightSymbol = findSymbol(symTab, right);
+        bool isFloatOp = false;
+
+        if ((leftSymbol && strcmp(leftSymbol->type, "float") == 0) ||
+            (rightSymbol && strcmp(rightSymbol->type, "float") == 0))
+        {
+            isFloatOp = true;
+        }
+
+        // Allocate a register for the result
+        const char *resultReg = isFloatOp ? allocateFloatRegister() : allocateRegister();
+        if (!resultReg)
+        {
+            fprintf(stderr, "Error: No available registers for result\n");
+            exit(1);
+        }
+
+        // Create a TAC instruction for the binary operation
+        TAC *binOpTAC = (TAC *)malloc(sizeof(TAC));
+        char opStr[5]; // Need more space to differentiate between fadd, fsub, etc.
+        if (isFloatOp)
+        {
+            if (expr->binOp.operator== '+')
+            {
+                strcpy(opStr, "fadd");
+            }
+            else if (expr->binOp.operator== '-')
+            {
+                strcpy(opStr, "fsub");
+            }
+            else if (expr->binOp.operator== '*')
+            {
+                strcpy(opStr, "fmul");
+            }
+            else if (expr->binOp.operator== '/')
+            {
+                strcpy(opStr, "fdiv");
+            }
+        }
+        else
+        {
+            opStr[0] = expr->binOp.operator;
+            opStr[1] = '\0';
+        }
+
+        binOpTAC->op = strdup(opStr);
+        binOpTAC->arg1 = strdup(left);
+        binOpTAC->arg2 = strdup(right);
+        binOpTAC->result = strdup(resultReg); // Store result in the allocated register
+        binOpTAC->next = NULL;
+
+        appendTAC(&tacHead, binOpTAC);
+
+        return strdup(resultReg);
     }
-
-    // Create a TAC instruction for the binary operation
-    TAC *binOpTAC = (TAC *)malloc(sizeof(TAC));
-    char opStr[2] = {expr->binOp.operator, '\0'};
-    binOpTAC->op = strdup(opStr);
-    binOpTAC->arg1 = strdup(left);
-    binOpTAC->arg2 = strdup(right);
-    binOpTAC->result = strdup(resultReg); // Store result in the allocated register
-    binOpTAC->next = NULL;
-
-    appendTAC(&tacHead, binOpTAC);
-
-    return strdup(resultReg);
-}
     break;
 
     case NodeType_SimpleExpr:
     {
-        // Numeric literal
         char buffer[20];
-        snprintf(buffer, 20, "%d", expr->simpleExpr.number);
-
-        // Return the constant as a string
+        if (expr->dataType && strcmp(expr->dataType, "float") == 0)
+        {
+            snprintf(buffer, 20, "%f", expr->simpleExpr.floatValue);
+        }
+        else
+        {
+            snprintf(buffer, 20, "%d", expr->simpleExpr.number);
+        }
         return strdup(buffer);
     }
     break;
 
     case NodeType_SimpleID:
     {
-        // Return the variable name
-        return strdup(expr->simpleID.name);
+        Symbol *symbol = findSymbol(symTab, expr->simpleID.name);
+        if (symbol && strcmp(symbol->type, "float") == 0)
+        {
+            // Return the variable name and mark it as a float
+            return strdup(expr->simpleID.name); // Floating-point variable
+        }
+        else
+        {
+            // Return the variable name (default integer behavior)
+            return strdup(expr->simpleID.name);
+        }
     }
     break;
 
@@ -302,10 +373,11 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
         // Create a TAC instruction for the write operation
         TAC *writeTAC = (TAC *)malloc(sizeof(TAC));
+
         // Check if exprResult is a constant
         if (isConstant(exprResult))
         {
-            // Handle constant write
+            // Handle constant write for integers
             writeTAC->op = strdup("write");
             writeTAC->arg1 = strdup(exprResult);
         }
@@ -318,7 +390,18 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
                 return NULL; // Handle the error gracefully
             }
 
-            writeTAC->op = strdup("write");
+            // Determine if the expression result is a float or an integer
+            if (strcmp(foundSymbol->type, "float") == 0)
+            {
+                // Handle write for floating-point values
+                writeTAC->op = strdup("write_float");
+            }
+            else
+            {
+                // Handle write for integer values (default case)
+                writeTAC->op = strdup("write");
+            }
+
             writeTAC->arg1 = strdup(exprResult);
         }
 
@@ -378,7 +461,7 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 // Function to create a new temporary variable for TAC
 char *createTempVar(SymbolTable *symTab)
 {
-    int index = allocateNextAvailableTempVar(tempVars);
+    int index = allocateNextAvailableTempVar(tempVars, 50);
     if (index == -1)
     {
         fprintf(stderr, "Error: No available temporary variables\n");
@@ -436,75 +519,3 @@ void freeTACList(TAC *head)
     }
 }
 
-// Temporary variable allocation and deallocation functions
-
-void initializeTempVars()
-{
-    for (int i = 0; i < 50; i++)
-    {
-        tempVars[i] = 0;
-    }
-}
-
-int allocateNextAvailableTempVar(int tempVars[])
-{
-    for (int i = 0; i < 50; i++)
-    {
-        if (tempVars[i] == 0)
-        {
-            tempVars[i] = 1;
-            return i;
-        }
-    }
-    return -1; // No available temp var
-}
-
-void deallocateTempVar(int tempVars[], int index)
-{
-    if (index >= 0 && index < 50)
-    {
-        tempVars[index] = 0;
-    }
-}
-
-void printTACToFile(const char *filename, TAC *tac)
-{
-    FILE *file = fopen(filename, "w");
-    if (!file)
-    {
-        perror("Failed to open file");
-        return;
-    }
-
-    TAC *current = tac;
-
-    while (current != NULL)
-    {
-        if (current->op != NULL)
-        {
-            if (strcmp(current->op, "=") == 0)
-            {
-                fprintf(file, "%s = %s\n", current->result, current->arg1);
-            }
-            else if (strcmp(current->op, "write") == 0)
-            {
-                fprintf(file, "write %s\n", current->arg1);
-            }
-            else if (strcmp(current->op, "[]=") == 0)
-            {
-                fprintf(file, "%s [ %s ] = %s\n", current->result, current->arg1, current->arg2);
-            }
-            else if (strcmp(current->op, "=[]") == 0)
-            {
-                fprintf(file, "%s = %s [ %s ]\n", current->result, current->arg1, current->arg2);
-            }
-            else
-            {
-                fprintf(file, "%s = %s %s %s\n", current->result, current->arg1, current->op, current->arg2);
-            }
-        }
-        current = current->next;
-    }
-
-    fclose(file);
-}

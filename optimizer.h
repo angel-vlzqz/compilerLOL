@@ -9,8 +9,6 @@
 void optimizeTAC(TAC **head);
 
 // Utility functions to check if a string is a constant or a variable
-bool isConstant(const char *str);
-bool isVariable(const char *str);
 bool hasSideEffect(TAC *instr);
 
 // Optimization functions that return the number of changes made

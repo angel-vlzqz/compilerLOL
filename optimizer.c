@@ -1,4 +1,5 @@
 #include "optimizer.h"
+#include "utils.h"
 #include <string.h>
 #include <stdbool.h>
 #include <ctype.h>
@@ -17,57 +18,6 @@ void optimizeTAC(TAC **head)
         changes += copyPropagation(head);
         changes += deadCodeElimination(head);
     } while (changes > 0);
-}
-
-bool isConstant(const char *str)
-{
-    if (str == NULL || *str == '\0')
-    {
-        return false;
-    }
-
-    // Handle negative numbers
-    if (*str == '-')
-    {
-        ++str;
-    }
-
-    while (*str)
-    {
-        if (!isdigit((unsigned char)*str))
-        {
-            return false;
-        }
-        ++str;
-    }
-
-    return true;
-}
-
-bool isVariable(const char *str)
-{
-    if (str == NULL || *str == '\0')
-    {
-        return false;
-    }
-
-    // Check if the first character is a letter or underscore
-    if (!isalpha((unsigned char)*str) && *str != '_')
-    {
-        return false;
-    }
-
-    ++str;
-    while (*str)
-    {
-        if (!isalnum((unsigned char)*str) && *str != '_')
-        {
-            return false;
-        }
-        ++str;
-    }
-
-    return true;
 }
 
 // Constant Folding Optimization
@@ -305,50 +255,6 @@ int deadCodeElimination(TAC **head)
         current = current->next;
     }
     return changes;
-}
-
-// Print the optimized TAC list to a file
-void printOptimizedTAC(const char *filename, TAC *head)
-{
-    printf("Print Optimized TAC \n");
-    FILE *outputFile = fopen(filename, "w");
-    if (outputFile == NULL)
-    {
-        perror("Failed to open output file");
-        exit(EXIT_FAILURE);
-    }
-
-    TAC *current = head;
-    while (current != NULL)
-    {
-        if (current->result != NULL)
-            fprintf(outputFile, "%s = ", current->result);
-        if (current->arg1 != NULL)
-            fprintf(outputFile, "%s ", current->arg1);
-        if (current->op != NULL && (strcmp(current->op, "=") != 0))
-            fprintf(outputFile, "%s ", current->op);
-        if (current->arg2 != NULL)
-            fprintf(outputFile, "%s ", current->arg2);
-        fprintf(outputFile, "\n");
-        current = current->next;
-    }
-    printf("Optimized TAC written to %s\n", filename);
-    fclose(outputFile);
-}
-
-// Print current TAC instruction
-void printCurrentOptimizedTAC(TAC *current)
-{
-    printf("Print Current Optimized TAC");
-    if (current->result != NULL)
-        printf("%s = ", current->result);
-    if (current->arg1 != NULL)
-        printf("%s ", current->arg1);
-    if (current->op != NULL)
-        printf("%s ", current->op);
-    if (current->arg2 != NULL)
-        printf("%s ", current->arg2);
-    printf("\n");
 }
 
 bool hasSideEffect(TAC *instr)
