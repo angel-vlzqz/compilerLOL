@@ -112,7 +112,7 @@ ws           {delim}+
 {FLOAT_NUMBER} {
           words++; chars += strlen(yytext);
           printf("%s : FLOAT_NUMBER\n", yytext);
-          yylval.number = atof(yytext); // Use atof for floating-point numbers
+          yylval.float_number = atof(yytext); // Use atof for floating-point numbers
           return FLOAT_NUMBER;
          }
 			

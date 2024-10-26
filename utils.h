@@ -5,6 +5,9 @@
 #include "optimizer.h"
 #include "semantic.h"
 
+// ---- parser.y helpers ----
+
+void fatal(const char *s);  // , int yylineno
 
 // ---- optimizer.c Helpers ----
 

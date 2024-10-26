@@ -5,6 +5,14 @@
 #include <string.h>
 #include <ctype.h>
 
+// ---- Error Helper ----
+
+void fatal(const char *s) 
+{
+    fprintf(stderr, "Fatal Error: %s\n", s);
+    exit(1);  // Exit the program with a non-zero status
+}
+
 // ---- optimizer.c Helpers ----
 
 bool isConstant(const char* str) {

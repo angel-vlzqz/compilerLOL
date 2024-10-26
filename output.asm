@@ -11,7 +11,7 @@ t7: .word 0
 x: .word 0
 y: .word 0
 z: .space 16
-floatA: .word 0
+floatA: .float 1.234000
 angel: .word 0
 adon: .word 0
 a: .word 0
@@ -112,6 +112,13 @@ main:
 # Generating MIPS code for write operation
 	li $a0, 0
 	li $v0, 1
+	syscall
+	li $a0, 10
+	li $v0, 11
+	syscall
+# Generating MIPS code for write_float operation
+	l.s $f12, floatA
+	li $v0, 2
 	syscall
 	li $a0, 10
 	li $v0, 11

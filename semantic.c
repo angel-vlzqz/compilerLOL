@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include "semantic.h"
 #include "utils.h"
 #include "temp.h"
@@ -238,12 +239,20 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
         // Generate TAC for the right-hand side expression
         char *rhs = generateTACForExpr(expr->assignStmt.expr, symTab);
 
+        printf("%s\n", rhs);
+
         // Find the type of the left-hand side variable in the symbol table
         Symbol *symbol = findSymbol(symTab, expr->assignStmt.varName);
 
         if (symbol && strcmp(symbol->type, "float") == 0)
         {
-            // Float assignment
+            // Update the value of the float variable in the symbol table
+            // float rhsValue = atof(rhs); // Ensure rhs is interpreted as a float
+            updateSymbolValue(symTab, expr->assignStmt.varName, rhs);
+
+            printf("bussy: %s\n", rhs);
+
+            // Create a TAC instruction for the assignment
             TAC *assignTAC = (TAC *)malloc(sizeof(TAC));
             assignTAC->op = strdup("fmov"); // Use fmov for floating-point assignment
             assignTAC->arg1 = strdup(rhs);
@@ -255,7 +264,12 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
         }
         else
         {
-            // Integer or other type assignment (default handling)
+            // Handle integer or other types of assignment
+            updateSymbolValue(symTab, expr->assignStmt.varName, rhs);
+
+            printf("Angel\n");
+
+            // Create a TAC instruction for the assignment
             TAC *assignTAC = (TAC *)malloc(sizeof(TAC));
             assignTAC->op = strdup("=");
             assignTAC->arg1 = strdup(rhs);
@@ -337,15 +351,21 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
     case NodeType_SimpleExpr:
     {
-        char buffer[20];
-        if (expr->dataType && strcmp(expr->dataType, "float") == 0)
+        char buffer[20]; // Buffer to hold the numeric literal
+
+        // Ensure the data type is correctly recognized
+        if (expr->simpleExpr.isFloat) // Assuming isFloat is set for floats
         {
-            snprintf(buffer, 20, "%f", expr->simpleExpr.floatValue);
+            expr->dataType = strdup("float");
+            snprintf(buffer, sizeof(buffer), "%.6f", expr->simpleExpr.floatValue);
         }
         else
         {
-            snprintf(buffer, 20, "%d", expr->simpleExpr.number);
+            expr->dataType = strdup("int");
+            snprintf(buffer, sizeof(buffer), "%d", expr->simpleExpr.number);
         }
+
+        // Return the numeric constant as a string
         return strdup(buffer);
     }
     break;
@@ -518,4 +538,3 @@ void freeTACList(TAC *head)
         current = next;
     }
 }
-

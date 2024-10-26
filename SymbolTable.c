@@ -57,6 +57,11 @@ void insertSymbol(SymbolTable *symbolTable, const char *name, const char *type, 
     unsigned int index = hashFunction(name, symbolTable->size);
     Symbol *newSymbol = createSymbol(name, type, index, isArray, arrayInfo);
 
+    // Set default value for floats if applicable
+    if (strcmp(type, "float") == 0) {
+        newSymbol->value = strdup("0.0"); // Default float value
+    }
+
     // Insert the symbol at the head of the linked list for this index
     newSymbol->next = symbolTable->table[index];
     symbolTable->table[index] = newSymbol;

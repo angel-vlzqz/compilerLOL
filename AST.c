@@ -5,7 +5,7 @@ void printIndent(int level)
 {
     for (int i = 0; i < level - 1; i++)
     {
-        printf("--");
+        printf("-");
     }
 }
 

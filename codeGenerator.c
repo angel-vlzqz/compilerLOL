@@ -84,27 +84,53 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
                 int totalSize = symbol->arrayInfo->size * 4; // Assuming 4 bytes per element
                 fprintf(outputFile, "%s: .space %d\n", symbol->name, totalSize);
             }
+            else if (strcmp(symbol->type, "float") == 0) //  || !isdigit(symbol->name[0])
+            {
+                // Check if the float symbol has a value
+                if (symbol->value != NULL)
+                {
+                    // Print the float value in the .data section
+                    fprintf(outputFile, "%s: .float %s\n", symbol->name, symbol->value);
+                }
+                else
+                {
+
+                    // If no value is set, default to 0.0
+                    fatal("%s: .float 0.0\n"); //, symbol->name
+                }
+            }
             else
             {
-                fprintf(outputFile, "%s: .word 0\n", symbol->name);
+                // Check if the symbol name is not a floating-point literal
+                char *endPtr;
+                double numCheck = strtod(symbol->name, &endPtr);
+                strtod(symbol->name, &endPtr); // Convert to double and check endPtr
+                if (*endPtr == '\0' && numCheck != 0.0)           // If endPtr points to '\0', it’s a full number
+                {
+                    // Skip writing this entry if it is purely numeric
+                }
+                else
+                {
+                    fprintf(outputFile, "%s: .word 0\n", symbol->name);
+                }
             }
             symbol = symbol->next;
         }
     }
 
     // Declare temporary variables not in symbol table
-    VarNode *currentVar = varList;
-    while (currentVar != NULL)
-    {
-        if (!findSymbol(symTab, currentVar->name))
-        {
-            if (!isConstant(currentVar->name))
-            {
-                fprintf(outputFile, "%s: .word 0\n", currentVar->name);
-            }
-        }
-        currentVar = currentVar->next;
-    }
+    // VarNode *currentVar = varList;
+    // while (currentVar != NULL)
+    // {
+    //     if (!findSymbol(symTab, currentVar->name))
+    //     {
+    //         if (!isConstant(currentVar->name))
+    //         {
+    //             fprintf(outputFile, "%s: .word 0\n", currentVar->name);
+    //         }
+    //     }
+    //     currentVar = currentVar->next;
+    // }
 
     // Start the .text section and main function
     fprintf(outputFile, ".text\n");
@@ -222,6 +248,29 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
                 fprintf(outputFile, "\tli $v0, 1\n"); // Syscall code for print_int
                 fprintf(outputFile, "\tsyscall\n");
                 // Print newline character
+                fprintf(outputFile, "\tli $a0, 10\n"); // ASCII code for newline
+                fprintf(outputFile, "\tli $v0, 11\n"); // Syscall code for print_char
+                fprintf(outputFile, "\tsyscall\n");
+            }
+            else if (strcmp(current->op, "write_float") == 0)
+            {
+                // Write operation for floating-point numbers
+                fprintf(outputFile, "# Generating MIPS code for write_float operation\n");
+                const char *srcReg = getRegisterForVariable(current->arg1);
+                if (!srcReg)
+                {
+                    // Load operand into $f12 directly if it's not in a register
+                    loadOperand(current->arg1, "$f12");
+                }
+                else
+                {
+                    // Move value to $f12 for floating-point printing
+                    fprintf(outputFile, "\tmov.s $f12, %s\n", srcReg);
+                }
+                fprintf(outputFile, "\tli $v0, 2\n"); // Syscall code for print_float
+                fprintf(outputFile, "\tsyscall\n");
+
+                // Print newline character after the float
                 fprintf(outputFile, "\tli $a0, 10\n"); // ASCII code for newline
                 fprintf(outputFile, "\tli $v0, 11\n"); // Syscall code for print_char
                 fprintf(outputFile, "\tsyscall\n");
@@ -633,7 +682,17 @@ void loadOperand(const char *operand, const char *registerName)
 {
     if (isConstant(operand))
     {
-        fprintf(outputFile, "\tli %s, %s\n", registerName, operand);
+        // If the register is for floats, handle the constant as a float.
+        if (registerName[0] == '$' && registerName[1] == 'f')
+        {
+            // Declare the constant in the .data section and load it into a floating-point register.
+            fprintf(outputFile, "\tl.s %s, %s\n", registerName, operand); // Assume operand is stored in memory
+        }
+        else
+        {
+            // Load integer constant
+            fprintf(outputFile, "\tli %s, %s\n", registerName, operand);
+        }
     }
     else if (isVariableInRegisterMap(operand))
     {
@@ -641,13 +700,30 @@ void loadOperand(const char *operand, const char *registerName)
         const char *reg = getRegisterForVariable(operand);
         if (strcmp(registerName, reg) != 0)
         {
-            fprintf(outputFile, "\tmove %s, %s\n", registerName, reg);
+            // Check if it's a floating-point register
+            if (registerName[0] == '$' && registerName[1] == 'f')
+            {
+                fprintf(outputFile, "\tmov.s %s, %s\n", registerName, reg);
+            }
+            else
+            {
+                fprintf(outputFile, "\tmove %s, %s\n", registerName, reg);
+            }
         }
     }
     else
     {
-        // Load variable from memory into register
-        fprintf(outputFile, "\tlw %s, %s\n", registerName, operand);
+        // Load from memory
+        if (registerName[0] == '$' && registerName[1] == 'f')
+        {
+            // Load float from memory
+            fprintf(outputFile, "\tl.s %s, %s\n", registerName, operand);
+        }
+        else
+        {
+            // Load integer from memory
+            fprintf(outputFile, "\tlw %s, %s\n", registerName, operand);
+        }
     }
 }
 
@@ -684,7 +760,6 @@ bool isVariableUsedLater(TAC *current, const char *variable)
     }
     return false;
 }
-
 
 // Allocate a floating-point register
 const char *allocateFloatRegister()
