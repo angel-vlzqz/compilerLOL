@@ -45,7 +45,7 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
             else
             {
                 // For simple variable declarations, isArray is false, arrayInfo is NULL
-                insertSymbol(symTab, node->varDecl.varName, node->varDecl.varType, false, NULL);
+                insertSymbol(symTab, node->varDecl.varName, node->varDecl.varType, 0, false, NULL);
             }
         }
         else if (strcmp(getSymbolValue(symTab, node->varDecl.varName), "void") == 0)
@@ -153,7 +153,7 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
             // Create array info
             Array *arrayInfo = createArray(node->arrayDecl.varType, node->arrayDecl.size);
             // Insert into symbol table
-            insertSymbol(symTab, node->arrayDecl.varName, node->arrayDecl.varType, true, arrayInfo);
+            insertSymbol(symTab, node->arrayDecl.varName, node->arrayDecl.varType, 0, true, arrayInfo);
         }
         else
         {
@@ -495,7 +495,7 @@ char *createTempVar(SymbolTable *symTab)
     // Insert the temporary variable into the symbol table
     if (findSymbol(symTab, tempVar) == NULL)
     {
-        insertSymbol(symTab, tempVar, "int", false, NULL); // Assuming temporaries are of type int
+        insertSymbol(symTab, tempVar, "int", 0, false, NULL); // Assuming temporaries are of type int
     }
 
     return tempVar;

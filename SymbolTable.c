@@ -1,30 +1,29 @@
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdbool.h>
 #include "SymbolTable.h"
 #include "Array.h"
 
-// Hash function: Hash based on the ASCII values of the string's characters
+// Hash function based on ASCII values
 unsigned int hashFunction(const char *name, int tableSize)
 {
-    // Check if the name is NULL
     if (name == NULL)
     {
         fprintf(stderr, "Error: Tried to hash a NULL name.\n");
-        return 0; // Or handle it appropriately
+        return 0;
     }
 
     unsigned long hash = 0;
-    while (*name) // Proceed only if name is non-NULL
+    while (*name)
     {
         hash = abs((hash * 31) + (unsigned char)(*name));
         name++;
     }
-
     return hash % tableSize;
 }
 
-// Create a new symbol with the given name, type, and index
+// Create a new symbol
 Symbol *createSymbol(const char *name, const char *type, int index, bool isArray, Array *arrayInfo)
 {
     Symbol *newSymbol = (Symbol *)malloc(sizeof(Symbol));
@@ -43,26 +42,23 @@ Symbol *createSymbol(const char *name, const char *type, int index, bool isArray
     return newSymbol;
 }
 
-// Insert a symbol into the symbol table
+// Insert a symbol into the current scope's symbol table
 void insertSymbol(SymbolTable *symbolTable, const char *name, const char *type, bool isArray, Array *arrayInfo)
 {
-    // Check if the symbol already exists
-    Symbol *existingSymbol = findSymbol(symbolTable, name);
-    if (existingSymbol != NULL)
+    if (findSymbol(symbolTable, name) != NULL)
     {
-        fprintf(stderr, "Error: Symbol %s is already declared.\n", name);
+        fprintf(stderr, "Error: Symbol %s is already declared in the current scope.\n", name);
         return;
     }
 
     unsigned int index = hashFunction(name, symbolTable->size);
     Symbol *newSymbol = createSymbol(name, type, index, isArray, arrayInfo);
 
-    // Set default value for floats if applicable
-    if (strcmp(type, "float") == 0) {
+    if (strcmp(type, "float") == 0)
+    {
         newSymbol->value = strdup("0.0"); // Default float value
     }
 
-    // Insert the symbol at the head of the linked list for this index
     newSymbol->next = symbolTable->table[index];
     symbolTable->table[index] = newSymbol;
 
@@ -70,34 +66,25 @@ void insertSymbol(SymbolTable *symbolTable, const char *name, const char *type, 
            name, type, index, isArray ? "true" : "false");
 }
 
-// Find a symbol in the symbol table by name
+// Find a symbol, starting from the current scope and moving to outer scopes
 Symbol *findSymbol(SymbolTable *symbolTable, const char *name)
 {
-    // Ensure the symbolTable and table are properly initialized
-    if (symbolTable == NULL || symbolTable->table == NULL)
+    while (symbolTable != NULL)
     {
-        fprintf(stderr, "Error: Symbol table is NULL or uninitialized.\n");
-        return NULL;
-    }
+        unsigned int index = hashFunction(name, symbolTable->size);
+        Symbol *current = symbolTable->table[index];
 
-    unsigned int index = hashFunction(name, symbolTable->size);
-    if (index >= symbolTable->size) {
-        fprintf(stderr, "Error: Hash index out of bounds.\n");
-        return NULL;
-    }
-
-    Symbol *current = symbolTable->table[index];
-
-    // Traverse the linked list to find the symbol
-    while (current != NULL)
-    {
-        if (strcmp(current->name, name) == 0)
+        while (current != NULL)
         {
-            return current;
+            if (strcmp(current->name, name) == 0)
+            {
+                return current;
+            }
+            current = current->next;
         }
-        current = current->next;
+        symbolTable = symbolTable->prev;
     }
-    return NULL; // Return NULL if the symbol is not found
+    return NULL;
 }
 
 // Free the memory used by the symbol table
@@ -116,49 +103,26 @@ void freeSymbolTable(SymbolTable *symbolTable)
         {
             Symbol *next = symbol->next;
 
-            // Free the symbol's name
-            if (symbol->name != NULL)
-            {
-                free(symbol->name);
-                symbol->name = NULL;
-            }
-
-            // Free the symbol's type
-            if (symbol->type != NULL)
-            {
-                free(symbol->type);
-                symbol->type = NULL;
-            }
-
-            // Free the symbol's value
-            if (symbol->value != NULL)
-            {
-                free(symbol->value);
-                symbol->value = NULL;
-            }
-
-            // If the symbol is an array, free the arrayInfo
+            if (symbol->name != NULL) { free(symbol->name); }
+            if (symbol->type != NULL) { free(symbol->type); }
+            if (symbol->value != NULL) { free(symbol->value); }
             if (symbol->isArray && symbol->arrayInfo != NULL)
             {
                 freeArray(symbol->arrayInfo);
-                symbol->arrayInfo = NULL;
             }
 
-            // Free the symbol itself
             free(symbol);
             symbol = next;
         }
     }
 
-    // Free the table array and the symbol table itself
     free(symbolTable->table);
-    symbolTable->table = NULL;
     free(symbolTable);
     printf("Successfully freed symbol table\n");
 }
 
-// Function to create a new symbol table
-SymbolTable *createSymbolTable(int size)
+// Create a new symbol table with a link to the outer scope
+SymbolTable *createSymbolTable(int size, SymbolTable *prev)
 {
     SymbolTable *newTable = (SymbolTable *)malloc(sizeof(SymbolTable));
     if (!newTable)
@@ -176,64 +140,75 @@ SymbolTable *createSymbolTable(int size)
         return NULL;
     }
 
-    // Initialize all table entries to NULL
-    for (int i = 0; i < size; i++)
-    {
-        newTable->table[i] = NULL;
-    }
+    for (int i = 0; i < size; i++) { newTable->table[i] = NULL; }
+
+    newTable->prev = prev;
+    newTable->next = NULL;
+    if (prev) prev->next = newTable; // Link to the outer scope
 
     return newTable;
 }
 
+// Update the symbol value in the current or nearest outer scope
 void updateSymbolValue(SymbolTable *symbolTable, const char *name, const char *value)
 {
-    // Find the symbol in the table
     Symbol *symbol = findSymbol(symbolTable, name);
 
     if (symbol == NULL)
     {
-        // If the symbol is not found, print an error or handle it accordingly
-        fprintf(stderr, "Error: Symbol %s not found in the table, cannot update value.\n", name);
+        fprintf(stderr, "Error: Symbol %s not found in the current or outer scopes, cannot update value.\n", name);
         return;
     }
-
-    // If the symbol is an array, you should not update its value directly
     if (symbol->isArray)
     {
         fprintf(stderr, "Error: Cannot update value of array symbol %s directly.\n", name);
         return;
     }
 
-    // Free the old value if it exists to avoid memory leaks
-    if (symbol->value != NULL)
-    {
-        free(symbol->value);
-    }
-
-    // Allocate memory for the new value and copy it
+    if (symbol->value != NULL) { free(symbol->value); }
     symbol->value = strdup(value);
     printf("Updated symbol %s with new value: %s\n", name, value);
 }
 
+// Retrieve a symbol's value from the current or nearest outer scope
 const char *getSymbolValue(SymbolTable *symbolTable, const char *name)
 {
-    // Find the symbol in the table
     Symbol *symbol = findSymbol(symbolTable, name);
 
     if (symbol == NULL)
     {
-        // If the symbol is not found, print an error or return NULL
-        fprintf(stderr, "Error: Symbol %s not found in the table.\n", name);
+        fprintf(stderr, "Error: Symbol %s not found in the current or outer scopes.\n", name);
         return NULL;
     }
-
-    // If the symbol is an array, you should not get its value directly
     if (symbol->isArray)
     {
         fprintf(stderr, "Error: Cannot get value of array symbol %s directly.\n", name);
         return NULL;
     }
 
-    // Return the value of the symbol
     return symbol->value;
+}
+
+// Retrieve a symbol table at a specific depth (scope level)
+SymbolTable *getSymbolTableAtDepth(SymbolTable *symTab, int scope)
+{
+    int currentDepth = 0;
+
+    // Traverse back through previous scopes until reaching the desired depth
+    while (symTab != NULL && currentDepth < scope)
+    {
+        symTab = symTab->prev;
+        currentDepth++;
+    }
+
+    // Check if the desired depth was reached
+    if (currentDepth == scope)
+    {
+        return symTab; // Return the symbol table at the specified depth
+    }
+    else
+    {
+        fprintf(stderr, "Error: Scope level %d exceeds available scope levels.\n", scope);
+        return NULL; // Scope level is out of bounds
+    }
 }

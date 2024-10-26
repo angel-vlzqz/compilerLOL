@@ -12,6 +12,10 @@
 typedef enum
 {
     NodeType_Program,
+    NodeType_FuncDeclList,
+    NodeType_FuncDecl,
+    NodeType_ParamList,
+    NodeType_Param,
     NodeType_VarDeclList,
     NodeType_VarDecl,
     NodeType_ArrayDecl,
@@ -23,10 +27,10 @@ typedef enum
     NodeType_SimpleExpr,
     NodeType_ArrayAccess,
     NodeType_Block,
+    NodeType_ReturnStmt,
     NodeType_WriteStmt,
     NodeType_IfStmt,
     NodeType_WhileStmt,
-    NodeType_ReturnStmt,
     NodeType_LogicalOp,
     NodeType_Expr
 } NodeType;
@@ -40,9 +44,36 @@ typedef struct ASTNode
     {
         struct
         {
-            struct ASTNode *varDeclList;
-            struct ASTNode *block;
+            struct ASTNode *funcDeclList;
         } program;
+        
+        struct
+        {
+            struct ASTNode *funcDecl;
+            struct ASTNode *nextFuncDecl; // Points to the next function in the list
+        } funcDeclList;
+
+        struct
+        {
+            char *returnType;            // Function return type, e.g., "int", "float"
+            char *funcName;              // Function name
+            struct ASTNode *paramList;   // Parameters of the function
+            struct ASTNode *varDeclList; // Variable declarations within the function
+            struct ASTNode *block;       // Function body (statements)
+            struct ASTNode *returnStmt;
+        } funcDecl;
+
+        struct
+        {
+            char *paramType;            // Type of the parameter, e.g., "int", "float"
+            char *paramName;            // Name of the parameter
+        } param;
+
+        struct
+        {
+            struct ASTNode *param;      // First parameter in the list
+            struct ASTNode *nextParam;  // Next parameter in the list (recursively structured)
+        } paramList;
 
         struct
         {
@@ -113,6 +144,11 @@ typedef struct ASTNode
 
         struct
         {
+            struct ASTNode *expr; // Expression to return
+        } returnStmt;
+
+        struct
+        {
             struct ASTNode *expr;
         } writeStmt; // WRITE statement
 
@@ -128,11 +164,6 @@ typedef struct ASTNode
             struct ASTNode *condition;
             struct ASTNode *block;
         } whileStmt; // WHILE statement
-
-        struct
-        {
-            struct ASTNode *expr;
-        } returnStmt; // RETURN statement
 
         struct
         {

@@ -23,10 +23,32 @@ void traverseAST(ASTNode *node, int level)
     switch (node->type)
     {
     case NodeType_Program:
-        printIndent(level);
         printf("Program\n");
-        traverseAST(node->program.varDeclList, level + 1);
-        traverseAST(node->program.block, level + 1);
+        traverseAST(node->program.funcDeclList, level + 1);
+        break;
+
+    case NodeType_FuncDeclList:
+        printf("FuncDeclList\n");
+        traverseAST(node->funcDeclList.funcDecl, level + 1);
+        traverseAST(node->funcDeclList.nextFuncDecl, level + 1);
+        break;
+
+    case NodeType_FuncDecl:
+        printf("FuncDecl: %s %s\n", node->funcDecl.returnType, node->funcDecl.funcName);
+        traverseAST(node->funcDecl.paramList, level + 1);
+        traverseAST(node->funcDecl.varDeclList, level + 1);
+        traverseAST(node->funcDecl.block, level + 1);
+        traverseAST(node->funcDecl.returnStmt, level + 1);
+        break;
+
+    case NodeType_ParamList:
+        printf("ParamList\n");
+        traverseAST(node->paramList.param, level + 1);
+        traverseAST(node->paramList.nextParam, level + 1);
+        break;
+
+    case NodeType_Param:
+        printf("Param: %s %s\n", node->param.paramType, node->param.paramName);
         break;
     case NodeType_VarDeclList:
         printIndent(level);
@@ -100,15 +122,14 @@ void traverseAST(ASTNode *node, int level)
         traverseAST(node->whileStmt.condition, level + 1);
         traverseAST(node->whileStmt.block, level + 1);
         break;
-    case NodeType_ReturnStmt:
-        printIndent(level);
-        printf("Return\n");
-        traverseAST(node->returnStmt.expr, level + 1);
-        break;
     case NodeType_Block:
         printIndent(level);
         printf("Block\n");
         traverseAST(node->block.stmtList, level + 1);
+        break;
+    case NodeType_ReturnStmt:
+        printf("Return Statement\n");
+        traverseAST(node->returnStmt.expr, level + 1); // Traverse the expression to be returned
         break;
     case NodeType_ArrayDecl:
         printf("ArrayDecl: %s %s[%d]\n", node->arrayDecl.varType, node->arrayDecl.varName, node->arrayDecl.size);
@@ -133,8 +154,31 @@ void freeAST(ASTNode *node)
     switch (node->type)
     {
     case NodeType_Program:
-        freeAST(node->program.varDeclList);
-        freeAST(node->program.block);
+        freeAST(node->program.funcDeclList);
+        break;
+
+    case NodeType_FuncDeclList:
+        freeAST(node->funcDeclList.funcDecl);
+        freeAST(node->funcDeclList.nextFuncDecl);
+        break;
+
+    case NodeType_FuncDecl:
+        free(node->funcDecl.returnType);
+        free(node->funcDecl.funcName);
+        freeAST(node->funcDecl.paramList);
+        freeAST(node->funcDecl.varDeclList);
+        freeAST(node->funcDecl.block);
+        freeAST(node->funcDecl.returnStmt);
+        break;
+
+    case NodeType_ParamList:
+        freeAST(node->paramList.param);
+        freeAST(node->paramList.nextParam);
+        break;
+
+    case NodeType_Param:
+        free(node->param.paramType);
+        free(node->param.paramName);
         break;
     case NodeType_VarDeclList:
         freeAST(node->varDeclList.varDecl);
@@ -184,11 +228,11 @@ void freeAST(ASTNode *node)
         freeAST(node->whileStmt.condition);
         freeAST(node->whileStmt.block);
         break;
-    case NodeType_ReturnStmt:
-        freeAST(node->returnStmt.expr);
-        break;
     case NodeType_Block:
         freeAST(node->block.stmtList);
+        break;
+    case NodeType_ReturnStmt:
+        freeAST(node->returnStmt.expr); // Free the return expression
         break;
     case NodeType_ArrayDecl:
         free(node->arrayDecl.varType);
@@ -229,8 +273,27 @@ ASTNode *createNode(NodeType type)
     switch (type)
     {
     case NodeType_Program:
-        newNode->program.varDeclList = NULL;
-        newNode->program.block = NULL;
+        newNode->program.funcDeclList = NULL;
+        break;
+    case NodeType_FuncDeclList:
+        newNode->funcDeclList.funcDecl = NULL;
+        newNode->funcDeclList.nextFuncDecl = NULL;
+        break;
+    case NodeType_FuncDecl:
+        newNode->funcDecl.returnType = NULL;
+        newNode->funcDecl.funcName = NULL;
+        newNode->funcDecl.paramList = NULL;
+        newNode->funcDecl.varDeclList = NULL;
+        newNode->funcDecl.block = NULL;
+        newNode->funcDecl.returnStmt = NULL;
+        break;
+    case NodeType_ParamList:
+        newNode->paramList.param = NULL;
+        newNode->paramList.nextParam = NULL;
+        break;
+    case NodeType_Param:
+        newNode->param.paramType = NULL;
+        newNode->param.paramName = NULL;
         break;
     case NodeType_VarDeclList:
         newNode->varDeclList.varDecl = NULL;
@@ -284,11 +347,11 @@ ASTNode *createNode(NodeType type)
         newNode->whileStmt.condition = NULL;
         newNode->whileStmt.block = NULL;
         break;
-    case NodeType_ReturnStmt:
-        newNode->returnStmt.expr = NULL;
-        break;
     case NodeType_Block:
         newNode->block.stmtList = NULL;
+        break;
+    case NodeType_ReturnStmt:
+        newNode->returnStmt.expr = NULL; // Initialize expression to return
         break;
     case NodeType_ArrayDecl:
         newNode->arrayDecl.varType = NULL;

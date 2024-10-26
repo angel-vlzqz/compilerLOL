@@ -290,7 +290,7 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
                     {
                         if (!findSymbol(symTab, current->arg2))
                         {
-                            insertSymbol(symTab, current->arg2, "int", false, NULL);
+                            insertSymbol(symTab, current->arg2, "int", 0, false, NULL);
                         }
                     }
                     // Load value
@@ -362,7 +362,7 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
                     {
                         if (!findSymbol(symTab, current->result))
                         {
-                            insertSymbol(symTab, current->result, "int", false, NULL);
+                            insertSymbol(symTab, current->result, "int", 0, false, NULL);
                         }
                     }
                     // Load value into a register

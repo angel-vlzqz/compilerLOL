@@ -67,9 +67,9 @@ ws           {delim}+
 		}
 
 "void"	{words++; chars += strlen(yytext);
-		printf("%s : TYPE\n", yytext);
+		printf("%s : Void\n", yytext);
 		yylval.string = strdup(yytext);
-		return TYPE;
+		return VOID;
 		}
 
 "write"	{words++; 
@@ -77,6 +77,13 @@ ws           {delim}+
 		printf("%s : WRITE\n", yytext);
 		yylval.string = strdup(yytext);
 		return WRITE;
+		}
+
+"main" {words++; 
+		chars += strlen(yytext);
+		printf("%s : MAIN\n", yytext);
+		yylval.string = strdup(yytext);
+		return MAIN;
 		}
 
 "true"	{words++; 
