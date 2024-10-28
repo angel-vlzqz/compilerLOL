@@ -86,23 +86,47 @@ void printTACToFile(const char *filename, TAC *tac)
         {
             if (strcmp(current->op, "=") == 0)
             {
-                fprintf(file, "%s = %s\n", current->result, current->arg1);
+                fprintf(file, "%s = %s\n", current->result ? current->result : "", current->arg1 ? current->arg1 : "");
             }
             else if (strcmp(current->op, "write") == 0)
             {
-                fprintf(file, "write %s\n", current->arg1);
+                fprintf(file, "write %s\n", current->arg1 ? current->arg1 : "");
+            }
+            else if (strcmp(current->op, "write_float") == 0)
+            {
+                fprintf(file, "write %s\n", current->arg1 ? current->arg1 : "");
             }
             else if (strcmp(current->op, "[]=") == 0)
             {
-                fprintf(file, "%s [ %s ] = %s\n", current->result, current->arg1, current->arg2);
+                fprintf(file, "%s [ %s ] = %s\n", current->result ? current->result : "", current->arg1 ? current->arg1 : "", current->arg2 ? current->arg2 : "");
             }
             else if (strcmp(current->op, "=[]") == 0)
             {
-                fprintf(file, "%s = %s [ %s ]\n", current->result, current->arg1, current->arg2);
+                fprintf(file, "%s = %s [ %s ]\n", current->result ? current->result : "", current->arg1 ? current->arg1 : "", current->arg2 ? current->arg2 : "");
+            }
+            else if (strcmp(current->op, "label") == 0)
+            {
+                fprintf(file, "\n%s:\n", current->arg1 ? current->arg1 : ""); // Label format
+            }
+            else if (strcmp(current->op, "prologue") == 0)
+            {
+                fprintf(file, "  prologue for %s\n", current->arg1 ? current->arg1 : ""); // Prologue format
+            }
+            else if (strcmp(current->op, "epilogue") == 0)
+            {
+                fprintf(file, "  epilogue for %s\n", current->arg1 ? current->arg1 : ""); // Epilogue format
+            }
+            else if (strcmp(current->op, "return") == 0)
+            {
+                fprintf(file, "  return %s\n", current->result ? current->result : "void"); // Return format
             }
             else
             {
-                fprintf(file, "%s = %s %s %s\n", current->result, current->arg1, current->op, current->arg2);
+                fprintf(file, "%s = %s %s %s\n",
+                        current->result ? current->result : "",
+                        current->arg1 ? current->arg1 : "",
+                        current->op,
+                        current->arg2 ? current->arg2 : "");
             }
         }
         current = current->next;

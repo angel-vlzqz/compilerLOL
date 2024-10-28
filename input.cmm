@@ -1,40 +1,43 @@
-int x;
-int y;
-int a;
-int b;
-int c;
-float floatA;
+int main()
+{
+  int x;
+  int y;
+  int a;
+  int b;
+  int c;
+  float floatA;
 
-int z[4];
+  int z[4];
 
-bool adon;
-bool angel;
+  bool adon;
+  bool angel;
 
-adon = true;
-angel = false;
+  adon = true;
+  angel = false;
 
-x = 1;
-a = 12;
-c = 3;
-b = 23 + 10;
-x = a + a + 1;
-y = x + a + b + c + a + 5;
-floatA = 1.234;
+  x = 1;
+  a = 12;
+  c = 3;
+  b = 23 + 10;
+  x = a + a + 1;
+  y = x + a + b + c + a + 5;
+  floatA = 1.234;
 
-z[0] = 3;
-z[1] = 5;
-z[2] = 7;
-z[3] = 9;
+  z[0] = 3;
+  z[1] = 5;
+  z[2] = 7;
+  z[3] = 9;
 
-write x;
-write y;
+  write x;
+  write y;
 
-write z[0];
-write z[1];
-write z[2];
-write z[3];
+  write z[0];
+  write z[1];
+  write z[2];
+  write z[3];
 
-write adon;
-write angel;
+  write adon;
+  write angel;
 
-write floatA;
+  write floatA;
+}

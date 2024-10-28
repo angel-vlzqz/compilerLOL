@@ -1,25 +1,11 @@
 .data
 spill_area: .word 0
-t0: .word 0
-t1: .word 0
-t2: .word 0
-t3: .word 0
-t4: .word 0
-t5: .word 0
-t6: .word 0
-t7: .word 0
-x: .word 0
-y: .word 0
-z: .space 16
-floatA: .float 1.234000
-angel: .word 0
-adon: .word 0
-a: .word 0
-b: .word 0
-c: .word 0
+main: .word 0
 .text
 .globl main
 main:
+# Generating MIPS code for floating-point assignment
+	mov.s $f2, $f0
 # Generating MIPS code for array assignment
 	la $t8, z
 # Spilling register $t0 to memory
@@ -117,7 +103,7 @@ main:
 	li $v0, 11
 	syscall
 # Generating MIPS code for write_float operation
-	l.s $f12, floatA
+	mov.s $f12, $f2
 	li $v0, 2
 	syscall
 	li $a0, 10

@@ -177,6 +177,18 @@ ws           {delim}+
 		return ']';
 		}
 
+"{"	{chars++;
+		printf("%s : '{'\n", yytext);
+		yylval.string = strdup(yytext);
+		return '{';
+		}
+
+"}"	{chars++;
+		printf("%s : '}'\n", yytext);
+		yylval.string = strdup(yytext);
+		return '}';
+		}
+
 \n		{lines++; chars=0;}
 [ \t]	{chars++;}
 .		{chars++;

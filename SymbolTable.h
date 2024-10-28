@@ -25,6 +25,8 @@ typedef struct SymbolTable
     struct SymbolTable *next;   // Pointer to the inner scope
 } SymbolTable;
 
+extern int GlobalScope;
+
 // Function Declarations
 unsigned int hashFunction(const char *name, int tableSize);
 Symbol *createSymbol(const char *name, const char *type, int index, bool isArray, Array *arrayInfo);
@@ -35,7 +37,7 @@ SymbolTable *createSymbolTable(int size, SymbolTable *prev);
 void updateSymbolValue(SymbolTable *symbolTable, const char *name, const char *value);
 const char *getSymbolValue(SymbolTable *symbolTable, const char *name);
 SymbolTable *getSymbolTableAtDepth(SymbolTable *symTab, int scope);
-
+void collectAllSymbols(SymbolTable *symTab, Symbol ***symbolList, int *symbolCount, int *symbolCapacity);
 /*
 Four score and seven years ago our fathers brought forth on this continent, a new nation, conceived in Liberty, and dedicated to the proposition
 that all men are created equal.

@@ -1,4 +1,5 @@
 #include "AST.h"
+
 int indentValue = 2;
 
 void printIndent(int level)
@@ -18,7 +19,7 @@ void traverseAST(ASTNode *node, int level)
     }
 
     printIndent(level);
-    // printf("Traversing node of type %d\n", node->type);
+    printf("Traversing node of type %d\n", node->type);
 
     switch (node->type)
     {

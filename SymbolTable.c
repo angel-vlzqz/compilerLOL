@@ -5,6 +5,8 @@
 #include "SymbolTable.h"
 #include "Array.h"
 
+int GlobalScope = 0;
+
 // Hash function based on ASCII values
 unsigned int hashFunction(const char *name, int tableSize)
 {
@@ -103,9 +105,18 @@ void freeSymbolTable(SymbolTable *symbolTable)
         {
             Symbol *next = symbol->next;
 
-            if (symbol->name != NULL) { free(symbol->name); }
-            if (symbol->type != NULL) { free(symbol->type); }
-            if (symbol->value != NULL) { free(symbol->value); }
+            if (symbol->name != NULL)
+            {
+                free(symbol->name);
+            }
+            if (symbol->type != NULL)
+            {
+                free(symbol->type);
+            }
+            if (symbol->value != NULL)
+            {
+                free(symbol->value);
+            }
             if (symbol->isArray && symbol->arrayInfo != NULL)
             {
                 freeArray(symbol->arrayInfo);
@@ -140,15 +151,28 @@ SymbolTable *createSymbolTable(int size, SymbolTable *prev)
         return NULL;
     }
 
-    for (int i = 0; i < size; i++) { newTable->table[i] = NULL; }
+    // Initialize table entries to NULL
+    for (int i = 0; i < size; i++)
+    {
+        newTable->table[i] = NULL;
+    }
 
+    newTable->scope = GlobalScope++;
     newTable->prev = prev;
     newTable->next = NULL;
-    if (prev) prev->next = newTable; // Link to the outer scope
+
+    // If the previous symbol table exists, update its next pointer
+    if (prev)
+    {
+        prev->next = newTable;
+    }
+
+    printf("Created new symbol table at address %p\n", (void *)newTable);
+    printf("newTable->prev = %p\n", (void *)newTable->prev);
+    printf("newTable->next = %p\n", (void *)newTable->next);
 
     return newTable;
 }
-
 // Update the symbol value in the current or nearest outer scope
 void updateSymbolValue(SymbolTable *symbolTable, const char *name, const char *value)
 {
@@ -165,7 +189,10 @@ void updateSymbolValue(SymbolTable *symbolTable, const char *name, const char *v
         return;
     }
 
-    if (symbol->value != NULL) { free(symbol->value); }
+    if (symbol->value != NULL)
+    {
+        free(symbol->value);
+    }
     symbol->value = strdup(value);
     printf("Updated symbol %s with new value: %s\n", name, value);
 }
@@ -211,4 +238,46 @@ SymbolTable *getSymbolTableAtDepth(SymbolTable *symTab, int scope)
         fprintf(stderr, "Error: Scope level %d exceeds available scope levels.\n", scope);
         return NULL; // Scope level is out of bounds
     }
+}
+
+void collectAllSymbols(SymbolTable *symTab, Symbol ***symbolList, int *symbolCount, int *symbolCapacity)
+{
+    if (symTab == NULL)
+        return;
+
+    printf("Collecting symbols from symbol table at address %p\n", (void *)symTab);
+    printf("Symbol table size: %d\n", symTab->size);
+
+    if (symTab->table == NULL)
+    {
+        fprintf(stderr, "Error: symTab->table is NULL\n");
+        exit(1);
+    }
+
+    // Collect symbols from the current symbol table
+    for (int i = 0; i < symTab->size; i++)
+    {
+        Symbol *symbol = symTab->table[i];
+        while (symbol != NULL)
+        {
+            // Resize symbolList if necessary
+            if (*symbolCount >= *symbolCapacity)
+            {
+                *symbolCapacity *= 2;
+                *symbolList = realloc(*symbolList, (*symbolCapacity) * sizeof(Symbol *));
+                if (*symbolList == NULL)
+                {
+                    fprintf(stderr, "Error: Memory allocation failed while collecting symbols.\n");
+                    exit(1);
+                }
+            }
+            // Add symbol to the symbolList
+            (*symbolList)[*symbolCount] = symbol;
+            (*symbolCount)++;
+            symbol = symbol->next;
+        }
+    }
+
+    // Recurse to the previous symbol table (outer scope)
+    collectAllSymbols(symTab->prev, symbolList, symbolCount, symbolCapacity);
 }

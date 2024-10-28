@@ -28,11 +28,18 @@ typedef struct VarNode
     struct VarNode *next;
 } VarNode;
 
-// Structure for register mapping
+// Float Register Map Entry
 typedef struct
 {
-    char *variable; // Variable name
-    char *regName;  // Register name
+    char *variable;
+    char *regName;
+} FloatRegisterMapEntry;
+
+// Register Map Entry
+typedef struct
+{
+    char *variable;
+    char *regName;
 } RegisterMapEntry;
 
 // Initializes code generation, setting up any necessary structures
@@ -76,5 +83,13 @@ void deallocateFloatRegister(const char *regName);
 
 // helper function
 char *computeOffset(const char *indexOperand, int elementSize);
+
+// Float register management functions
+const char *allocateFloatRegister();
+void deallocateFloatRegister(const char *regName);
+const char *getFloatRegisterForVariable(const char *variable);
+void setFloatRegisterForVariable(const char *variable, const char *regName);
+void loadFloatOperand(const char *operand, const char *reg);
+bool isVariableInFloatRegisterMap(const char *variable);
 
 #endif // CODE_GENERATOR_H
