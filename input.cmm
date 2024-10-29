@@ -1,5 +1,6 @@
 int main()
 {
+  // This is a comment you bastard
   int x;
   int y;
   int a;
