@@ -1,5 +1,3 @@
-// codeGenerator.c
-
 #include "codeGenerator.h"
 #include "SymbolTable.h"
 #include "utils.h"
@@ -52,7 +50,7 @@ void initializeFloatRegisterMap()
 
 void freeRegisterMap()
 {
-    for (int i = 0; i < MAX_FLOAT_REGISTER_MAP_SIZE; i++)
+    for (int i = 0; i < MAX_REGISTER_MAP_SIZE; i++)
     {
         if (registerMap[i].variable != NULL)
         {
@@ -117,12 +115,8 @@ const char *allocateRegister()
     }
 
     // Implement spilling logic here
-    const char *spillRegister = availableRegisters[0]; // Example: spill the first register
-    fprintf(outputFile, "# Spilling register %s to memory\n", spillRegister);
-    // Store spilled register's value in memory (e.g., on the stack)
-    fprintf(outputFile, "\tsw %s, spill_area\n", spillRegister);
-
-    return spillRegister;
+    fprintf(stderr, "Error: No available integer registers\n");
+    exit(1);
 }
 
 // Deallocate a register
@@ -201,7 +195,7 @@ const char *allocateFloatRegister()
         }
     }
     fprintf(stderr, "Error: No available floating-point registers\n");
-    return NULL;
+    exit(1);
 }
 
 // Deallocate a float register
@@ -389,64 +383,67 @@ bool isVariableUsedLater(TAC *current, const char *variable)
     return false;
 }
 
-// Function to collect all symbols from all symbol tables
-// void collectAllSymbols(SymbolTable *symTab, Symbol ***symbolList, int *symbolCount, int *symbolCapacity)
-// {
-//     SymbolTable *currentSymTab = symTab;
-//     while (currentSymTab != NULL)
-//     {
-//         // Process symbols in currentSymTab
-//         for (int i = 0; i < currentSymTab->size; i++)
-//         {
-//             Symbol *symbol = currentSymTab->table[i];
-//             while (symbol != NULL)
-//             {
-//                 // Resize symbolList if necessary
-//                 if (*symbolCount >= *symbolCapacity)
-//                 {
-//                     *symbolCapacity *= 2;
-//                     *symbolList = realloc(*symbolList, (*symbolCapacity) * sizeof(Symbol *));
-//                     if (*symbolList == NULL)
-//                     {
-//                         fprintf(stderr, "Error: Memory allocation failed while collecting symbols.\n");
-//                         exit(1);
-//                     }
-//                 }
-//                 // Add symbol to the symbolList
-//                 (*symbolList)[*symbolCount] = symbol;
-//                 (*symbolCount)++;
-//                 symbol = symbol->next;
-//             }
-//         }
-//         // Move to the next symbol table
-//         currentSymTab = currentSymTab->next;
-//     }
-// }
-
 void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
 {
-    // Collect all symbols from all symbol tables
-    int symbolCapacity = 100; // Initial capacity, adjust as needed
+    // Collect all symbols from symbol tables
+    int symbolCapacity = 100;
     int symbolCount = 0;
     Symbol **symbolList = malloc(symbolCapacity * sizeof(Symbol *));
-    if (symbolList == NULL)
-    {
-        fprintf(stderr, "Error: Memory allocation failed for symbol list.\n");
-        exit(1);
-    }
     collectAllSymbols(symTab, &symbolList, &symbolCount, &symbolCapacity);
 
-    // Generate the .data section
+    // Generate .data section
     fprintf(outputFile, ".data\n");
 
-    // Declare the spill area for register spilling
-    fprintf(outputFile, "spill_area: .word 0\n");
-
     // Declare variables from the collected symbols
+    // Keep track of declared variable names to avoid duplicates
+    int declaredCapacity = 100;
+    int declaredCount = 0;
+    char **declaredVariables = malloc(declaredCapacity * sizeof(char *));
+    if (declaredVariables == NULL)
+    {
+        fprintf(stderr, "Error: Memory allocation failed for declared variables.\n");
+        exit(1);
+    }
+
     for (int i = 0; i < symbolCount; i++)
     {
         Symbol *symbol = symbolList[i];
 
+        // Skip function symbols
+        if (symbol->isFunction)
+        {
+            continue;
+        }
+
+        // Check if variable is already declared
+        bool alreadyDeclared = false;
+        for (int j = 0; j < declaredCount; j++)
+        {
+            if (strcmp(declaredVariables[j], symbol->name) == 0)
+            {
+                alreadyDeclared = true;
+                break;
+            }
+        }
+        if (alreadyDeclared)
+        {
+            continue;
+        }
+
+        // Add variable name to declaredVariables
+        if (declaredCount >= declaredCapacity)
+        {
+            declaredCapacity *= 2;
+            declaredVariables = realloc(declaredVariables, declaredCapacity * sizeof(char *));
+            if (declaredVariables == NULL)
+            {
+                fprintf(stderr, "Error: Memory allocation failed while expanding declared variables.\n");
+                exit(1);
+            }
+        }
+        declaredVariables[declaredCount++] = strdup(symbol->name);
+
+        // Now declare the variable
         if (symbol->isArray)
         {
             int totalSize = symbol->arrayInfo->size * 4; // Assuming 4 bytes per element
@@ -466,409 +463,86 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
                 fprintf(outputFile, "%s: .float 0.0\n", symbol->name);
             }
         }
+        else if (strcmp(symbol->type, "bool") == 0)
+        {
+            // Initialize boolean variables to 0 (false)
+            fprintf(outputFile, "%s: .word 0\n", symbol->name);
+        }
         else
         {
+            // For temporary variables and other types
             fprintf(outputFile, "%s: .word 0\n", symbol->name);
         }
     }
 
+    // Free the declaredVariables array
+    for (int i = 0; i < declaredCount; i++)
+    {
+        free(declaredVariables[i]);
+    }
+    free(declaredVariables);
+
     // Free the symbolList after use
     free(symbolList);
 
-    // Start the .text section and main function
+    // Start the .text section
     fprintf(outputFile, ".text\n");
-    fprintf(outputFile, ".globl main\n");
-    fprintf(outputFile, "main:\n");
 
+    // Initialize pointers for processing TAC instructions
     TAC *current = tacInstructions;
+    TAC *mainTAC = NULL;
+    TAC *mainTACTail = NULL;
+    TAC *otherFunctionsTAC = NULL;
+    TAC *otherFunctionsTACTail = NULL;
+    const char *currentFunctionName = NULL;
+    bool inMainFunction = false;
+    bool inFunction = false;
+
+    // Split TAC instructions between main and other functions
     while (current != NULL)
     {
-        if (current->op != NULL)
+        if (current->op && strcmp(current->op, "label") == 0)
         {
-            if (strcmp(current->op, "+") == 0 || strcmp(current->op, "-") == 0 ||
-                strcmp(current->op, "*") == 0 || strcmp(current->op, "/") == 0)
-            {
-                // Generate code for integer binary operations
-                fprintf(outputFile, "# Generating MIPS code for operation %s\n", current->op);
-                // Load operands
-                const char *reg1 = getRegisterForVariable(current->arg1);
-                if (!reg1)
-                {
-                    reg1 = allocateRegister();
-                    if (!reg1)
-                    {
-                        fprintf(stderr, "Error: No available registers for operand %s\n", current->arg1);
-                        exit(1);
-                    }
-                    setRegisterForVariable(current->arg1, reg1);
-                    loadOperand(current->arg1, reg1);
-                }
-                const char *reg2 = getRegisterForVariable(current->arg2);
-                if (!reg2)
-                {
-                    reg2 = allocateRegister();
-                    if (!reg2)
-                    {
-                        fprintf(stderr, "Error: No available registers for operand %s\n", current->arg2);
-                        exit(1);
-                    }
-                    setRegisterForVariable(current->arg2, reg2);
-                    loadOperand(current->arg2, reg2);
-                }
-                const char *resultReg = allocateRegister();
-                if (!resultReg)
-                {
-                    fprintf(stderr, "Error: No available registers for result %s\n", current->result);
-                    exit(1);
-                }
-                setRegisterForVariable(current->result, resultReg);
-                // Perform operation
-                if (strcmp(current->op, "+") == 0)
-                {
-                    fprintf(outputFile, "\tadd %s, %s, %s\n", resultReg, reg1, reg2);
-                }
-                else if (strcmp(current->op, "-") == 0)
-                {
-                    fprintf(outputFile, "\tsub %s, %s, %s\n", resultReg, reg1, reg2);
-                }
-                else if (strcmp(current->op, "*") == 0)
-                {
-                    fprintf(outputFile, "\tmul %s, %s, %s\n", resultReg, reg1, reg2);
-                }
-                else if (strcmp(current->op, "/") == 0)
-                {
-                    fprintf(outputFile, "\tdiv %s, %s\n", reg1, reg2);
-                    fprintf(outputFile, "\tmflo %s\n", resultReg);
-                }
-                // No need to store result to memory immediately
-            }
-            else if (strcmp(current->op, "fadd") == 0 || strcmp(current->op, "fsub") == 0 ||
-                     strcmp(current->op, "fmul") == 0 || strcmp(current->op, "fdiv") == 0)
-            {
-                // Generate code for floating-point binary operations
-                fprintf(outputFile, "# Generating MIPS code for floating-point operation %s\n", current->op);
-                // Load operands
-                const char *reg1 = getFloatRegisterForVariable(current->arg1);
-                if (!reg1)
-                {
-                    reg1 = allocateFloatRegister();
-                    if (!reg1)
-                    {
-                        fprintf(stderr, "Error: No available float registers for operand %s\n", current->arg1);
-                        exit(1);
-                    }
-                    setFloatRegisterForVariable(current->arg1, reg1);
-                    loadFloatOperand(current->arg1, reg1);
-                }
-                const char *reg2 = getFloatRegisterForVariable(current->arg2);
-                if (!reg2)
-                {
-                    reg2 = allocateFloatRegister();
-                    if (!reg2)
-                    {
-                        fprintf(stderr, "Error: No available float registers for operand %s\n", current->arg2);
-                        exit(1);
-                    }
-                    setFloatRegisterForVariable(current->arg2, reg2);
-                    loadFloatOperand(current->arg2, reg2);
-                }
-                const char *resultReg = allocateFloatRegister();
-                if (!resultReg)
-                {
-                    fprintf(stderr, "Error: No available float registers for result %s\n", current->result);
-                    exit(1);
-                }
-                setFloatRegisterForVariable(current->result, resultReg);
-                // Perform operation
-                if (strcmp(current->op, "fadd") == 0)
-                {
-                    fprintf(outputFile, "\tadd.s %s, %s, %s\n", resultReg, reg1, reg2);
-                }
-                else if (strcmp(current->op, "fsub") == 0)
-                {
-                    fprintf(outputFile, "\tsub.s %s, %s, %s\n", resultReg, reg1, reg2);
-                }
-                else if (strcmp(current->op, "fmul") == 0)
-                {
-                    fprintf(outputFile, "\tmul.s %s, %s, %s\n", resultReg, reg1, reg2);
-                }
-                else if (strcmp(current->op, "fdiv") == 0)
-                {
-                    fprintf(outputFile, "\tdiv.s %s, %s, %s\n", resultReg, reg1, reg2);
-                }
-                // No need to store result to memory immediately
-            }
-            else if (strcmp(current->op, "=") == 0)
-            {
-                // Assignment operation
-                fprintf(outputFile, "# Generating MIPS code for assignment\n");
-                const char *srcReg = getRegisterForVariable(current->arg1);
-                if (!srcReg)
-                {
-                    srcReg = allocateRegister();
-                    if (!srcReg)
-                    {
-                        fprintf(stderr, "Error: No available registers for operand %s\n", current->arg1);
-                        exit(1);
-                    }
-                    setRegisterForVariable(current->arg1, srcReg);
-                    loadOperand(current->arg1, srcReg);
-                }
-                // Map result variable to a register
-                const char *destReg = getRegisterForVariable(current->result);
-                if (!destReg)
-                {
-                    destReg = allocateRegister();
-                    if (!destReg)
-                    {
-                        fprintf(stderr, "Error: No available registers for result %s\n", current->result);
-                        exit(1);
-                    }
-                    setRegisterForVariable(current->result, destReg);
-                }
-                fprintf(outputFile, "\tmove %s, %s\n", destReg, srcReg);
-                // No need to store to memory immediately
-            }
-            else if (strcmp(current->op, "fmov") == 0)
-            {
-                // Floating-point assignment operation
-                fprintf(outputFile, "# Generating MIPS code for floating-point assignment\n");
-                const char *srcReg = getFloatRegisterForVariable(current->arg1);
-                if (!srcReg)
-                {
-                    srcReg = allocateFloatRegister();
-                    if (!srcReg)
-                    {
-                        fprintf(stderr, "Error: No available float registers for operand %s\n", current->arg1);
-                        exit(1);
-                    }
-                    setFloatRegisterForVariable(current->arg1, srcReg);
-                    loadFloatOperand(current->arg1, srcReg);
-                }
-                // Map result variable to a float register
-                const char *destReg = getFloatRegisterForVariable(current->result);
-                if (!destReg)
-                {
-                    destReg = allocateFloatRegister();
-                    if (!destReg)
-                    {
-                        fprintf(stderr, "Error: No available float registers for result %s\n", current->result);
-                        exit(1);
-                    }
-                    setFloatRegisterForVariable(current->result, destReg);
-                }
-                fprintf(outputFile, "\tmov.s %s, %s\n", destReg, srcReg);
-                // No need to store to memory immediately
-            }
-            else if (strcmp(current->op, "write") == 0)
-            {
-                // Write operation
-                fprintf(outputFile, "# Generating MIPS code for write operation\n");
-                const char *srcReg = getRegisterForVariable(current->arg1);
-                if (!srcReg)
-                {
-                    // Load operand into $a0 directly if it's not in a register
-                    loadOperand(current->arg1, "$a0");
-                }
-                else
-                {
-                    // Move value to $a0
-                    fprintf(outputFile, "\tmove $a0, %s\n", srcReg);
-                }
-                fprintf(outputFile, "\tli $v0, 1\n"); // Syscall code for print_int
-                fprintf(outputFile, "\tsyscall\n");
-                // Print newline character
-                fprintf(outputFile, "\tli $a0, 10\n"); // ASCII code for newline
-                fprintf(outputFile, "\tli $v0, 11\n"); // Syscall code for print_char
-                fprintf(outputFile, "\tsyscall\n");
-            }
-            else if (strcmp(current->op, "write_float") == 0)
-            {
-                // Write operation for floating-point numbers
-                fprintf(outputFile, "# Generating MIPS code for write_float operation\n");
-                const char *srcReg = getFloatRegisterForVariable(current->arg1);
-                if (!srcReg)
-                {
-                    // Load operand into $f12 directly if it's not in a register
-                    loadFloatOperand(current->arg1, "$f12");
-                }
-                else
-                {
-                    // Move value to $f12 for floating-point printing
-                    fprintf(outputFile, "\tmov.s $f12, %s\n", srcReg);
-                }
-                fprintf(outputFile, "\tli $v0, 2\n"); // Syscall code for print_float
-                fprintf(outputFile, "\tsyscall\n");
+            currentFunctionName = current->arg1;
+            inFunction = true;
 
-                // Print newline character after the float
-                fprintf(outputFile, "\tli $a0, 10\n"); // ASCII code for newline
-                fprintf(outputFile, "\tli $v0, 11\n"); // Syscall code for print_char
-                fprintf(outputFile, "\tsyscall\n");
-            }
-            else if (strcmp(current->op, "[]=") == 0)
+            if (strcmp(currentFunctionName, "main") == 0)
             {
-                // Array assignment operation
-                fprintf(outputFile, "# Generating MIPS code for array assignment\n");
-                // Load base address of array into BASE_ADDRESS_REGISTER
-                fprintf(outputFile, "\tla %s, %s\n", BASE_ADDRESS_REGISTER, current->result);
-                // Compute offset if possible
-                char *offsetValue = computeOffset(current->arg1, 4);
-                if (offsetValue != NULL)
+                inMainFunction = true;
+            }
+            else
+            {
+                inMainFunction = false;
+            }
+        }
+
+        // Add current instruction to appropriate list
+        if (inFunction)
+        {
+            if (inMainFunction)
+            {
+                // Add to mainTAC list
+                if (mainTAC == NULL)
                 {
-                    // Load value
-                    const char *valueReg = getRegisterForVariable(current->arg2);
-                    if (!valueReg)
-                    {
-                        valueReg = allocateRegister();
-                        if (!valueReg)
-                        {
-                            fprintf(stderr, "Error: No available registers for value\n");
-                            exit(1);
-                        }
-                        setRegisterForVariable(current->arg2, valueReg);
-                        loadOperand(current->arg2, valueReg);
-                    }
-                    fprintf(outputFile, "\tsw %s, %s(%s)\n", valueReg, offsetValue, BASE_ADDRESS_REGISTER);
-                    free(offsetValue);
+                    mainTAC = mainTACTail = current;
                 }
                 else
                 {
-                    // Index is variable, compute at runtime
-                    // Load index
-                    const char *indexReg = getRegisterForVariable(current->arg1);
-                    if (!indexReg)
-                    {
-                        indexReg = allocateRegister();
-                        if (!indexReg)
-                        {
-                            fprintf(stderr, "Error: No available registers for index\n");
-                            exit(1);
-                        }
-                        setRegisterForVariable(current->arg1, indexReg);
-                        loadOperand(current->arg1, indexReg);
-                    }
-                    // Load value
-                    const char *valueReg = getRegisterForVariable(current->arg2);
-                    if (!valueReg)
-                    {
-                        valueReg = allocateRegister();
-                        if (!valueReg)
-                        {
-                            fprintf(stderr, "Error: No available registers for value\n");
-                            exit(1);
-                        }
-                        setRegisterForVariable(current->arg2, valueReg);
-                        loadOperand(current->arg2, valueReg);
-                    }
-                    // Calculate offset: indexReg * 4
-                    const char *tempReg = ADDRESS_CALC_REGISTER;
-                    fprintf(outputFile, "\tmul %s, %s, 4\n", tempReg, indexReg);
-                    // Effective address: BASE_ADDRESS_REGISTER + tempReg
-                    fprintf(outputFile, "\tadd %s, %s, %s\n", tempReg, BASE_ADDRESS_REGISTER, tempReg);
-                    // Store value
-                    fprintf(outputFile, "\tsw %s, 0(%s)\n", valueReg, tempReg);
-                }
-            }
-            else if (strcmp(current->op, "=[]") == 0)
-            {
-                // Array access operation
-                fprintf(outputFile, "# Generating MIPS code for array access\n");
-                // Load base address of array into BASE_ADDRESS_REGISTER
-                fprintf(outputFile, "\tla %s, %s\n", BASE_ADDRESS_REGISTER, current->arg1);
-                // Compute offset if possible
-                char *offsetValue = computeOffset(current->arg2, 4);
-                if (offsetValue != NULL)
-                {
-                    // Load value into a register
-                    const char *resultReg = getRegisterForVariable(current->result);
-                    if (!resultReg)
-                    {
-                        resultReg = allocateRegister();
-                        if (!resultReg)
-                        {
-                            fprintf(stderr, "Error: No available registers for result %s\n", current->result);
-                            exit(1);
-                        }
-                        setRegisterForVariable(current->result, resultReg);
-                    }
-                    fprintf(outputFile, "\tlw %s, %s(%s)\n", resultReg, offsetValue, BASE_ADDRESS_REGISTER);
-                    free(offsetValue);
-                }
-                else
-                {
-                    // Index is variable, compute at runtime
-                    // Load index
-                    const char *indexReg = getRegisterForVariable(current->arg2);
-                    if (!indexReg)
-                    {
-                        indexReg = allocateRegister();
-                        if (!indexReg)
-                        {
-                            fprintf(stderr, "Error: No available registers for index\n");
-                            exit(1);
-                        }
-                        setRegisterForVariable(current->arg2, indexReg);
-                        loadOperand(current->arg2, indexReg);
-                    }
-                    // Calculate offset: indexReg * 4
-                    const char *tempReg = ADDRESS_CALC_REGISTER;
-                    fprintf(outputFile, "\tmul %s, %s, 4\n", tempReg, indexReg);
-                    // Effective address: BASE_ADDRESS_REGISTER + tempReg
-                    fprintf(outputFile, "\tadd %s, %s, %s\n", tempReg, BASE_ADDRESS_REGISTER, tempReg);
-                    // Load value into a register
-                    const char *resultReg = getRegisterForVariable(current->result);
-                    if (!resultReg)
-                    {
-                        resultReg = allocateRegister();
-                        if (!resultReg)
-                        {
-                            fprintf(stderr, "Error: No available registers for result %s\n", current->result);
-                            exit(1);
-                        }
-                        setRegisterForVariable(current->result, resultReg);
-                    }
-                    fprintf(outputFile, "\tlw %s, 0(%s)\n", resultReg, tempReg);
+                    mainTACTail->next = current;
+                    mainTACTail = current;
                 }
             }
             else
             {
-                fprintf(stderr, "Warning: Unsupported TAC operation '%s'\n", current->op);
-            }
-        }
-
-        // Deallocate registers for variables no longer used
-        const char *variablesToCheck[] = {current->arg1, current->arg2, current->result};
-        for (int i = 0; i < 3; i++)
-        {
-            const char *var = variablesToCheck[i];
-            if (var != NULL && isVariableInRegisterMap(var))
-            {
-                if (!isVariableUsedLater(current, var))
+                // Add to otherFunctionsTAC list
+                if (otherFunctionsTAC == NULL)
                 {
-                    const char *regName = getRegisterForVariable(var);
-                    // Store the variable back to memory if it's a user-defined variable or a temporary variable
-                    if (findSymbol(symTab, var) || isTemporaryVariable(var))
-                    {
-                        fprintf(outputFile, "# Storing variable %s back to memory\n", var);
-                        fprintf(outputFile, "\tsw %s, %s\n", regName, var);
-                    }
-                    deallocateRegister(regName);
-                    removeVariableFromRegisterMap(var);
+                    otherFunctionsTAC = otherFunctionsTACTail = current;
                 }
-            }
-            if (var != NULL && isVariableInFloatRegisterMap(var))
-            {
-                if (!isVariableUsedLater(current, var))
+                else
                 {
-                    const char *regName = getFloatRegisterForVariable(var);
-                    // Store the variable back to memory if it's a user-defined variable or a temporary variable
-                    if (findSymbol(symTab, var) || isTemporaryVariable(var))
-                    {
-                        fprintf(outputFile, "# Storing float variable %s back to memory\n", var);
-                        fprintf(outputFile, "\ts.s %s, %s\n", regName, var);
-                    }
-                    deallocateFloatRegister(regName);
-                    removeVariableFromFloatRegisterMap(var);
+                    otherFunctionsTACTail->next = current;
+                    otherFunctionsTACTail = current;
                 }
             }
         }
@@ -876,47 +550,470 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
         current = current->next;
     }
 
-    // Before exiting, store all live integer registers back to memory
-    for (int i = 0; i < MAX_REGISTER_MAP_SIZE; i++)
+    // Ensure that the tails of the lists point to NULL
+    if (mainTACTail != NULL)
     {
-        if (registerMap[i].variable != NULL)
+        mainTACTail->next = NULL;
+    }
+    if (otherFunctionsTACTail != NULL)
+    {
+        otherFunctionsTACTail->next = NULL;
+    }
+
+    // Process main function first
+    processTACList(mainTAC, symTab);
+
+    // Add a newline between functions
+    fprintf(outputFile, "\n");
+
+    // Process other functions
+    processTACList(otherFunctionsTAC, symTab);
+
+    // Free symbolList after use
+    free(symbolList);
+
+    // Clean up TAC lists if necessary
+    // (Assuming you have a function to free TAC lists)
+    // freeTACList(mainTAC);
+    // freeTACList(otherFunctionsTAC);
+}
+
+void processTACList(TAC *tacList, SymbolTable *symTab)
+{
+    TAC *current = tacList;
+    const char *currentFunctionName = NULL;
+    bool inFunction = false;
+
+    while (current != NULL)
+    {
+        printf("Processing TAC instruction: op=%s, arg1=%s, arg2=%s, result=%s\n",
+               current->op ? current->op : "NULL",
+               current->arg1 ? current->arg1 : "NULL",
+               current->arg2 ? current->arg2 : "NULL",
+               current->result ? current->result : "NULL");
+
+        if (current->op != NULL)
         {
-            const char *var = registerMap[i].variable;
-            const char *regName = registerMap[i].regName;
-            if (findSymbol(symTab, var) || isTemporaryVariable(var))
+            if (strcmp(current->op, "label") == 0)
             {
-                fprintf(outputFile, "# Storing variable %s back to memory\n", var);
-                fprintf(outputFile, "\tsw %s, %s\n", regName, var);
+                currentFunctionName = current->arg1;
+                fprintf(outputFile, "%s:\n", currentFunctionName);
+
+                if (strcmp(currentFunctionName, "main") == 0)
+                {
+                    fprintf(outputFile, ".globl main\n");
+                }
+
+                // Set inFunction to true when entering a function
+                inFunction = true;
             }
-            deallocateRegister(regName);
-            free(registerMap[i].variable);
-            free(registerMap[i].regName);
-            registerMap[i].variable = NULL;
-            registerMap[i].regName = NULL;
+            else if (strcmp(current->op, "prologue") == 0)
+            {
+                // Function prologue
+                fprintf(outputFile, "# Prologue for function %s\n", currentFunctionName);
+
+                // Adjust $sp and save $ra and $fp
+                fprintf(outputFile, "\taddiu $sp, $sp, -8\n"); // Allocate stack space
+                fprintf(outputFile, "\tsw $fp, 4($sp)\n");     // Save old frame pointer
+                fprintf(outputFile, "\tsw $ra, 0($sp)\n");     // Save return address
+                fprintf(outputFile, "\tmove $fp, $sp\n");      // Set frame pointer
+
+                // Initialize register maps and register usage for the function
+                initializeRegisterMap();
+                initializeFloatRegisterMap();
+                memset(registerInUse, 0, sizeof(registerInUse));
+                memset(floatRegisterInUse, 0, sizeof(floatRegisterInUse));
+            }
+            else if (strcmp(current->op, "epilogue") == 0)
+            {
+                // Function epilogue
+                fprintf(outputFile, "# Epilogue for function %s\n", currentFunctionName);
+                fprintf(outputFile, "%s_epilogue:\n", currentFunctionName);
+
+                // Restore $fp and $ra
+                fprintf(outputFile, "\tmove $sp, $fp\n");     // Restore stack pointer
+                fprintf(outputFile, "\tlw $fp, 4($sp)\n");    // Restore old frame pointer
+                fprintf(outputFile, "\tlw $ra, 0($sp)\n");    // Restore return address
+                fprintf(outputFile, "\taddiu $sp, $sp, 8\n"); // Deallocate stack space
+
+                // Exit the program if main function
+                if (strcmp(currentFunctionName, "main") == 0)
+                {
+                    fprintf(outputFile, "\tli $v0, 10\n"); // Syscall code for exit
+                    fprintf(outputFile, "\tsyscall\n");
+                }
+                else
+                {
+                    // Return to caller
+                    fprintf(outputFile, "\tjr $ra\n");
+                }
+
+                // Set inFunction to false when exiting a function
+                inFunction = false;
+            }
+            else
+            {
+                if (!inFunction)
+                {
+                    current = current->next;
+                    continue;
+                }
+
+                // Call generateTACOperation
+                generateTACOperation(current, symTab, currentFunctionName);
+            }
+        }
+
+        current = current->next;
+    }
+}
+
+void generateTACOperation(TAC *current, SymbolTable *symTab, const char *currentFunctionName)
+{
+    if (current->op == NULL)
+    {
+        return;
+    }
+
+    if (strcmp(current->op, "return") == 0)
+    {
+        // Return from function
+        fprintf(outputFile, "# Return from function %s\n", currentFunctionName);
+        if (current->arg1 != NULL)
+        {
+            // Move return value into $v0 or $f0
+            if (isConstant(current->arg1))
+            {
+                fprintf(outputFile, "\tli $v0, %s\n", current->arg1);
+            }
+            else
+            {
+                const char *reg = getRegisterForVariable(current->arg1);
+                if (!reg)
+                {
+                    reg = allocateRegister();
+                    setRegisterForVariable(current->arg1, reg);
+                    loadOperand(current->arg1, reg);
+                }
+                fprintf(outputFile, "\tmove $v0, %s\n", reg);
+            }
+        }
+        // Jump to epilogue
+        fprintf(outputFile, "\tj %s_epilogue\n", currentFunctionName);
+    }
+    else if (strcmp(current->op, "call") == 0)
+    {
+        // Function call
+        fprintf(outputFile, "# Function call to %s\n", current->arg1);
+
+        // Save caller-saved registers if necessary
+        // For simplicity, not saving any in this example
+
+        // Handle passing arguments if any
+        // For simplicity, assuming no arguments
+
+        // Call the function
+        fprintf(outputFile, "\tjal %s\n", current->arg1);
+
+        // Handle return value
+        if (current->result != NULL)
+        {
+            // Map result variable to $v0 or $f0
+            const char *resultReg = allocateRegister();
+            setRegisterForVariable(current->result, resultReg);
+            fprintf(outputFile, "\tmove %s, $v0\n", resultReg);
+        }
+    }
+    else if (strcmp(current->op, "=") == 0)
+    {
+        // Assignment operation
+        fprintf(outputFile, "# Generating MIPS code for assignment\n");
+
+        const char *srcReg = getRegisterForVariable(current->arg1);
+        if (!srcReg)
+        {
+            srcReg = allocateRegister();
+            setRegisterForVariable(current->arg1, srcReg);
+            loadOperand(current->arg1, srcReg);
+        }
+
+        const char *destReg = getRegisterForVariable(current->result);
+        if (!destReg)
+        {
+            destReg = allocateRegister();
+            setRegisterForVariable(current->result, destReg);
+        }
+
+        fprintf(outputFile, "\tmove %s, %s\n", destReg, srcReg);
+    }
+    else if (strcmp(current->op, "+") == 0 || strcmp(current->op, "-") == 0 ||
+             strcmp(current->op, "*") == 0 || strcmp(current->op, "/") == 0)
+    {
+        // Generate code for integer binary operations
+        fprintf(outputFile, "# Generating MIPS code for operation %s\n", current->op);
+        // Load operands
+        const char *reg1 = getRegisterForVariable(current->arg1);
+        if (!reg1)
+        {
+            reg1 = allocateRegister();
+            setRegisterForVariable(current->arg1, reg1);
+            loadOperand(current->arg1, reg1);
+        }
+        const char *reg2 = getRegisterForVariable(current->arg2);
+        if (!reg2)
+        {
+            reg2 = allocateRegister();
+            setRegisterForVariable(current->arg2, reg2);
+            loadOperand(current->arg2, reg2);
+        }
+        const char *resultReg = allocateRegister();
+        setRegisterForVariable(current->result, resultReg);
+        // Perform operation
+        if (strcmp(current->op, "+") == 0)
+        {
+            fprintf(outputFile, "\tadd %s, %s, %s\n", resultReg, reg1, reg2);
+        }
+        else if (strcmp(current->op, "-") == 0)
+        {
+            fprintf(outputFile, "\tsub %s, %s, %s\n", resultReg, reg1, reg2);
+        }
+        else if (strcmp(current->op, "*") == 0)
+        {
+            fprintf(outputFile, "\tmul %s, %s, %s\n", resultReg, reg1, reg2);
+        }
+        else if (strcmp(current->op, "/") == 0)
+        {
+            fprintf(outputFile, "\tdiv %s, %s\n", reg1, reg2);
+            fprintf(outputFile, "\tmflo %s\n", resultReg);
+        }
+    }
+    else if (strcmp(current->op, "write") == 0)
+    {
+        // Write operation
+        fprintf(outputFile, "# Generating MIPS code for write operation\n");
+        const char *srcReg = getRegisterForVariable(current->arg1);
+        if (!srcReg)
+        {
+            srcReg = allocateRegister();
+            setRegisterForVariable(current->arg1, srcReg);
+            loadOperand(current->arg1, srcReg);
+        }
+        // Move value to $a0
+        fprintf(outputFile, "\tmove $a0, %s\n", srcReg);
+        fprintf(outputFile, "\tli $v0, 1\n"); // Syscall code for print_int
+        fprintf(outputFile, "\tsyscall\n");
+        // Print newline character
+        fprintf(outputFile, "\tli $a0, 10\n"); // ASCII code for newline
+        fprintf(outputFile, "\tli $v0, 11\n"); // Syscall code for print_char
+        fprintf(outputFile, "\tsyscall\n");
+    }
+    else if (strcmp(current->op, "write_float") == 0)
+    {
+        // Write operation for floating-point numbers
+        fprintf(outputFile, "# Generating MIPS code for write_float operation\n");
+        const char *srcReg = getFloatRegisterForVariable(current->arg1);
+        if (!srcReg)
+        {
+            srcReg = allocateFloatRegister();
+            setFloatRegisterForVariable(current->arg1, srcReg);
+            loadFloatOperand(current->arg1, srcReg);
+        }
+        // Move value to $f12 for floating-point printing
+        fprintf(outputFile, "\tmov.s $f12, %s\n", srcReg);
+        fprintf(outputFile, "\tli $v0, 2\n"); // Syscall code for print_float
+        fprintf(outputFile, "\tsyscall\n");
+
+        // Print newline character after the float
+        fprintf(outputFile, "\tli $a0, 10\n"); // ASCII code for newline
+        fprintf(outputFile, "\tli $v0, 11\n"); // Syscall code for print_char
+        fprintf(outputFile, "\tsyscall\n");
+    }
+    else if (strcmp(current->op, "[]=") == 0)
+    {
+        // Array assignment operation
+        fprintf(outputFile, "# Generating MIPS code for array assignment\n");
+        // Load base address of array into BASE_ADDRESS_REGISTER
+        fprintf(outputFile, "\tla %s, %s\n", BASE_ADDRESS_REGISTER, current->result);
+        // Compute offset if possible
+        char *offsetValue = computeOffset(current->arg1, 4);
+        if (offsetValue != NULL)
+        {
+            // Load value
+            const char *valueReg = getRegisterForVariable(current->arg2);
+            if (!valueReg)
+            {
+                valueReg = allocateRegister();
+                if (!valueReg)
+                {
+                    fprintf(stderr, "Error: No available registers for value\n");
+                    exit(1);
+                }
+                setRegisterForVariable(current->arg2, valueReg);
+                loadOperand(current->arg2, valueReg);
+            }
+            fprintf(outputFile, "\tsw %s, %s(%s)\n", valueReg, offsetValue, BASE_ADDRESS_REGISTER);
+            free(offsetValue);
+        }
+        else
+        {
+            // Index is variable, compute at runtime
+            // Load index
+            const char *indexReg = getRegisterForVariable(current->arg1);
+            if (!indexReg)
+            {
+                indexReg = allocateRegister();
+                if (!indexReg)
+                {
+                    fprintf(stderr, "Error: No available registers for index\n");
+                    exit(1);
+                }
+                setRegisterForVariable(current->arg1, indexReg);
+                loadOperand(current->arg1, indexReg);
+            }
+            // Load value
+            const char *valueReg = getRegisterForVariable(current->arg2);
+            if (!valueReg)
+            {
+                valueReg = allocateRegister();
+                if (!valueReg)
+                {
+                    fprintf(stderr, "Error: No available registers for value\n");
+                    exit(1);
+                }
+                setRegisterForVariable(current->arg2, valueReg);
+                loadOperand(current->arg2, valueReg);
+            }
+            // Calculate offset: indexReg * 4
+            const char *tempReg = ADDRESS_CALC_REGISTER;
+            fprintf(outputFile, "\tmul %s, %s, 4\n", tempReg, indexReg);
+            // Effective address: BASE_ADDRESS_REGISTER + tempReg
+            fprintf(outputFile, "\tadd %s, %s, %s\n", tempReg, BASE_ADDRESS_REGISTER, tempReg);
+            // Store value
+            fprintf(outputFile, "\tsw %s, 0(%s)\n", valueReg, tempReg);
+        }
+    }
+    else if (strcmp(current->op, "=[]") == 0)
+    {
+        // Array access operation
+        fprintf(outputFile, "# Generating MIPS code for array access\n");
+        // Load base address of array into BASE_ADDRESS_REGISTER
+        fprintf(outputFile, "\tla %s, %s\n", BASE_ADDRESS_REGISTER, current->arg1);
+        // Compute offset if possible
+        char *offsetValue = computeOffset(current->arg2, 4);
+        if (offsetValue != NULL)
+        {
+            // Load value into a register
+            const char *resultReg = getRegisterForVariable(current->result);
+            if (!resultReg)
+            {
+                resultReg = allocateRegister();
+                if (!resultReg)
+                {
+                    fprintf(stderr, "Error: No available registers for result %s\n", current->result);
+                    exit(1);
+                }
+                setRegisterForVariable(current->result, resultReg);
+            }
+            fprintf(outputFile, "\tlw %s, %s(%s)\n", resultReg, offsetValue, BASE_ADDRESS_REGISTER);
+            free(offsetValue);
+        }
+        else
+        {
+            // Index is variable, compute at runtime
+            // Load index
+            const char *indexReg = getRegisterForVariable(current->arg2);
+            if (!indexReg)
+            {
+                indexReg = allocateRegister();
+                if (!indexReg)
+                {
+                    fprintf(stderr, "Error: No available registers for index\n");
+                    exit(1);
+                }
+                setRegisterForVariable(current->arg2, indexReg);
+                loadOperand(current->arg2, indexReg);
+            }
+            // Calculate offset: indexReg * 4
+            const char *tempReg = ADDRESS_CALC_REGISTER;
+            fprintf(outputFile, "\tmul %s, %s, 4\n", tempReg, indexReg);
+            // Effective address: BASE_ADDRESS_REGISTER + tempReg
+            fprintf(outputFile, "\tadd %s, %s, %s\n", tempReg, BASE_ADDRESS_REGISTER, tempReg);
+            // Load value into a register
+            const char *resultReg = getRegisterForVariable(current->result);
+            if (!resultReg)
+            {
+                resultReg = allocateRegister();
+                if (!resultReg)
+                {
+                    fprintf(stderr, "Error: No available registers for result %s\n", current->result);
+                    exit(1);
+                }
+                setRegisterForVariable(current->result, resultReg);
+            }
+            fprintf(outputFile, "\tlw %s, 0(%s)\n", resultReg, tempReg);
         }
     }
 
-    // Before exiting, store all live float registers back to memory
-    for (int i = 0; i < MAX_FLOAT_REGISTER_MAP_SIZE; i++)
+    else if (strcmp(current->op, "fmov") == 0)
     {
-        if (floatRegisterMap[i].variable != NULL)
+        // Floating point move operation
+        fprintf(outputFile, "# Generating MIPS code for floating point move\n");
+        const char *srcReg = getFloatRegisterForVariable(current->arg1);
+        if (!srcReg)
         {
-            const char *var = floatRegisterMap[i].variable;
-            const char *regName = floatRegisterMap[i].regName;
-            if (findSymbol(symTab, var) || isTemporaryVariable(var))
-            {
-                fprintf(outputFile, "# Storing float variable %s back to memory\n", var);
-                fprintf(outputFile, "\ts.s %s, %s\n", regName, var);
-            }
-            deallocateFloatRegister(regName);
-            free(floatRegisterMap[i].variable);
-            free(floatRegisterMap[i].regName);
-            floatRegisterMap[i].variable = NULL;
-            floatRegisterMap[i].regName = NULL;
+            srcReg = allocateFloatRegister();
+            setFloatRegisterForVariable(current->arg1, srcReg);
+            loadFloatOperand(current->arg1, srcReg);
         }
+
+        const char *destReg = getFloatRegisterForVariable(current->result);
+        if (!destReg)
+        {
+            destReg = allocateFloatRegister();
+            setFloatRegisterForVariable(current->result, destReg);
+        }
+
+        fprintf(outputFile, "\tmov.s %s, %s\n", destReg, srcReg);
+    }
+    else
+    {
+        fprintf(stderr, "Warning: Unsupported TAC operation '%s'\n", current->op);
     }
 
-    // Exit program
-    fprintf(outputFile, "\tli $v0, 10\n");
-    fprintf(outputFile, "\tsyscall\n");
+    // Deallocate registers for variables no longer used
+    const char *variablesToCheck[] = {current->arg1, current->arg2, current->result};
+    for (int i = 0; i < 3; i++)
+    {
+        const char *var = variablesToCheck[i];
+        if (var != NULL && isVariableInRegisterMap(var))
+        {
+            if (!isVariableUsedLater(current, var))
+            {
+                const char *regName = getRegisterForVariable(var);
+                // Store the variable back to memory if it's a user-defined variable or a temporary variable
+                if (findSymbol(symTab, var) || isTemporaryVariable(var))
+                {
+                    fprintf(outputFile, "# Storing variable %s back to memory\n", var);
+                    fprintf(outputFile, "\tsw %s, %s\n", regName, var);
+                }
+                deallocateRegister(regName);
+                removeVariableFromRegisterMap(var);
+            }
+        }
+        if (var != NULL && isVariableInFloatRegisterMap(var))
+        {
+            if (!isVariableUsedLater(current, var))
+            {
+                const char *regName = getFloatRegisterForVariable(var);
+                // Store the variable back to memory if it's a user-defined variable or a temporary variable
+                if (findSymbol(symTab, var) || isTemporaryVariable(var))
+                {
+                    fprintf(outputFile, "# Storing float variable %s back to memory\n", var);
+                    fprintf(outputFile, "\ts.s %s, %s\n", regName, var);
+                }
+                deallocateFloatRegister(regName);
+                removeVariableFromFloatRegisterMap(var);
+            }
+        }
+    }
 }

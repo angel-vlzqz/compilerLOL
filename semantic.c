@@ -21,16 +21,14 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
     switch (node->type)
     {
     case NodeType_Program:
-        // Start analyzing the program’s function declarations
+        // Analyze TAC for the program
         semanticAnalysis(node->program.funcDeclList, symTab);
-        // Generate TAC for the assignment
-        generateTACForExpr(node, symTab);
         break;
 
     case NodeType_FuncDeclList:
         // Recursively analyze each function declaration in the list
         semanticAnalysis(node->funcDeclList.funcDecl, symTab);
-        semanticAnalysis(node->funcDeclList.nextFuncDecl, symTab);
+        semanticAnalysis(node->funcDeclList.funcDeclList, symTab);
         break;
 
     case NodeType_FuncDecl:
@@ -43,7 +41,7 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         }
 
         // Insert the function into the symbol table in the global scope
-        insertSymbol(symTab, node->funcDecl.funcName, node->funcDecl.returnType, false, NULL);
+        insertSymbol(symTab, node->funcDecl.funcName, node->funcDecl.returnType, false, true, NULL);
 
         // Create a new symbol table for the function's local scope, linked to the parent symTab
         SymbolTable *functionScope = createSymbolTable(TABLE_SIZE, symTab);
@@ -61,22 +59,43 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
                         paramNode->param.paramName, node->funcDecl.funcName);
                 exit(1);
             }
-            insertSymbol(functionScope, paramNode->param.paramName, paramNode->param.paramType, false, NULL);
+            insertSymbol(functionScope, paramNode->param.paramName, paramNode->param.paramType, false, false, NULL);
             paramNode = paramNode->paramList.nextParam;
         }
 
         // Perform semantic analysis on the function body within the new scope
-        semanticAnalysis(node->funcDecl.varDeclList, functionScope);
-        semanticAnalysis(node->funcDecl.block, functionScope);
-        semanticAnalysis(node->funcDecl.returnStmt, functionScope);
+        // semanticAnalysis(node->funcDecl.varDeclList, functionScope);
+        // semanticAnalysis(node->funcDecl.block, functionScope);
+        // semanticAnalysis(node->funcDecl.returnStmt, functionScope);
 
         // Generate TAC for the function
         generateTACForExpr(node, functionScope);
-
-        // Free the function's symbol table after analysis
-        freeSymbolTable(functionScope);
         break;
     }
+
+    case NodeType_FuncCall:
+    {
+        // Check if the function is declared
+        Symbol *functionSymbol = findSymbol(symTab, node->funcCall.funcName);
+        if (functionSymbol == NULL)
+        {
+            fprintf(stderr, "Semantic error: Function %s is not declared\n", node->funcCall.funcName);
+            exit(1);
+        }
+
+        // Ensure the function is of type void if expected
+        if (strcmp(functionSymbol->type, "void") != 0)
+        {
+            fprintf(stderr, "Semantic error: Function %s is expected to return void but does not\n", node->funcCall.funcName);
+            exit(1);
+        }
+
+        // Additional checks can go here, such as parameter matching
+        // if needed later
+        // Generate TAC for the function call
+        generateTACForExpr(node, symTab);
+    }
+    break;
 
     case NodeType_VarDeclList:
         semanticAnalysis(node->varDeclList.varDecl, symTab);
@@ -99,7 +118,7 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
             else
             {
                 // For simple variable declarations, isArray is false, arrayInfo is NULL
-                insertSymbol(symTab, node->varDecl.varName, node->varDecl.varType, 0, false); // , NULL
+                insertSymbol(symTab, node->varDecl.varName, node->varDecl.varType, false, false, NULL); // , NULL
             }
         }
         else if (strcmp(getSymbolValue(symTab, node->varDecl.varName), "void") == 0)
@@ -212,7 +231,7 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
             // Create array info
             Array *arrayInfo = createArray(node->arrayDecl.varType, node->arrayDecl.size);
             // Insert into symbol table
-            insertSymbol(symTab, node->arrayDecl.varName, node->arrayDecl.varType, true, arrayInfo); // , 0, true
+            insertSymbol(symTab, node->arrayDecl.varName, node->arrayDecl.varType, true, false, arrayInfo); // , 0, true
         }
         else
         {
@@ -295,60 +314,41 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
     {
     case NodeType_Program:
     {
-        // Begin TAC for main function as global scope
-        TAC *mainLabelTAC = (TAC *)malloc(sizeof(TAC));
-        mainLabelTAC->op = strdup("label");
-        mainLabelTAC->arg1 = strdup("main");
-        mainLabelTAC->arg2 = NULL;
-        mainLabelTAC->result = NULL;
-        mainLabelTAC->next = NULL;
-        appendTAC(&tacHead, mainLabelTAC);
-
-        // Prologue for main
-        TAC *prologueTAC = (TAC *)malloc(sizeof(TAC));
-        prologueTAC->op = strdup("prologue");
-        prologueTAC->arg1 = strdup("main");
-        prologueTAC->arg2 = NULL;
-        prologueTAC->result = NULL;
-        prologueTAC->next = NULL;
-        appendTAC(&tacHead, prologueTAC);
-
-        // Process global variable declarations and expressions within main scope
-        if (expr->program.funcDeclList != NULL) {
+        // Process each function in the program independently
+        if (expr->program.funcDeclList != NULL)
+        {
             generateTACForExpr(expr->program.funcDeclList, symTab);
         }
+    }
+    break;
 
-        // Epilogue for main
-        TAC *epilogueTAC = (TAC *)malloc(sizeof(TAC));
-        epilogueTAC->op = strdup("epilogue");
-        epilogueTAC->arg1 = strdup("main");
-        epilogueTAC->arg2 = NULL;
-        epilogueTAC->result = NULL;
-        epilogueTAC->next = NULL;
-        appendTAC(&tacHead, epilogueTAC);
-
-        // Return for main
-        TAC *returnTAC = (TAC *)malloc(sizeof(TAC));
-        returnTAC->op = strdup("return");
-        returnTAC->arg1 = NULL;
-        returnTAC->arg2 = NULL;
-        returnTAC->result = strdup("void");
-        returnTAC->next = NULL;
-        appendTAC(&tacHead, returnTAC);
+    case NodeType_FuncDeclList:
+    {
+        generateTACForExpr(expr->funcDeclList.funcDecl, symTab);
+        if (expr->funcDeclList.funcDeclList)
+        {
+            generateTACForExpr(expr->funcDeclList.funcDeclList, symTab);
+        }
     }
     break;
 
     case NodeType_FuncDecl:
-    {
-        if (strcmp(expr->funcDecl.funcName, "main") == 0) {
-            // `main` has already been generated; skip additional prologue/epilogue
-            break;
-        }
-
-        // Generate TAC for other functions
         generateTACForFunction(expr, symTab);
+        break;
+
+    case NodeType_FuncCall:
+    {
+        // Generate TAC for a function call
+        TAC *callTAC = (TAC *)malloc(sizeof(TAC));
+        callTAC->op = strdup("call");
+        callTAC->arg1 = strdup(expr->funcCall.funcName);  // Function name
+        callTAC->arg2 = NULL;                             // No arguments in this case
+        callTAC->result = NULL;                           // No result for void functions
+        callTAC->next = NULL;
+
+        appendTAC(&tacHead, callTAC);
+        break;
     }
-    break;
 
     case NodeType_AssignStmt:
     {
@@ -594,49 +594,50 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
 void generateTACForFunction(ASTNode *funcNode, SymbolTable *symTab)
 {
-    if (strcmp(funcNode->funcDecl.funcName, "main") == 0) {
-        // `main` handled in `generateTACForExpr`, skip here
+    if (!funcNode || !funcNode->funcDecl.funcName)
         return;
-    }
 
-    // Function label
+    // Generate function label
     TAC *labelTAC = (TAC *)malloc(sizeof(TAC));
     labelTAC->op = strdup("label");
     labelTAC->arg1 = strdup(funcNode->funcDecl.funcName);
     labelTAC->arg2 = NULL;
     labelTAC->result = NULL;
-    labelTAC->next = NULL;
     appendTAC(&tacHead, labelTAC);
 
-    // Prologue
+    // Generate prologue
     TAC *prologueTAC = (TAC *)malloc(sizeof(TAC));
     prologueTAC->op = strdup("prologue");
     prologueTAC->arg1 = strdup(funcNode->funcDecl.funcName);
     prologueTAC->arg2 = NULL;
     prologueTAC->result = NULL;
-    prologueTAC->next = NULL;
     appendTAC(&tacHead, prologueTAC);
 
-    // Body of the function
-    generateTACForExpr(funcNode->funcDecl.varDeclList, symTab);
-    generateTACForExpr(funcNode->funcDecl.block, symTab);
+    // Analyze and generate TAC for function body within the new scope
+    if (funcNode->funcDecl.varDeclList) {
+        semanticAnalysis(funcNode->funcDecl.varDeclList, symTab);
+    }
+    if (funcNode->funcDecl.block) {
+        semanticAnalysis(funcNode->funcDecl.block, symTab);
+    }
+    if (funcNode->funcDecl.returnStmt) {
+        semanticAnalysis(funcNode->funcDecl.returnStmt, symTab);
+    }
 
-    // Epilogue
+    // Generate epilogue
     TAC *epilogueTAC = (TAC *)malloc(sizeof(TAC));
     epilogueTAC->op = strdup("epilogue");
     epilogueTAC->arg1 = strdup(funcNode->funcDecl.funcName);
     epilogueTAC->arg2 = NULL;
     epilogueTAC->result = NULL;
-    epilogueTAC->next = NULL;
     appendTAC(&tacHead, epilogueTAC);
 
-    // Return statement
+    // Generate return statement
     TAC *returnTAC = (TAC *)malloc(sizeof(TAC));
     returnTAC->op = strdup("return");
     returnTAC->arg1 = NULL;
     returnTAC->arg2 = NULL;
     returnTAC->result = NULL;
-    returnTAC->next = NULL;
     appendTAC(&tacHead, returnTAC);
 }
 
@@ -659,7 +660,7 @@ char *createTempVar(SymbolTable *symTab)
     // Insert the temporary variable into the symbol table
     if (findSymbol(symTab, tempVar) == NULL)
     {
-        insertSymbol(symTab, tempVar, "int", 0, false); // Assuming temporaries are of type int , NULL
+        insertSymbol(symTab, tempVar, "int", false, false, NULL); // Assuming temporaries are of type int , NULL
     }
 
     return tempVar;

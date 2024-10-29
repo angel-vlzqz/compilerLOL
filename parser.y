@@ -37,7 +37,7 @@ SymbolTable* symTab = NULL;
 %token <float_number> FLOAT_NUMBER
 %token <string> IF ELSE WHILE RETURN WRITE ID TYPE MAIN VOID
 %token <operator> ASSIGNOP PLUS MINUS MUL LOGICOP
-%token <character> SEMICOLON '(' ')' '[' ']' '{' '}'
+%token <character> SEMICOLON '(' ')' '[' ']' '{' '}' ','
 %token THEN DO TRUE FALSE
 
 %left '+' '-'
@@ -47,7 +47,7 @@ SymbolTable* symTab = NULL;
 %left PLUS MINUS
 %left MUL
 
-%type <ast> Program VarDeclList VarDecl Stmt StmtList Expr Block ReturnStmt FuncDeclList FuncDecl MainFuncDecl ParamList //FuncCall argument_list arg
+%type <ast> Program VarDeclList VarDecl Stmt StmtList Expr Block ReturnStmt FuncDeclList FuncDecl MainFuncDecl ParamList FuncCall ArgList Arg
 
 %start Program
 
@@ -71,10 +71,8 @@ FuncDeclList:
     | FuncDeclList FuncDecl 
     { 
         $$ = createNode(NodeType_FuncDeclList); 
-    }
-    |
-    {
-        //Deleet this soon
+        $$->funcDeclList.funcDeclList = $1;
+        $$->funcDeclList.funcDecl = $2;
     }
     ;
 
@@ -150,24 +148,69 @@ ParamList:
         $$ = NULL; // No parameters
     }
     ;
+
+FuncCall:
+    ID '(' ')' SEMICOLON
+    {
+        printf("Parsed function call: %s()\n", $1);
+        $$ = createNode(NodeType_FuncCall);
+        $$->funcCall.funcName = strdup($1);
+        $$->funcCall.argList = NULL; // No arguments
+    }
+    | ID '(' ArgList ')' SEMICOLON
+    {
+        printf("Parsed function call with arguments: %s(...)\n", $1);
+        $$ = createNode(NodeType_FuncCall);
+        $$->funcCall.funcName = strdup($1);
+        $$->funcCall.argList = $3; // Argument list
+    }
+    ;
     
-// argument_list:
-//     arg {
-//         printf("Parsed single argument\n");
-//         $$ = createArgumentNode($1); // Single argument expression
-//     }
-//     | argument_list ',' Expr {
-//         printf("Parsed multiple arguments\n");
-//         $$ = appendArgumentList($1, createArgumentNode($3)); // Append to argument list
-//     }
-//     | /* empty */ {
-//         printf("Parsed empty argument list\n");
-//         $$ = NULL; // No arguments
-//     }
-//     ; 
-// 
-// arg:
-    
+ArgList:
+    Arg
+    {
+        $$ = createNode(NodeType_ArgList);
+        $$->argList.arg = $1;
+        $$->argList.argList = NULL;
+    }
+    | ArgList ',' Arg
+    {
+        $$ = createNode(NodeType_ArgList);
+        $$->argList.arg = $3;
+        $$->argList.argList = $1;
+    }
+    ;
+
+Arg:
+    NUMBER
+    {
+        $$ = createNode(NodeType_Arg);
+        $$->arg.type = strdup("int");       // Set type to "int" for integer literals
+        $$->arg.id = NULL;                  // No variable identifier
+        // Convert the integer number to a string
+        char buffer[20];
+        sprintf(buffer, "%d", $1);          // Store the literal value as a string in buffer
+        $$->arg.value = strdup(buffer);     // Duplicate the buffer to value
+    }
+    | FLOAT_NUMBER
+    {
+        $$ = createNode(NodeType_Arg);
+        $$->arg.type = strdup("float");     // Set type to "float" for float literals
+        $$->arg.id = NULL;                  // No variable identifier
+        // Convert the float number to a string
+        char buffer[20];
+        sprintf(buffer, "%f", $1);          // Store the literal float as a string in buffer
+        $$->arg.value = strdup(buffer); 
+    }
+    | ID
+    {
+        $$ = createNode(NodeType_Arg);
+        $$->arg.type = NULL;                // Type may be resolved later if needed
+        $$->arg.id = strdup($1);            // Use the variable identifier
+        $$->arg.value = NULL;               // No literal value
+    }
+    ;
+
 VarDeclList:
     VarDecl VarDeclList 
     {
@@ -244,6 +287,13 @@ StmtList:
         printf("Parsed Statement List\n");
         $$ = malloc(sizeof(ASTNode));
         $$->type = NodeType_StmtList;
+        $$->stmtList.stmt = $1;
+        $$->stmtList.stmtList = $2;
+    }
+    | FuncCall StmtList
+    {
+        printf("Parsed Function Call Statement List\n");
+        $$ = createNode(NodeType_StmtList);
         $$->stmtList.stmt = $1;
         $$->stmtList.stmtList = $2;
     }
@@ -456,7 +506,7 @@ int main()
         freeAST(root);
     }
 
-    freeSymbolTable(symTab);
+    freeAllSymbolTables(symTab);
     fclose(yyin);
     return 0;
 }

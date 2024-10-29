@@ -7,6 +7,23 @@
 
 int GlobalScope = 0;
 
+// When adding a function symbol
+Symbol *addFunctionSymbol(SymbolTable *symbolTable, const char *name, const char *returnType)
+{
+    // Functions are not arrays, so isArray is false, arrayInfo is NULL
+    insertSymbol(symbolTable, name, returnType, false, true, NULL);
+    // Return the newly added symbol
+    return findSymbol(symbolTable, name);
+}
+
+// When adding a variable symbol
+Symbol *addVariableSymbol(SymbolTable *symbolTable, const char *name, const char *type, bool isArray, Array *arrayInfo)
+{
+    insertSymbol(symbolTable, name, type, isArray, false, arrayInfo);
+    // Return the newly added symbol
+    return findSymbol(symbolTable, name);
+}
+
 // Hash function based on ASCII values
 unsigned int hashFunction(const char *name, int tableSize)
 {
@@ -26,7 +43,7 @@ unsigned int hashFunction(const char *name, int tableSize)
 }
 
 // Create a new symbol
-Symbol *createSymbol(const char *name, const char *type, int index, bool isArray, Array *arrayInfo)
+Symbol *createSymbol(const char *name, const char *type, int index, bool isArray, bool isFunction, Array *arrayInfo)
 {
     Symbol *newSymbol = (Symbol *)malloc(sizeof(Symbol));
     if (!newSymbol)
@@ -39,13 +56,14 @@ Symbol *createSymbol(const char *name, const char *type, int index, bool isArray
     newSymbol->index = index;
     newSymbol->value = NULL;
     newSymbol->isArray = isArray;
+    newSymbol->isFunction = isFunction; // Set the isFunction flag
     newSymbol->arrayInfo = arrayInfo;
     newSymbol->next = NULL;
     return newSymbol;
 }
 
 // Insert a symbol into the current scope's symbol table
-void insertSymbol(SymbolTable *symbolTable, const char *name, const char *type, bool isArray, Array *arrayInfo)
+void insertSymbol(SymbolTable *symbolTable, const char *name, const char *type, bool isArray, bool isFunction, Array *arrayInfo)
 {
     if (findSymbol(symbolTable, name) != NULL)
     {
@@ -54,7 +72,7 @@ void insertSymbol(SymbolTable *symbolTable, const char *name, const char *type, 
     }
 
     unsigned int index = hashFunction(name, symbolTable->size);
-    Symbol *newSymbol = createSymbol(name, type, index, isArray, arrayInfo);
+    Symbol *newSymbol = createSymbol(name, type, index, isArray, isFunction, arrayInfo);
 
     if (strcmp(type, "float") == 0)
     {
@@ -64,8 +82,8 @@ void insertSymbol(SymbolTable *symbolTable, const char *name, const char *type, 
     newSymbol->next = symbolTable->table[index];
     symbolTable->table[index] = newSymbol;
 
-    printf("Inserted symbol: Name = %s, Type = %s, Index = %d, isArray = %s\n",
-           name, type, index, isArray ? "true" : "false");
+    printf("Inserted symbol: Name = %s, Type = %s, Index = %d, isArray = %s, isFunction = %s\n",
+           name, type, index, isArray ? "true" : "false", isFunction ? "true" : "false");
 }
 
 // Find a symbol, starting from the current scope and moving to outer scopes
@@ -164,7 +182,21 @@ SymbolTable *createSymbolTable(int size, SymbolTable *prev)
     // If the previous symbol table exists, update its next pointer
     if (prev)
     {
-        prev->next = newTable;
+        // Check if prev->next is already set
+        if (prev->next == NULL)
+        {
+            prev->next = newTable;
+        }
+        else
+        {
+            // If prev->next is not NULL, traverse to the end and append
+            SymbolTable *temp = prev->next;
+            while (temp->next != NULL)
+            {
+                temp = temp->next;
+            }
+            temp->next = newTable;
+        }
     }
 
     printf("Created new symbol table at address %p\n", (void *)newTable);
@@ -245,39 +277,51 @@ void collectAllSymbols(SymbolTable *symTab, Symbol ***symbolList, int *symbolCou
     if (symTab == NULL)
         return;
 
-    printf("Collecting symbols from symbol table at address %p\n", (void *)symTab);
-    printf("Symbol table size: %d\n", symTab->size);
-
-    if (symTab->table == NULL)
-    {
-        fprintf(stderr, "Error: symTab->table is NULL\n");
-        exit(1);
-    }
-
-    // Collect symbols from the current symbol table
+    // Traverse the symbol table's buckets
     for (int i = 0; i < symTab->size; i++)
     {
         Symbol *symbol = symTab->table[i];
         while (symbol != NULL)
         {
-            // Resize symbolList if necessary
+            // Check if we need to expand the symbol list array
             if (*symbolCount >= *symbolCapacity)
             {
                 *symbolCapacity *= 2;
-                *symbolList = realloc(*symbolList, (*symbolCapacity) * sizeof(Symbol *));
+                *symbolList = realloc(*symbolList, *symbolCapacity * sizeof(Symbol *));
                 if (*symbolList == NULL)
                 {
-                    fprintf(stderr, "Error: Memory allocation failed while collecting symbols.\n");
+                    fprintf(stderr, "Error: Memory allocation failed while expanding symbol list.\n");
                     exit(1);
                 }
             }
-            // Add symbol to the symbolList
-            (*symbolList)[*symbolCount] = symbol;
-            (*symbolCount)++;
+
+            // Add symbol to the list
+            (*symbolList)[(*symbolCount)++] = symbol;
+
             symbol = symbol->next;
         }
     }
 
-    // Recurse to the previous symbol table (outer scope)
-    collectAllSymbols(symTab->prev, symbolList, symbolCount, symbolCapacity);
+    // Recursively collect symbols from inner scopes
+    if (symTab->next != NULL)
+    {
+        collectAllSymbols(symTab->next, symbolList, symbolCount, symbolCapacity);
+    }
+}
+
+// Function to free all symbol tables starting from the given symbol table
+void freeAllSymbolTables(SymbolTable *symbolTable)
+{
+    if (symbolTable == NULL)
+        return;
+
+    // Recursively free inner scopes first
+    if (symbolTable->next != NULL)
+    {
+        freeAllSymbolTables(symbolTable->next);
+        symbolTable->next = NULL; // Avoid double-free
+    }
+
+    // Free the current symbol table
+    freeSymbolTable(symbolTable);
 }

@@ -120,6 +120,19 @@ void printTACToFile(const char *filename, TAC *tac)
             {
                 fprintf(file, "  return %s\n", current->result ? current->result : "void"); // Return format
             }
+            else if (strcmp(current->op, "call") == 0)
+            {
+                // TAC for a function call with or without result assignment
+                if (current->result)
+                    fprintf(file, "%s = call %s\n", current->result, current->arg1 ? current->arg1 : "");
+                else
+                    fprintf(file, "call %s\n", current->arg1 ? current->arg1 : "");
+            }
+            else if (strcmp(current->op, "param") == 0)
+            {
+                // TAC for passing parameters to a function call
+                fprintf(file, "param %s\n", current->arg1 ? current->arg1 : "");
+            }
             else
             {
                 fprintf(file, "%s = %s %s %s\n",

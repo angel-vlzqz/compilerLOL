@@ -16,6 +16,9 @@ typedef enum
     NodeType_FuncDecl,
     NodeType_ParamList,
     NodeType_Param,
+    NodeType_FuncCall,
+    NodeType_ArgList,
+    NodeType_Arg,
     NodeType_VarDeclList,
     NodeType_VarDecl,
     NodeType_ArrayDecl,
@@ -50,7 +53,7 @@ typedef struct ASTNode
         struct
         {
             struct ASTNode *funcDecl;
-            struct ASTNode *nextFuncDecl; // Points to the next function in the list
+            struct ASTNode *funcDeclList; // Points to the next function in the list
         } funcDeclList;
 
         struct
@@ -74,6 +77,25 @@ typedef struct ASTNode
             struct ASTNode *param;      // First parameter in the list
             struct ASTNode *nextParam;  // Next parameter in the list (recursively structured)
         } paramList;
+
+        struct
+        {
+            char *funcName;           // Name of the function being called
+            struct ASTNode *argList;  // List of arguments for the function call
+        } funcCall;
+
+        struct
+        {
+            struct ASTNode *arg;
+            struct ASTNode *argList;
+        } argList;
+
+        struct
+        {
+            char *type;              // Type of the argument
+            char *id;                // Identifier for variable arguments
+            char *value;             // Value for literal rguments
+        } arg;
 
         struct
         {

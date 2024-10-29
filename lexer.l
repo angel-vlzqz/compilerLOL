@@ -35,6 +35,10 @@ ws           {delim}+
 							}
 						}
 
+"/*"([^*]|[\n]|(\*+([^*/]|[\n])))*\*+"/"    { /* Skip multi-line comment */ }
+
+"//".*                                      { /* Skip single-line comment */ }
+
 "'" { 
     printf("%s : CHAR_LITERAL\n", yytext);
 }
@@ -187,6 +191,12 @@ ws           {delim}+
 		printf("%s : '}'\n", yytext);
 		yylval.string = strdup(yytext);
 		return '}';
+		}
+
+","	{chars++;
+		printf("%s : ','\n", yytext);
+		yylval.string = strdup(yytext);
+		return ',';
 		}
 
 \n		{lines++; chars=0;}

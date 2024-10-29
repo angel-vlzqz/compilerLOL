@@ -28,6 +28,8 @@ int main()
   z[2] = 7;
   z[3] = 9;
 
+  print1();
+
   write x;
   write y;
 
@@ -40,4 +42,11 @@ int main()
   write angel;
 
   write floatA;
+}
+
+void print1()
+{
+  int a;
+  a = 1;
+  write a;
 }

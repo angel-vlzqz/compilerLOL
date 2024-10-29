@@ -12,6 +12,7 @@ typedef struct Symbol
     char *value;
     int index;
     bool isArray;
+    bool isFunction;
     Array *arrayInfo;
     struct Symbol *next;
 } Symbol;
@@ -29,10 +30,13 @@ extern int GlobalScope;
 
 // Function Declarations
 unsigned int hashFunction(const char *name, int tableSize);
-Symbol *createSymbol(const char *name, const char *type, int index, bool isArray, Array *arrayInfo);
-void insertSymbol(SymbolTable *symbolTable, const char *name, const char *type, bool isArray, Array *arrayInfo);
+Symbol *addFunctionSymbol(SymbolTable *symbolTable, const char *name, const char *returnType);
+Symbol *addVariableSymbol(SymbolTable *symbolTable, const char *name, const char *type, bool isArray, Array *arrayInfo);
+Symbol *createSymbol(const char *name, const char *type, int index, bool isArray, bool isFunction, Array *arrayInfo);
+void insertSymbol(SymbolTable *symbolTable, const char *name, const char *type, bool isArray, bool isFunction, Array *arrayInfo);
 Symbol *findSymbol(SymbolTable *symbolTable, const char *name);
 void freeSymbolTable(SymbolTable *symbolTable);
+void freeAllSymbolTables(SymbolTable *symbolTable); // Added function prototype
 SymbolTable *createSymbolTable(int size, SymbolTable *prev);
 void updateSymbolValue(SymbolTable *symbolTable, const char *name, const char *value);
 const char *getSymbolValue(SymbolTable *symbolTable, const char *name);

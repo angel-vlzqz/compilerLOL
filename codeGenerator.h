@@ -1,5 +1,3 @@
-// codeGenerator.h
-
 #ifndef CODE_GENERATOR_H
 #define CODE_GENERATOR_H
 
@@ -11,22 +9,14 @@
 #include <stdbool.h>
 #include <ctype.h>
 
-#define MAX_REGISTER_MAP_SIZE 32 // Adjusted to accommodate more variables if needed
+#define MAX_REGISTER_MAP_SIZE 100 // Adjusted to accommodate more variables if needed
 
 // Number of available registers, excluding reserved ones
-#define NUM_AVAILABLE_REGISTERS 9
+#define NUM_AVAILABLE_REGISTERS 8
 
 // Reserved registers
 #define ADDRESS_CALC_REGISTER "$t9"
 #define BASE_ADDRESS_REGISTER "$t8"
-
-typedef struct VarNode
-{
-    char *name;
-    int initialValue;
-    bool isInitialized;
-    struct VarNode *next;
-} VarNode;
 
 // Float Register Map Entry
 typedef struct
@@ -47,6 +37,8 @@ void initCodeGenerator(const char *outputFilename);
 
 // Generates MIPS assembly code from the provided TAC
 void generateMIPS(TAC *tacInstructions, SymbolTable *symTab);
+void processTACList(TAC *tacList, SymbolTable *symTab);
+void generateTACOperation(TAC *current, SymbolTable *symTab, const char *currentFunctionName);
 
 // Finalizes code generation, closing files and cleaning up
 void finalizeCodeGenerator(const char *outputFilename);
@@ -61,16 +53,10 @@ const char *getRegisterForVariable(const char *variable);
 bool isVariableInRegisterMap(const char *variable);
 void removeVariableFromRegisterMap(const char *variable);
 
-// Print the current TAC instruction
-void printCurrentTAC(TAC *tac);
-
-VarNode *findVariable(VarNode *varList, const char *varName);
+// Function to compute offset for array accesses
+char *computeOffset(const char *indexOperand, int elementSize);
 
 void loadOperand(const char *operand, const char *registerName);
-
-void freeVariableList(VarNode *varList);
-
-void collectVariables(TAC *tacInstructions, VarNode **varList);
 
 bool isTemporaryVariable(const char *operand);
 
@@ -80,16 +66,10 @@ bool isVariableUsedLater(TAC *current, const char *variable);
 // Functions for float register allocation
 const char *allocateFloatRegister();
 void deallocateFloatRegister(const char *regName);
-
-// helper function
-char *computeOffset(const char *indexOperand, int elementSize);
-
-// Float register management functions
-const char *allocateFloatRegister();
-void deallocateFloatRegister(const char *regName);
 const char *getFloatRegisterForVariable(const char *variable);
 void setFloatRegisterForVariable(const char *variable, const char *regName);
 void loadFloatOperand(const char *operand, const char *reg);
 bool isVariableInFloatRegisterMap(const char *variable);
+void removeVariableFromFloatRegisterMap(const char *variable);
 
 #endif // CODE_GENERATOR_H
