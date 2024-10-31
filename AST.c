@@ -1,4 +1,5 @@
 #include "AST.h"
+#include <string.h>
 
 int indentValue = 2;
 
@@ -25,13 +26,13 @@ void traverseAST(ASTNode *node, int level)
     {
     case NodeType_Program:
         printf("Program\n");
-        traverseAST(node->program.funcDeclList, level + 1);
+        traverseAST(node->program.declList, level + 1);
         break;
 
-    case NodeType_FuncDeclList:
-        printf("FuncDeclList\n");
-        traverseAST(node->funcDeclList.funcDecl, level + 1);
-        traverseAST(node->funcDeclList.funcDeclList, level + 1);
+    case NodeType_DeclList:
+        printf("DeclList\n");
+        traverseAST(node->declList.decl, level + 1);
+        traverseAST(node->declList.next, level + 1);
         break;
 
     case NodeType_FuncDecl:
@@ -40,6 +41,10 @@ void traverseAST(ASTNode *node, int level)
         traverseAST(node->funcDecl.varDeclList, level + 1);
         traverseAST(node->funcDecl.block, level + 1);
         traverseAST(node->funcDecl.returnStmt, level + 1);
+        if (node->funcDecl.prevSymTab) 
+        {
+            printf("SymbolTable was here");
+        }
         break;
 
     case NodeType_ParamList:
@@ -53,40 +58,41 @@ void traverseAST(ASTNode *node, int level)
         break;
 
     case NodeType_FuncCall:
-        printIndent(level);
         printf("FuncCall: %s\n", node->funcCall.funcName);
-        traverseAST(node->funcCall.argList, level + 1); // Traverse arguments if any
+        traverseAST(node->funcCall.argList, level + 1);
         break;
 
     case NodeType_ArgList:
-        printIndent(level);
         printf("ArgList\n");
         traverseAST(node->argList.arg, level + 1);
         traverseAST(node->argList.argList, level + 1);
         break;
 
     case NodeType_Arg:
-        printIndent(level);
-        printf("Arg: Type = %s, ID = %s, Value = %s\n", 
-               node->arg.type ? node->arg.type : "N/A",
-               node->arg.id ? node->arg.id : "N/A",
-               node->arg.value ? node->arg.value : "N/A");
+        printf("Arg\n");
+        traverseAST(node->arg.expr, level + 1);
         break;
 
     case NodeType_VarDeclList:
-        printIndent(level);
         printf("VarDeclList\n");
         traverseAST(node->varDeclList.varDecl, level + 1);
         traverseAST(node->varDeclList.varDeclList, level + 1);
         break;
 
     case NodeType_VarDecl:
-        printIndent(level);
         printf("VarDecl: %s %s\n", node->varDecl.varType, node->varDecl.varName);
+        if (node->varDecl.initialValue)
+        {
+            printf("Initial Value:\n");
+            traverseAST(node->varDecl.initialValue, level + 1);
+        }
+        break;
+
+    case NodeType_ArrayDecl:
+        printf("ArrayDecl: %s %s[%d]\n", node->arrayDecl.varType, node->arrayDecl.varName, node->arrayDecl.size);
         break;
 
     case NodeType_SimpleExpr:
-        printIndent(level);
         if (node->simpleExpr.isFloat)
             printf("SimpleExpr (float): %f\n", node->simpleExpr.floatValue);
         else
@@ -94,82 +100,35 @@ void traverseAST(ASTNode *node, int level)
         break;
 
     case NodeType_SimpleID:
-        printIndent(level);
-        printf("SimpleID: %d", node->simpleID.name);
-        printf("%s\n", node->simpleID.name);
-        break;
-
-    case NodeType_Expr:
-        printIndent(level);
-        printf("Expr: %c\n", node->expr.operator);
-        traverseAST(node->expr.left, level + 1);
-        traverseAST(node->expr.right, level + 1);
-        break;
-
-    case NodeType_StmtList:
-        printIndent(level);
-        printf("StmtList\n");
-        traverseAST(node->stmtList.stmt, level + 1);
-        traverseAST(node->stmtList.stmtList, level + 1);
-        break;
-        
-    case NodeType_AssignStmt:
-        printIndent(level);
-        printf("Stmt: %s = \n", node->assignStmt.varName);
-        traverseAST(node->assignStmt.expr, level + 1);
+        printf("SimpleID: %s\n", node->simpleID.name);
         break;
 
     case NodeType_BinOp:
-        printIndent(level);
         printf("BinOp: %c\n", node->binOp.operator);
         traverseAST(node->binOp.left, level + 1);
         traverseAST(node->binOp.right, level + 1);
         break;
 
+    case NodeType_CastExpr:
+        printf("CastExpr to %s\n", node->castExpr.type);
+        traverseAST(node->castExpr.expr, level + 1);
+        break;
+
     case NodeType_LogicalOp:
-        printIndent(level);
         printf("LogicalOp: %s\n", node->logicalOp.logicalOp);
         traverseAST(node->logicalOp.left, level + 1);
         traverseAST(node->logicalOp.right, level + 1);
         break;
 
-    case NodeType_WriteStmt:
-        printIndent(level);
-        printf("Write statment\n");
-        traverseAST(node->writeStmt.expr, level + 1);
+    case NodeType_StmtList:
+        printf("StmtList\n");
+        traverseAST(node->stmtList.stmt, level + 1);
+        traverseAST(node->stmtList.stmtList, level + 1);
         break;
 
-    case NodeType_IfStmt:
-        printIndent(level);
-        printf("If Statement\n");
-        traverseAST(node->ifStmt.condition, level + 1);
-        traverseAST(node->ifStmt.thenBlock, level + 1);
-        if (node->ifStmt.elseBlock)
-        {
-            traverseAST(node->ifStmt.elseBlock, level + 1);
-        }
-        break;
-
-    case NodeType_WhileStmt:
-        printIndent(level);
-        printf("While Statement\n");
-        traverseAST(node->whileStmt.condition, level + 1);
-        traverseAST(node->whileStmt.block, level + 1);
-        break;
-
-    case NodeType_Block:
-        printIndent(level);
-        printf("Block\n");
-        traverseAST(node->block.stmtList, level + 1);
-        break;
-
-    case NodeType_ReturnStmt:
-        printf("Return Statement\n");
-        traverseAST(node->returnStmt.expr, level + 1); // Traverse the expression to be returned
-        break;
-
-    case NodeType_ArrayDecl:
-        printf("ArrayDecl: %s %s[%d]\n", node->arrayDecl.varType, node->arrayDecl.varName, node->arrayDecl.size);
+    case NodeType_AssignStmt:
+        printf("AssignStmt: %s %s \n", node->assignStmt.varName, node->assignStmt.operator);
+        traverseAST(node->assignStmt.expr, level + 1);
         break;
 
     case NodeType_ArrayAssign:
@@ -182,6 +141,42 @@ void traverseAST(ASTNode *node, int level)
         printf("ArrayAccess: %s[...]\n", node->arrayAccess.arrayName);
         traverseAST(node->arrayAccess.index, level + 1);
         break;
+
+    case NodeType_Block:
+        printf("Block\n");
+        traverseAST(node->block.stmtList, level + 1);
+        break;
+
+    case NodeType_ReturnStmt:
+        printf("Return Statement\n");
+        traverseAST(node->returnStmt.expr, level + 1);
+        break;
+
+    case NodeType_WriteStmt:
+        printf("Write Statement\n");
+        traverseAST(node->writeStmt.expr, level + 1);
+        break;
+
+    case NodeType_IfStmt:
+        printf("If Statement\n");
+        traverseAST(node->ifStmt.condition, level + 1);
+        traverseAST(node->ifStmt.thenBlock, level + 1);
+        if (node->ifStmt.elseBlock)
+        {
+            printf("Else Block:\n");
+            traverseAST(node->ifStmt.elseBlock, level + 1);
+        }
+        break;
+
+    case NodeType_WhileStmt:
+        printf("While Statement\n");
+        traverseAST(node->whileStmt.condition, level + 1);
+        traverseAST(node->whileStmt.block, level + 1);
+        break;
+
+    default:
+        printf("Unknown node type: %d\n", node->type);
+        break;
     }
 }
 
@@ -193,12 +188,12 @@ void freeAST(ASTNode *node)
     switch (node->type)
     {
     case NodeType_Program:
-        freeAST(node->program.funcDeclList);
+        freeAST(node->program.declList);
         break;
 
-    case NodeType_FuncDeclList:
-        freeAST(node->funcDeclList.funcDecl);
-        freeAST(node->funcDeclList.funcDeclList);
+    case NodeType_DeclList:
+        freeAST(node->declList.decl);
+        freeAST(node->declList.next);
         break;
 
     case NodeType_FuncDecl:
@@ -221,19 +216,17 @@ void freeAST(ASTNode *node)
         break;
 
     case NodeType_FuncCall:
-        free(node->funcCall.funcName);       // Free the function name
-        freeAST(node->funcCall.argList);     // Free the arguments list
+        free(node->funcCall.funcName);
+        freeAST(node->funcCall.argList);
         break;
 
     case NodeType_ArgList:
-        freeAST(node->argList.arg); // Free the individual argument
-        freeAST(node->argList.argList); // Free the next argument in list
+        freeAST(node->argList.arg);
+        freeAST(node->argList.argList);
         break;
 
     case NodeType_Arg:
-        free(node->arg.type);
-        free(node->arg.id);
-        free(node->arg.value);
+        freeAST(node->arg.expr);
         break;
 
     case NodeType_VarDeclList:
@@ -242,8 +235,14 @@ void freeAST(ASTNode *node)
         break;
 
     case NodeType_VarDecl:
-        free(node->varDecl.varType); // Free the dynamically allocated string
-        free(node->varDecl.varName); // Free the dynamically allocated string
+        free(node->varDecl.varType);
+        free(node->varDecl.varName);
+        freeAST(node->varDecl.initialValue);
+        break;
+
+    case NodeType_ArrayDecl:
+        free(node->arrayDecl.varType);
+        free(node->arrayDecl.varName);
         break;
 
     case NodeType_SimpleExpr:
@@ -251,12 +250,23 @@ void freeAST(ASTNode *node)
         break;
 
     case NodeType_SimpleID:
-        free(node->simpleID.name); // Free the dynamically allocated string
+        free(node->simpleID.name);
         break;
 
-    case NodeType_Expr:
-        freeAST(node->expr.left);
-        freeAST(node->expr.right);
+    case NodeType_BinOp:
+        freeAST(node->binOp.left);
+        freeAST(node->binOp.right);
+        break;
+
+    case NodeType_CastExpr:
+        free(node->castExpr.type);
+        freeAST(node->castExpr.expr);
+        break;
+
+    case NodeType_LogicalOp:
+        free(node->logicalOp.logicalOp);
+        freeAST(node->logicalOp.left);
+        freeAST(node->logicalOp.right);
         break;
 
     case NodeType_StmtList:
@@ -265,20 +275,28 @@ void freeAST(ASTNode *node)
         break;
 
     case NodeType_AssignStmt:
-        free(node->assignStmt.varName);  // Free the dynamically allocated string
-        free(node->assignStmt.operator); // Free the dynamically allocated string
+        free(node->assignStmt.operator);
+        free(node->assignStmt.varName);
         freeAST(node->assignStmt.expr);
         break;
 
-    case NodeType_BinOp:
-        freeAST(node->binOp.left);
-        freeAST(node->binOp.right);
+    case NodeType_ArrayAssign:
+        free(node->arrayAssign.arrayName);
+        freeAST(node->arrayAssign.index);
+        freeAST(node->arrayAssign.expr);
         break;
 
-    case NodeType_LogicalOp:
-        free(node->logicalOp.logicalOp); // Free the dynamically allocated string
-        freeAST(node->logicalOp.left);
-        freeAST(node->logicalOp.right);
+    case NodeType_ArrayAccess:
+        free(node->arrayAccess.arrayName);
+        freeAST(node->arrayAccess.index);
+        break;
+
+    case NodeType_Block:
+        freeAST(node->block.stmtList);
+        break;
+
+    case NodeType_ReturnStmt:
+        freeAST(node->returnStmt.expr);
         break;
 
     case NodeType_WriteStmt:
@@ -296,32 +314,12 @@ void freeAST(ASTNode *node)
         freeAST(node->whileStmt.block);
         break;
 
-    case NodeType_Block:
-        freeAST(node->block.stmtList);
-        break;
-
-    case NodeType_ReturnStmt:
-        freeAST(node->returnStmt.expr); // Free the return expression
-        break;
-
-    case NodeType_ArrayDecl:
-        free(node->arrayDecl.varType);
-        free(node->arrayDecl.varName);
-        break;
-
-    case NodeType_ArrayAssign:
-        free(node->arrayAssign.arrayName);
-        freeAST(node->arrayAssign.index);
-        freeAST(node->arrayAssign.expr);
-        break;
-
-    case NodeType_ArrayAccess:
-        free(node->arrayAccess.arrayName);
-        freeAST(node->arrayAccess.index);
+    default:
+        printf("Unknown node type: %d\n", node->type);
         break;
     }
 
-    free(node); // Free the current node itself
+    free(node);
 }
 
 ASTNode *createNode(NodeType type)
@@ -329,28 +327,24 @@ ASTNode *createNode(NodeType type)
     ASTNode *newNode = (ASTNode *)malloc(sizeof(ASTNode));
     if (newNode == NULL)
     {
-        // Handle memory allocation failure if needed
         printf("Memory allocation failed for AST node\n");
         exit(1);
-        // return NULL;
     }
 
     newNode->type = type;
-    newNode->dataType = NULL; // Initialize dataType to NULL
+    newNode->dataType = NULL;
 
-    // debugging: log the node creation
-    // printf("Created AST node of type %d\n", type);
-
-    // Initialize the node based on its type
     switch (type)
     {
     case NodeType_Program:
-        newNode->program.funcDeclList = NULL;
+        newNode->program.declList = NULL;
         break;
-    case NodeType_FuncDeclList:
-        newNode->funcDeclList.funcDecl = NULL;
-        newNode->funcDeclList.funcDeclList = NULL;
+
+    case NodeType_DeclList:
+        newNode->declList.decl = NULL;
+        newNode->declList.next = NULL;
         break;
+
     case NodeType_FuncDecl:
         newNode->funcDecl.returnType = NULL;
         newNode->funcDecl.funcName = NULL;
@@ -359,99 +353,126 @@ ASTNode *createNode(NodeType type)
         newNode->funcDecl.block = NULL;
         newNode->funcDecl.returnStmt = NULL;
         break;
+
     case NodeType_ParamList:
         newNode->paramList.param = NULL;
         newNode->paramList.nextParam = NULL;
         break;
+
     case NodeType_Param:
         newNode->param.paramType = NULL;
         newNode->param.paramName = NULL;
         break;
+
     case NodeType_FuncCall:
-        newNode->funcCall.funcName = NULL;  // Initialize to NULL
+        newNode->funcCall.funcName = NULL;
         newNode->funcCall.argList = NULL;
         break;
+
     case NodeType_ArgList:
-        newNode->argList.arg = NULL;    // Initialize the first argument to NULL
-        newNode->argList.argList = NULL; // Initialize the next argument to NULL
+        newNode->argList.arg = NULL;
+        newNode->argList.argList = NULL;
         break;
+
     case NodeType_Arg:
-        newNode->arg.type = NULL;
-        newNode->arg.id = NULL;
-        newNode->arg.value = NULL;
+        newNode->arg.expr = NULL;
         break;
+
     case NodeType_VarDeclList:
         newNode->varDeclList.varDecl = NULL;
         newNode->varDeclList.varDeclList = NULL;
         break;
+
     case NodeType_VarDecl:
         newNode->varDecl.varType = NULL;
         newNode->varDecl.varName = NULL;
+        newNode->varDecl.initialValue = NULL;
+        newNode->varDecl.isFloat = false;
         break;
+
+    case NodeType_ArrayDecl:
+        newNode->arrayDecl.varType = NULL;
+        newNode->arrayDecl.varName = NULL;
+        newNode->arrayDecl.size = 0;
+        newNode->arrayDecl.isFloat = false;
+        break;
+
     case NodeType_SimpleExpr:
         newNode->simpleExpr.number = 0;
         newNode->simpleExpr.floatValue = 0.0;
         newNode->simpleExpr.isFloat = false;
         break;
+
     case NodeType_SimpleID:
         newNode->simpleID.name = NULL;
         break;
-    case NodeType_Expr:
-        newNode->expr.operator= '\0'; // Placeholder value
-        newNode->expr.left = NULL;
-        newNode->expr.right = NULL;
-        break;
-    case NodeType_StmtList:
-        newNode->stmtList.stmt = NULL; // Example initialization
-        newNode->stmtList.stmtList = NULL;
-        break;
-    case NodeType_AssignStmt:
-        newNode->assignStmt.operator= NULL; // Example initialization
-        newNode->assignStmt.varName = NULL;
-        newNode->assignStmt.expr = NULL;
-        break;
+
     case NodeType_BinOp:
-        newNode->binOp.operator= '\0'; // Placeholder value
+        newNode->binOp.operator = '\0';
         newNode->binOp.left = NULL;
         newNode->binOp.right = NULL;
         break;
+
+    case NodeType_CastExpr:
+        newNode->castExpr.type = NULL;
+        newNode->castExpr.expr = NULL;
+        break;
+
     case NodeType_LogicalOp:
         newNode->logicalOp.logicalOp = NULL;
         newNode->logicalOp.left = NULL;
         newNode->logicalOp.right = NULL;
         break;
-    case NodeType_WriteStmt:
-        newNode->writeStmt.expr = NULL;
+
+    case NodeType_StmtList:
+        newNode->stmtList.stmt = NULL;
+        newNode->stmtList.stmtList = NULL;
         break;
-    case NodeType_IfStmt:
-        newNode->ifStmt.condition = NULL;
-        newNode->ifStmt.thenBlock = NULL;
-        newNode->ifStmt.elseBlock = NULL;
+
+    case NodeType_AssignStmt:
+        newNode->assignStmt.operator = NULL;
+        newNode->assignStmt.varName = NULL;
+        newNode->assignStmt.expr = NULL;
         break;
-    case NodeType_WhileStmt:
-        newNode->whileStmt.condition = NULL;
-        newNode->whileStmt.block = NULL;
-        break;
-    case NodeType_Block:
-        newNode->block.stmtList = NULL;
-        break;
-    case NodeType_ReturnStmt:
-        newNode->returnStmt.expr = NULL; // Initialize expression to return
-        break;
-    case NodeType_ArrayDecl:
-        newNode->arrayDecl.varType = NULL;
-        newNode->arrayDecl.varName = NULL;
-        newNode->arrayDecl.size = 0;
-        break;
+
     case NodeType_ArrayAssign:
         newNode->arrayAssign.arrayName = NULL;
         newNode->arrayAssign.index = NULL;
         newNode->arrayAssign.expr = NULL;
         break;
+
     case NodeType_ArrayAccess:
         newNode->arrayAccess.arrayName = NULL;
         newNode->arrayAccess.index = NULL;
         break;
+
+    case NodeType_Block:
+        newNode->block.stmtList = NULL;
+        break;
+
+    case NodeType_ReturnStmt:
+        newNode->returnStmt.expr = NULL;
+        break;
+
+    case NodeType_WriteStmt:
+        newNode->writeStmt.expr = NULL;
+        break;
+
+    case NodeType_IfStmt:
+        newNode->ifStmt.condition = NULL;
+        newNode->ifStmt.thenBlock = NULL;
+        newNode->ifStmt.elseBlock = NULL;
+        break;
+
+    case NodeType_WhileStmt:
+        newNode->whileStmt.condition = NULL;
+        newNode->whileStmt.block = NULL;
+        break;
+
+    default:
+        printf("Unknown node type: %d\n", type);
+        break;
     }
+
     return newNode;
 }

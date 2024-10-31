@@ -7,7 +7,6 @@
 #include "temp.h"
 
 // Define a structure for TAC instructions
-
 typedef struct TAC
 {
     char *op;         // Operator
@@ -21,11 +20,11 @@ extern int tempVars[50];
 extern TAC *tacHead; // Global head of the TAC instructions list
 
 void semanticAnalysis(ASTNode *node, SymbolTable *symTab);
-char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab); // returns the TAC for the expression to print on console
+char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab);
 void generateTACForFunction(ASTNode *funcNode, SymbolTable *symTab);
-char *createTempVar();
-char *createOperand(ASTNode *node, SymbolTable *symTab);
+char *createTempVar(SymbolTable *symTab);
 void appendTAC(TAC **head, TAC *newInstruction);
 void freeTACList(TAC *head);
+char *createLabel();
 
 #endif // SEMANTIC_H

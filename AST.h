@@ -1,17 +1,17 @@
 #ifndef AST_H
 #define AST_H
 
-// Include standard libraries as needed, e.g., stdlib
-// for memory management functions
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
 
-// NodeType enum to differentiate between different
-// kinds of AST nodes
+struct SymbolTable;
+
+// NodeType enum to differentiate between different kinds of AST nodes
 typedef enum
 {
     NodeType_Program,
+    NodeType_DeclList,
     NodeType_FuncDeclList,
     NodeType_FuncDecl,
     NodeType_ParamList,
@@ -35,7 +35,9 @@ typedef enum
     NodeType_IfStmt,
     NodeType_WhileStmt,
     NodeType_LogicalOp,
-    NodeType_Expr
+    NodeType_CastExpr,
+    NodeType_RelOp,
+    NodeType_NotOp
 } NodeType;
 
 // Structure for AST nodes
@@ -47,41 +49,42 @@ typedef struct ASTNode
     {
         struct
         {
-            struct ASTNode *funcDeclList;
+            struct ASTNode *declList;
         } program;
-        
-        struct
-        {
-            struct ASTNode *funcDecl;
-            struct ASTNode *funcDeclList; // Points to the next function in the list
-        } funcDeclList;
 
         struct
         {
-            char *returnType;            // Function return type, e.g., "int", "float"
-            char *funcName;              // Function name
-            struct ASTNode *paramList;   // Parameters of the function
-            struct ASTNode *varDeclList; // Variable declarations within the function
-            struct ASTNode *block;       // Function body (statements)
+            struct ASTNode *decl;
+            struct ASTNode *next;
+        } declList;
+
+        struct
+        {
+            char *returnType;
+            char *funcName;
+            struct ASTNode *paramList;
+            struct ASTNode *varDeclList;
+            struct ASTNode *block;
             struct ASTNode *returnStmt;
+            struct SymbolTable *prevSymTab;
         } funcDecl;
 
         struct
         {
-            char *paramType;            // Type of the parameter, e.g., "int", "float"
-            char *paramName;            // Name of the parameter
-        } param;
-
-        struct
-        {
-            struct ASTNode *param;      // First parameter in the list
-            struct ASTNode *nextParam;  // Next parameter in the list (recursively structured)
+            struct ASTNode *param;
+            struct ASTNode *nextParam;
         } paramList;
 
         struct
         {
-            char *funcName;           // Name of the function being called
-            struct ASTNode *argList;  // List of arguments for the function call
+            char *paramType;
+            char *paramName;
+        } param;
+
+        struct
+        {
+            char *funcName;
+            struct ASTNode *argList;
         } funcCall;
 
         struct
@@ -92,9 +95,7 @@ typedef struct ASTNode
 
         struct
         {
-            char *type;              // Type of the argument
-            char *id;                // Identifier for variable arguments
-            char *value;             // Value for literal rguments
+            struct ASTNode *expr;
         } arg;
 
         struct
@@ -108,7 +109,16 @@ typedef struct ASTNode
             char *varType;
             char *varName;
             bool isFloat;
+            struct ASTNode *initialValue; // For variable initialization
         } varDecl;
+
+        struct
+        {
+            char *varType;
+            char *varName;
+            int size;
+            bool isFloat;
+        } arrayDecl;
 
         struct
         {
@@ -124,29 +134,6 @@ typedef struct ASTNode
 
         struct
         {
-            // Expression-specific fields
-            char operator;         // Example for an operator field
-            struct ASTNode *left;  // Left operand
-            struct ASTNode *right; // Right operand
-        } expr;
-
-        struct
-        {
-            // StatementList-specific fields
-            struct ASTNode *stmt;
-            struct ASTNode *stmtList;
-            // Example for linking statements in a list
-        } stmtList;
-
-        struct
-        {
-            char *operator; // e.g., '='
-            char *varName;
-            struct ASTNode *expr;
-        } assignStmt;
-
-        struct
-        {
             char operator;
             struct ASTNode *left;
             struct ASTNode *right;
@@ -154,59 +141,83 @@ typedef struct ASTNode
 
         struct
         {
-            char *logicalOp;
+            char *type; // Type to cast to
+            struct ASTNode *expr;
+        } castExpr;
+
+        struct
+        {
+            char *logicalOp; // e.g., "&&", "||"
             struct ASTNode *left;
             struct ASTNode *right;
-        } logicalOp; // Logical operation
+        } logicalOp;
+
+        struct
+        {
+            struct ASTNode *stmt;
+            struct ASTNode *stmtList;
+        } stmtList;
+
+        struct
+        {
+            char *operator;
+            char *varName;
+            struct ASTNode *expr;
+        } assignStmt;
+
+        struct
+        {
+            char *arrayName;
+            struct ASTNode *index;
+            struct ASTNode *expr;
+        } arrayAssign;
+
+        struct
+        {
+            char *arrayName;
+            struct ASTNode *index;
+        } arrayAccess;
 
         struct
         {
             struct ASTNode *stmtList;
-        } block; // Block
+        } block;
 
         struct
         {
-            struct ASTNode *expr; // Expression to return
+            struct ASTNode *expr;
         } returnStmt;
 
         struct
         {
             struct ASTNode *expr;
-        } writeStmt; // WRITE statement
+        } writeStmt;
 
         struct
         {
             struct ASTNode *condition;
             struct ASTNode *thenBlock;
-            struct ASTNode *elseBlock;
-        } ifStmt; // IF-ELSE statement
+            struct ASTNode *elseBlock; // Can be NULL, Block node, or IfStmt node
+        } ifStmt;
 
         struct
         {
             struct ASTNode *condition;
             struct ASTNode *block;
-        } whileStmt; // WHILE statement
+        } whileStmt;
 
         struct
         {
-            char *varType;
-            char *varName;
-            int size;
-            bool isFloat;
-        } arrayDecl; // Array declaration
+            char *operator; // e.g., "==", "<", ">"
+            struct ASTNode *left;
+            struct ASTNode *right;
+        } relOp;
 
         struct
         {
-            char *arrayName;
-            struct ASTNode *index;
             struct ASTNode *expr;
-        } arrayAssign; // Array assignment
+        } notOp;
 
-        struct
-        {
-            char *arrayName;
-            struct ASTNode *index;
-        } arrayAccess; // Array access
     };
 } ASTNode;
 
