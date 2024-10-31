@@ -311,6 +311,11 @@ void loadOperand(const char *operand, const char *registerName)
             fprintf(outputFile, "\tmov.s %s, %s\n", registerName, reg);
         }
     }
+    else if (isTemporaryVariable(operand))
+    {
+        fprintf(stderr, "Error: Temporary variable %s not in register map\n", operand);
+        exit(1);
+    }
     else
     {
         if (registerName[0] == '$' && registerName[1] == 'f')
@@ -408,9 +413,7 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
     for (int i = 0; i < symbolCount; i++)
     {
         Symbol *symbol = symbolList[i];
-
-        // Skip function symbols
-        if (symbol->isFunction)
+        if (symbol->isFunction || isTemporaryVariable(symbol->name))
         {
             continue;
         }
@@ -570,7 +573,7 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
     processTACList(otherFunctionsTAC, symTab);
 
     // Free symbolList after use
-    free(symbolList);
+    // free(symbolList);
 
     // Clean up TAC lists if necessary
     // (Assuming you have a function to free TAC lists)
@@ -958,12 +961,15 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
     {
         // Floating point move operation
         fprintf(outputFile, "# Generating MIPS code for floating point move\n");
+
         const char *srcReg = getFloatRegisterForVariable(current->arg1);
         if (!srcReg)
         {
             srcReg = allocateFloatRegister();
             setFloatRegisterForVariable(current->arg1, srcReg);
-            loadFloatOperand(current->arg1, srcReg);
+
+            // Load the float value from memory using the label (e.g., floatA)
+            fprintf(outputFile, "\tl.s %s, %s\n", srcReg, current->result); // Use label instead of immediate value
         }
 
         const char *destReg = getFloatRegisterForVariable(current->result);
@@ -973,6 +979,7 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
             setFloatRegisterForVariable(current->result, destReg);
         }
 
+        // Move the floating-point value from srcReg to destReg
         fprintf(outputFile, "\tmov.s %s, %s\n", destReg, srcReg);
     }
     else
@@ -985,14 +992,16 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
     for (int i = 0; i < 3; i++)
     {
         const char *var = variablesToCheck[i];
+
+        // Deallocate integer registers
         if (var != NULL && isVariableInRegisterMap(var))
         {
             if (!isVariableUsedLater(current, var))
             {
                 const char *regName = getRegisterForVariable(var);
-                // Store the variable back to memory if it's a user-defined variable or a temporary variable
-                if (findSymbol(symTab, var) || isTemporaryVariable(var))
+                if (findSymbol(symTab, var))
                 {
+                    // Only store user-defined variables back to memory
                     fprintf(outputFile, "# Storing variable %s back to memory\n", var);
                     fprintf(outputFile, "\tsw %s, %s\n", regName, var);
                 }
@@ -1000,14 +1009,16 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
                 removeVariableFromRegisterMap(var);
             }
         }
+
+        // Deallocate float registers
         if (var != NULL && isVariableInFloatRegisterMap(var))
         {
             if (!isVariableUsedLater(current, var))
             {
                 const char *regName = getFloatRegisterForVariable(var);
-                // Store the variable back to memory if it's a user-defined variable or a temporary variable
-                if (findSymbol(symTab, var) || isTemporaryVariable(var))
+                if (findSymbol(symTab, var))
                 {
+                    // Only store user-defined float variables back to memory
                     fprintf(outputFile, "# Storing float variable %s back to memory\n", var);
                     fprintf(outputFile, "\ts.s %s, %s\n", regName, var);
                 }

@@ -76,6 +76,12 @@ ws           {delim}+
 		return VOID;
 		}
 
+"return" {words++; chars += strlen(yytext);
+		printf("%s : RETURN\n", yytext);
+		yylval.string = strdup(yytext);
+		return RETURN;
+		}
+
 "write"	{words++; 
 		chars += strlen(yytext);
 		printf("%s : WRITE\n", yytext);

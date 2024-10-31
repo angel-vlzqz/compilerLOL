@@ -43,23 +43,36 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         // Insert the function into the symbol table in the global scope
         insertSymbol(symTab, node->funcDecl.funcName, node->funcDecl.returnType, false, true, NULL);
 
+        // Retrieve the symbol we just inserted
+        Symbol *functionSymbol = findSymbol(symTab, node->funcDecl.funcName);
+
+        // Set the parameter list of the function symbol
+        setSymbolParamList(functionSymbol, node->funcDecl.paramList);
+
         // Create a new symbol table for the function's local scope, linked to the parent symTab
         SymbolTable *functionScope = createSymbolTable(TABLE_SIZE, symTab);
 
-        // Assign a unique scope ID to functionScope using the GlobalScope counter
+        // Assign a unique scope ID to functionScope
         functionScope->scope = GlobalScope++;
 
         // Add function parameters to the new scope
         ASTNode *paramNode = node->funcDecl.paramList;
         while (paramNode != NULL)
         {
-            if (findSymbol(functionScope, paramNode->param.paramName) != NULL)
+            ASTNode *param = paramNode->paramList.param; // Get the parameter node
+            if (param == NULL)
+                break;
+
+            if (findSymbol(functionScope, param->param.paramName) != NULL)
             {
                 fprintf(stderr, "Semantic error: Parameter %s is already declared in function %s\n",
-                        paramNode->param.paramName, node->funcDecl.funcName);
+                        param->param.paramName, node->funcDecl.funcName);
                 exit(1);
             }
-            insertSymbol(functionScope, paramNode->param.paramName, paramNode->param.paramType, false, false, NULL);
+
+            // Insert parameter into the function's symbol table
+            insertSymbol(functionScope, param->param.paramName, param->param.paramType, false, false, NULL);
+
             paramNode = paramNode->paramList.nextParam;
         }
 
@@ -72,7 +85,6 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         generateTACForExpr(node, functionScope);
         break;
     }
-
     case NodeType_FuncCall:
     {
         // Check if the function is declared
@@ -83,19 +95,87 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
             exit(1);
         }
 
-        // Ensure the function is of type void if expected
-        if (strcmp(functionSymbol->type, "void") != 0)
+        // Retrieve the function's parameter list
+        ASTNode *paramNode = functionSymbol->paramList;
+        ASTNode *argNode = node->funcCall.argList;
+
+        // Count parameters and arguments
+        int paramCount = 0, argCount = 0;
+        ASTNode *tmpNode = paramNode;
+        while (tmpNode != NULL)
         {
-            fprintf(stderr, "Semantic error: Function %s is expected to return void but does not\n", node->funcCall.funcName);
+            paramCount++;
+            tmpNode = tmpNode->paramList.nextParam;
+        }
+        tmpNode = argNode;
+        while (tmpNode != NULL)
+        {
+            argCount++;
+            tmpNode = tmpNode->argList.argList;
+        }
+        if (paramCount != argCount)
+        {
+            fprintf(stderr, "Semantic error: Function %s expects %d arguments but %d were provided\n",
+                    node->funcCall.funcName, paramCount, argCount);
             exit(1);
         }
 
-        // Additional checks can go here, such as parameter matching
-        // if needed later
+        // Traverse parameters and arguments in parallel
+        ASTNode *currParamNode = paramNode;
+        ASTNode *currArgNode = argNode;
+        while (currParamNode != NULL && currArgNode != NULL)
+        {
+            ASTNode *currParam = currParamNode->paramList.param; // NodeType_Param
+            ASTNode *currArg = currArgNode->argList.arg;         // NodeType_Arg
+
+            // Perform semantic analysis on the argument expression
+            semanticAnalysis(currArg, symTab);
+
+            // Check that the argument type matches the parameter type
+            char *argType = currArg->dataType;
+            char *paramType = currParam->param.paramType;
+
+            if (strcmp(argType, paramType) != 0)
+            {
+                fprintf(stderr, "Semantic error: Argument type %s does not match parameter type %s in function %s\n",
+                        argType, paramType, node->funcCall.funcName);
+                exit(1);
+            }
+
+            currParamNode = currParamNode->paramList.nextParam;
+            currArgNode = currArgNode->argList.argList;
+        }
+
         // Generate TAC for the function call
         generateTACForExpr(node, symTab);
+        break;
     }
-    break;
+
+    case NodeType_Arg:
+    {
+        if (node->arg.id != NULL)
+        {
+            // It's an identifier
+            Symbol *symbol = findSymbol(symTab, node->arg.id);
+            if (symbol == NULL)
+            {
+                fprintf(stderr, "Semantic error: Variable %s not declared\n", node->arg.id);
+                exit(1);
+            }
+            node->dataType = strdup(symbol->type);
+        }
+        else if (node->arg.value != NULL)
+        {
+            // It's a literal value
+            node->dataType = strdup(node->arg.type); // Assuming 'type' is set for literals
+        }
+        else
+        {
+            fprintf(stderr, "Semantic error: Invalid argument\n");
+            exit(1);
+        }
+        break;
+    }
 
     case NodeType_VarDeclList:
         semanticAnalysis(node->varDeclList.varDecl, symTab);
@@ -338,16 +418,70 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
     case NodeType_FuncCall:
     {
-        // Generate TAC for a function call
+        // Collect arguments into a list
+        ASTNode **args = NULL;
+        int argCount = 0;
+        int argCapacity = 0;
+
+        ASTNode *argNode = expr->funcCall.argList;
+        while (argNode != NULL)
+        {
+            // Expand array if needed
+            if (argCount >= argCapacity)
+            {
+                argCapacity = argCapacity == 0 ? 4 : argCapacity * 2;
+                args = realloc(args, argCapacity * sizeof(ASTNode *));
+            }
+            args[argCount++] = argNode->argList.arg;
+            argNode = argNode->argList.argList;
+        }
+
+        // Process arguments from left to right
+        for (int i = 0; i < argCount; i++)
+        {
+            char *argResult = generateTACForExpr(args[i], symTab);
+
+            // Generate TAC instruction to pass argument
+            TAC *paramTAC = (TAC *)malloc(sizeof(TAC));
+            paramTAC->op = strdup("param");
+            paramTAC->arg1 = strdup(argResult);
+            paramTAC->arg2 = NULL;
+            paramTAC->result = NULL;
+            paramTAC->next = NULL;
+            appendTAC(&tacHead, paramTAC);
+        }
+
+        free(args);
+
+        // Generate TAC for the function call
         TAC *callTAC = (TAC *)malloc(sizeof(TAC));
         callTAC->op = strdup("call");
-        callTAC->arg1 = strdup(expr->funcCall.funcName);  // Function name
-        callTAC->arg2 = NULL;                             // No arguments in this case
-        callTAC->result = NULL;                           // No result for void functions
+        callTAC->arg1 = strdup(expr->funcCall.funcName);
+        callTAC->arg2 = NULL;
+        callTAC->result = NULL;
         callTAC->next = NULL;
-
         appendTAC(&tacHead, callTAC);
+
         break;
+    }
+
+    case NodeType_Arg:
+    {
+        if (expr->arg.id != NULL)
+        {
+            // It's an identifier
+            return strdup(expr->arg.id);
+        }
+        else if (expr->arg.value != NULL)
+        {
+            // It's a literal value
+            return strdup(expr->arg.value);
+        }
+        else
+        {
+            fprintf(stderr, "Error: Invalid argument\n");
+            return NULL;
+        }
     }
 
     case NodeType_AssignStmt:
@@ -614,13 +748,16 @@ void generateTACForFunction(ASTNode *funcNode, SymbolTable *symTab)
     appendTAC(&tacHead, prologueTAC);
 
     // Analyze and generate TAC for function body within the new scope
-    if (funcNode->funcDecl.varDeclList) {
+    if (funcNode->funcDecl.varDeclList)
+    {
         semanticAnalysis(funcNode->funcDecl.varDeclList, symTab);
     }
-    if (funcNode->funcDecl.block) {
+    if (funcNode->funcDecl.block)
+    {
         semanticAnalysis(funcNode->funcDecl.block, symTab);
     }
-    if (funcNode->funcDecl.returnStmt) {
+    if (funcNode->funcDecl.returnStmt)
+    {
         semanticAnalysis(funcNode->funcDecl.returnStmt, symTab);
     }
 

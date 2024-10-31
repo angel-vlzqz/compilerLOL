@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include "Array.h"
+#include "AST.h"
 
 typedef struct Symbol
 {
@@ -14,6 +15,7 @@ typedef struct Symbol
     bool isArray;
     bool isFunction;
     Array *arrayInfo;
+    ASTNode *paramList;
     struct Symbol *next;
 } Symbol;
 
@@ -42,6 +44,7 @@ void updateSymbolValue(SymbolTable *symbolTable, const char *name, const char *v
 const char *getSymbolValue(SymbolTable *symbolTable, const char *name);
 SymbolTable *getSymbolTableAtDepth(SymbolTable *symTab, int scope);
 void collectAllSymbols(SymbolTable *symTab, Symbol ***symbolList, int *symbolCount, int *symbolCapacity);
+void setSymbolParamList(Symbol *symbol, ASTNode *paramList);
 /*
 Four score and seven years ago our fathers brought forth on this continent, a new nation, conceived in Liberty, and dedicated to the proposition
 that all men are created equal.

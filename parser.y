@@ -104,7 +104,7 @@ FuncDecl:
     ;
 
 MainFuncDecl:
-    TYPE MAIN '(' ')' '{' VarDeclList Block '}' 
+    TYPE MAIN '(' ')' '{' VarDeclList Block ReturnStmt '}' 
     {
         // Create function node for main
         printf("Parsed Main Function Declaration\n");
@@ -114,6 +114,7 @@ MainFuncDecl:
         $$->funcDecl.paramList = NULL;             // Main has no parameters
         $$->funcDecl.varDeclList = $6;             // VarDeclList is at position 6
         $$->funcDecl.block = $7;                   // Block is at position 7
+        $$->funcDecl.returnStmt = $8;
     }
     ;
 
@@ -128,19 +129,11 @@ ParamList:
     | ParamList ',' TYPE ID 
     {
         printf("Parsed multiple parameters\n");
-        ASTNode* newParamList = createNode(NodeType_ParamList);
-        newParamList->paramList.param = createNode(NodeType_Param);
-        newParamList->paramList.param->param.paramType = strdup($3);
-        newParamList->paramList.param->param.paramName = strdup($4);
-        newParamList->paramList.nextParam = NULL;
-
-        // Link new parameter list node to existing list
-        ASTNode* current = $1;
-        while (current->paramList.nextParam) {
-            current = current->paramList.nextParam;
-        }
-        current->paramList.nextParam = newParamList;
-        $$ = $1;
+        $$ = createNode(NodeType_ParamList);
+        $$->paramList.param = createNode(NodeType_Param);
+        $$->paramList.nextParam = $1;
+        $$->paramList.param->param.paramType = strdup($3);
+        $$->paramList.param->param.paramName = strdup($4);
     }
     | /* empty */ 
     {
@@ -236,13 +229,16 @@ VarDecl:
         $$->varDecl.varName = strdup($2);
 
         if (strcmp($1, "float") == 0) {
+            printf("Parsed float variable Decl\n");
             $$->varDecl.isFloat = true;  // Add a flag to indicate float
         } else {
+            printf("Parsed variable Decl\n");
             $$->varDecl.isFloat = false;
         }
     }
     | TYPE ID '[' NUMBER ']' SEMICOLON
     {
+        printf("Parsed Array Decl\n");
         $$ = createNode(NodeType_ArrayDecl);
         $$->arrayDecl.varType = strdup($1);
         $$->arrayDecl.varName = strdup($2);

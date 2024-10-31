@@ -57,6 +57,7 @@ Symbol *createSymbol(const char *name, const char *type, int index, bool isArray
     newSymbol->value = NULL;
     newSymbol->isArray = isArray;
     newSymbol->isFunction = isFunction; // Set the isFunction flag
+    newSymbol->paramList = NULL;
     newSymbol->arrayInfo = arrayInfo;
     newSymbol->next = NULL;
     return newSymbol;
@@ -324,4 +325,21 @@ void freeAllSymbolTables(SymbolTable *symbolTable)
 
     // Free the current symbol table
     freeSymbolTable(symbolTable);
+}
+
+void setSymbolParamList(Symbol *symbol, ASTNode *paramList)
+{
+    if (symbol == NULL)
+    {
+        fprintf(stderr, "Error: Attempted to set paramList on a NULL symbol.\n");
+        return;
+    }
+
+    if (!symbol->isFunction)
+    {
+        fprintf(stderr, "Error: Symbol %s is not a function and cannot have parameters.\n", symbol->name);
+        return;
+    }
+
+    symbol->paramList = paramList;
 }

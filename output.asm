@@ -37,6 +37,7 @@ main:
 	li $t4, 90
 	move $t6, $t4
 # Generating MIPS code for floating point move
+	l.s $f0, floatA
 	mov.s $f2, $f0
 # Generating MIPS code for array assignment
 	la $t8, z
