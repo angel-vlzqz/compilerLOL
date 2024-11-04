@@ -22,11 +22,13 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
     switch (node->type)
     {
     case NodeType_Program:
+        printf("bussy 1\n");
         // Analyze the program
         semanticAnalysis(node->program.declList, symTab);
         break;
 
     case NodeType_DeclList:
+        printf("bussy 2\n");
         // Analyze declarations
         semanticAnalysis(node->declList.decl, symTab);
         semanticAnalysis(node->declList.next, symTab);
@@ -34,6 +36,7 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
 
     case NodeType_FuncDecl:
     {
+        printf("bussy 3\n"); 
         // Use the symbol table for the function's scope
         SymbolTable *functionScope = getSymbolTableAtDepth(symTab, symTab->scope + 1);
         if (functionScope == NULL)
@@ -61,26 +64,31 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
     }
 
     case NodeType_VarDeclList:
+        printf("bussy 4\n");
         semanticAnalysis(node->varDeclList.varDecl, symTab);
         semanticAnalysis(node->varDeclList.varDeclList, symTab);
         break;
 
     case NodeType_VarDecl:
+        printf("penis 1\n");
         // Analyze the initial value if present
         if (node->varDecl.initialValue)
             semanticAnalysis(node->varDecl.initialValue, symTab);
         break;
 
     case NodeType_ArrayDecl:
+        printf("penis 2\n");
         // No additional semantic analysis needed for array declarations
         break;
 
     case NodeType_StmtList:
+        printf("penis 3\n");
         semanticAnalysis(node->stmtList.stmt, symTab);
         semanticAnalysis(node->stmtList.stmtList, symTab);
         break;
 
     case NodeType_AssignStmt:
+        printf("penis 4\n");
         // Analyze the expression
         semanticAnalysis(node->assignStmt.expr, symTab);
 
@@ -90,6 +98,7 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         break;
 
     case NodeType_BinOp:
+        printf("penis 5\n");
         semanticAnalysis(node->binOp.left, symTab);
         semanticAnalysis(node->binOp.right, symTab);
 
@@ -113,6 +122,7 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
 
     case NodeType_SimpleID:
     {
+        printf("penis 6\n");
         Symbol *symbol = findSymbol(symTab, node->simpleID.name);
         if (symbol == NULL)
         {
@@ -125,20 +135,24 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
     }
 
     case NodeType_SimpleExpr:
+        printf("penis 7\n");
         node->dataType = node->simpleExpr.isFloat ? strdup("float") : strdup("int");
         break;
 
     case NodeType_WriteStmt:
+        printf("penis 8\n");
         semanticAnalysis(node->writeStmt.expr, symTab);
         generateTACForExpr(node, symTab);
         break;
 
     case NodeType_Block:
+        printf("penis 9\n");
         if (node->block.stmtList)
             semanticAnalysis(node->block.stmtList, symTab);
         break;
 
     case NodeType_ReturnStmt:
+        printf("penis 10\n");
         if (node->returnStmt.expr)
             semanticAnalysis(node->returnStmt.expr, symTab);
         break;
@@ -222,6 +236,37 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         node->dataType = strdup("bool");
         break;
 
+        case NodeType_ArrayAssign:
+        {
+            // Analyze the index expression
+            semanticAnalysis(node->arrayAssign.index, symTab);
+
+            // Analyze the right-hand side expression
+            semanticAnalysis(node->arrayAssign.expr, symTab);
+
+            // Generate TAC for the array assignment
+            generateTACForExpr(node, symTab);
+            break;
+        }
+
+        case NodeType_ArrayAccess:
+        {
+            // Analyze the index expression
+            semanticAnalysis(node->arrayAccess.index, symTab);
+
+            // Set the data type based on the array's element type
+            Symbol *symbol = findSymbol(symTab, node->arrayAccess.arrayName);
+            if (symbol == NULL || !symbol->isArray)
+            {
+                fprintf(stderr, "Semantic error: Array %s has not been declared\n", node->arrayAccess.arrayName);
+                exit(1);
+            }
+
+            node->dataType = strdup(symbol->type);
+            break;
+        }
+
+
     default:
         fprintf(stderr, "Semantic error: Unhandled node type %d\n", node->type);
         break;
@@ -237,6 +282,7 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
     {
     case NodeType_AssignStmt:
     {
+        printf("bussy 5\n");
         char *rhs = generateTACForExpr(expr->assignStmt.expr, symTab);
         char *lhs = expr->assignStmt.varName;
 
@@ -255,6 +301,7 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
     case NodeType_BinOp:
     {
+        printf("bussy 6\n");
         char *left = generateTACForExpr(expr->binOp.left, symTab);
         char *right = generateTACForExpr(expr->binOp.right, symTab);
 
@@ -279,6 +326,7 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
     case NodeType_SimpleExpr:
     {
+        printf("bussy 7\n");
         char buffer[32];
         if (expr->simpleExpr.isFloat)
             snprintf(buffer, sizeof(buffer), "%.6f", expr->simpleExpr.floatValue);
@@ -289,10 +337,12 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
     }
 
     case NodeType_SimpleID:
+        printf("bussy 8\n");
         return strdup(expr->simpleID.name);
 
     case NodeType_WriteStmt:
     {
+        printf("bussy 9\n");
         char *exprResult = generateTACForExpr(expr->writeStmt.expr, symTab);
 
         // Create TAC for write
@@ -310,6 +360,7 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
     case NodeType_IfStmt:
     {
+        printf("bussy 10\n");
         // Generate labels
         char *labelTrue = createLabel();
         char *labelFalse = createLabel();
@@ -375,6 +426,7 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
     case NodeType_WhileStmt:
     {
+        printf("bussy 11\n");
         // Generate labels
         char *labelStart = createLabel();
         char *labelEnd = createLabel();
@@ -434,6 +486,7 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
     case NodeType_FuncCall:
     {
+        printf("bussy 12\n");
         // Process arguments
         ASTNode *argNode = expr->funcCall.argList;
         int argCount = 0;
@@ -490,6 +543,7 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
     case NodeType_ReturnStmt:
     {
+        printf("bussy 13\n");
         char *retValue = NULL;
 
         if (expr->returnStmt.expr)
@@ -509,18 +563,21 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
     }
 
     case NodeType_Block:
+        printf("bussy 14\n");
         // Process statements in the block
         if (expr->block.stmtList)
             generateTACForExpr(expr->block.stmtList, symTab);
         return NULL;
 
     case NodeType_StmtList:
+        printf("bussy 15\n");
         generateTACForExpr(expr->stmtList.stmt, symTab);
         generateTACForExpr(expr->stmtList.stmtList, symTab);
         return NULL;
 
     case NodeType_LogicalOp:
     {
+        printf("bussy 16\n");
         char *left = generateTACForExpr(expr->logicalOp.left, symTab);
         char *right = generateTACForExpr(expr->logicalOp.right, symTab);
         char *result = createTempVar(symTab);
@@ -540,6 +597,7 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
     case NodeType_RelOp:
     {
+        printf("bussy 17\n");
         char *left = generateTACForExpr(expr->relOp.left, symTab);
         char *right = generateTACForExpr(expr->relOp.right, symTab);
         char *result = createTempVar(symTab);
@@ -559,6 +617,7 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
     case NodeType_NotOp:
     {
+        printf("bussy 18\n");
         char *exprResult = generateTACForExpr(expr->notOp.expr, symTab);
         char *result = createTempVar(symTab);
 

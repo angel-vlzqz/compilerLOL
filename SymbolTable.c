@@ -66,7 +66,7 @@ Symbol *createSymbol(const char *name, const char *type, int index, bool isArray
 // Insert a symbol into the current scope's symbol table
 void insertSymbol(SymbolTable *symbolTable, const char *name, const char *type, bool isArray, bool isFunction, Array *arrayInfo)
 {
-    if (findSymbol(symbolTable, name) != NULL)
+    if (findSymbolInCurrentScope(symbolTable, name) != NULL)
     {
         fprintf(stderr, "Error: Symbol %s is already declared in the current scope.\n", name);
         return;
@@ -169,20 +169,21 @@ SymbolTable *createSymbolTable(int size, SymbolTable *prev)
         fprintf(stderr, "Error: Memory allocation failed for symbol table entries\n");
         return NULL;
     }
-
+    
     // Initialize table entries to NULL
     for (int i = 0; i < size; i++)
     {
         newTable->table[i] = NULL;
     }
-
+    
     newTable->scope = GlobalScope++;
     newTable->prev = prev;
     newTable->next = NULL;
-
+    
     // If the previous symbol table exists, update its next pointer
-    if (prev)
+    if (prev) 
     {
+        // printf("prev is valid and located at address %p\n", (void *)prev);
         // Check if prev->next is already set
         if (prev->next == NULL)
         {
@@ -206,6 +207,7 @@ SymbolTable *createSymbolTable(int size, SymbolTable *prev)
 
     return newTable;
 }
+
 // Update the symbol value in the current or nearest outer scope
 void updateSymbolValue(SymbolTable *symbolTable, const char *name, const char *value)
 {
@@ -342,4 +344,21 @@ void setSymbolParamList(Symbol *symbol, ASTNode *paramList)
     }
 
     symbol->paramList = paramList;
+}
+
+Symbol *findSymbolInCurrentScope(SymbolTable *symbolTable, const char *name) {
+    if (symbolTable == NULL) {
+        return NULL;
+    }
+
+    unsigned int index = hashFunction(name, symbolTable->size);
+    Symbol *current = symbolTable->table[index];
+
+    while (current != NULL) {
+        if (strcmp(current->name, name) == 0) {
+            return current;
+        }
+        current = current->next;
+    }
+    return NULL; // Return NULL if not found in the current scope
 }

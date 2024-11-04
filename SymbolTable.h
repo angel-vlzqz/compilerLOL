@@ -45,6 +45,7 @@ const char *getSymbolValue(SymbolTable *symbolTable, const char *name);
 SymbolTable *getSymbolTableAtDepth(SymbolTable *symTab, int scope);
 void collectAllSymbols(SymbolTable *symTab, Symbol ***symbolList, int *symbolCount, int *symbolCapacity);
 void setSymbolParamList(Symbol *symbol, ASTNode *paramList);
+Symbol *findSymbolInCurrentScope(SymbolTable *symbolTable, const char *name);
 /*
 Four score and seven years ago our fathers brought forth on this continent, a new nation, conceived in Liberty, and dedicated to the proposition
 that all men are created equal.

@@ -6,6 +6,8 @@ float scalar = 5.5;   // Float variable
 
 
 
+
+
 // Function declaration with different variable types and arithmetic expressions
 
 int addAndMultiply(int x, int y, float z) {

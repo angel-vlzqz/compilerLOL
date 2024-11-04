@@ -72,21 +72,30 @@ DeclList:
         $$->declList.decl = $1;
         $$->declList.next = NULL;
     }
-    | DeclList Decl
+    | Decl DeclList 
     {
         $$ = createNode(NodeType_DeclList);
-        $$->declList.decl = $2;
-        $$->declList.next = $1;
+        $$->declList.decl = $1;
+        $$->declList.next = $2;
     }
     ;
 
 Decl:
     VarDecl
+    {
+        $$ = $1;
+    }
     | FuncDecl
+    {
+        $$ = $1;
+    }
     ;
 
 FuncDecl:
-    MainFuncDecl  // Special case for main
+    MainFuncDecl 
+    {
+        $$ = $1;
+    } // Special case for main
     | TYPE ID '(' ParamList ')' 
     {
         // Action code to create function symbol table and add parameters
@@ -137,8 +146,6 @@ FuncDecl:
         $$->funcDecl.block = $9;
         $$->funcDecl.returnStmt = $10;
 
-        // Restore previous symbol table
-        currentSymTab = $$->funcDecl.prevSymTab;
     }
     | VOID ID '(' ParamList ')' '{' VarDeclList Block '}'  
     {
@@ -183,7 +190,6 @@ FuncDecl:
         $$->funcDecl.block = $8;
         $$->funcDecl.returnStmt = NULL;
 
-        currentSymTab = prevSymTab;  // Restore previous scope
     }
     ;
 
@@ -217,7 +223,6 @@ MainFuncDecl:
         $$->funcDecl.block = $8;
         $$->funcDecl.returnStmt = $9;
     
-        currentSymTab = $$->funcDecl.prevSymTab;  // Restore previous scope
     }
     ;
 
@@ -277,7 +282,7 @@ VarDecl:
     TYPE ID SEMICOLON
     {
         printf("Parsed variable declaration: %s %s\n", $1, $2);
-        if (findSymbol(currentSymTab, $2) != NULL) {
+        if (findSymbolInCurrentScope(currentSymTab, $2) != NULL) {
             fprintf(stderr, "Semantic error: Variable %s is already declared\n", $2);
             exit(1);
         }
@@ -291,7 +296,7 @@ VarDecl:
     | TYPE ID ASSIGNOP Expr SEMICOLON
     {
         printf("Parsed variable declaration with initialization: %s %s\n", $1, $2);
-        if (findSymbol(currentSymTab, $2) != NULL) {
+        if (findSymbolInCurrentScope(currentSymTab, $2) != NULL) {
             fprintf(stderr, "Semantic error: Variable %s is already declared\n", $2);
             exit(1);
         }
@@ -305,7 +310,7 @@ VarDecl:
     | TYPE ID '[' NUMBER ']' SEMICOLON
     {
         printf("Parsed array declaration: %s %s[%d]\n", $1, $2, $4);
-        if (findSymbol(currentSymTab, $2) != NULL) {
+        if (findSymbolInCurrentScope(currentSymTab, $2) != NULL) {
             fprintf(stderr, "Semantic error: Array %s is already declared\n", $2);
             exit(1);
         }
@@ -350,8 +355,14 @@ Stmt:
     {
         printf("Parsed Assignment Statement: %s = ...\n", $1);
 
-        // Check if the variable is declared
-        if (findSymbol(currentSymTab, $1) == NULL) {
+        // Check if the variable is declared in the current symbol table or global symbol table
+        Symbol* symbol = findSymbol(currentSymTab, $1);
+        if (symbol == NULL) {
+            // If not found in the current symbol table, check the global symbol table
+            symbol = findSymbol(globalSymTab, $1);
+        }
+
+        if (symbol == NULL) {
             fprintf(stderr, "Semantic error: Variable %s has not been declared\n", $1);
             exit(1);
         }
@@ -369,8 +380,13 @@ Stmt:
         }
         printf("Parsed Array Assignment: %s[...]=...\n", $1);
 
-        // Check if the array is declared
+        // Check if the array is declared in the current symbol table or global symbol table
         Symbol* symbol = findSymbol(currentSymTab, $1);
+        if (symbol == NULL || !symbol->isArray) {
+            // If not found in the current symbol table, check the global symbol table
+            symbol = findSymbol(globalSymTab, $1);
+        }
+
         if (symbol == NULL || !symbol->isArray) {
             fprintf(stderr, "Semantic error: Array %s has not been declared\n", $1);
             exit(1);
@@ -547,7 +563,7 @@ ReturnStmt:
     ;
 
 FuncCall:
-    ID '(' ArgList ')' SEMICOLON
+    ID '(' ArgList ')'
     {
         printf("Parsed function call with arguments: %s(...)\n", $1);
 
@@ -562,7 +578,7 @@ FuncCall:
         $$->funcCall.funcName = strdup($1);
         $$->funcCall.argList = $3;
     }
-    | ID '(' ')' SEMICOLON
+    | ID '(' ')'
     {
         printf("Parsed function call: %s()\n", $1);
 
@@ -656,8 +672,14 @@ Expr:
     {
         printf("Parsed Identifier: %s\n", $1);
 
-        // Check if the variable is declared
-        if (findSymbol(currentSymTab, $1) == NULL) {
+        // Check if the variable is declared in the current symbol table or global symbol table
+        Symbol* symbol = findSymbol(currentSymTab, $1);
+        if (symbol == NULL) {
+            // If not found in the current symbol table, check the global symbol table
+            symbol = findSymbol(globalSymTab, $1);
+        }
+
+        if (symbol == NULL) {
             fprintf(stderr, "Semantic error: Variable %s has not been declared\n", $1);
             exit(1);
         }
@@ -687,8 +709,13 @@ Expr:
         }
         printf("Parsed Array Access: %s[...]\n", $1);
 
-        // Check if the array is declared
+        // Check if the array is declared in the current symbol table or global symbol table
         Symbol* symbol = findSymbol(currentSymTab, $1);
+        if (symbol == NULL || !symbol->isArray) {
+            // If not found in the current symbol table, check the global symbol table
+            symbol = findSymbol(globalSymTab, $1);
+        }
+
         if (symbol == NULL || !symbol->isArray) {
             fprintf(stderr, "Semantic error: Array %s has not been declared\n", $1);
             exit(1);
