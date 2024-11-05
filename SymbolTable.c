@@ -169,19 +169,19 @@ SymbolTable *createSymbolTable(int size, SymbolTable *prev)
         fprintf(stderr, "Error: Memory allocation failed for symbol table entries\n");
         return NULL;
     }
-    
+
     // Initialize table entries to NULL
     for (int i = 0; i < size; i++)
     {
         newTable->table[i] = NULL;
     }
-    
+
     newTable->scope = GlobalScope++;
     newTable->prev = prev;
     newTable->next = NULL;
-    
+
     // If the previous symbol table exists, update its next pointer
-    if (prev) 
+    if (prev)
     {
         // printf("prev is valid and located at address %p\n", (void *)prev);
         // Check if prev->next is already set
@@ -346,16 +346,20 @@ void setSymbolParamList(Symbol *symbol, ASTNode *paramList)
     symbol->paramList = paramList;
 }
 
-Symbol *findSymbolInCurrentScope(SymbolTable *symbolTable, const char *name) {
-    if (symbolTable == NULL) {
+Symbol *findSymbolInCurrentScope(SymbolTable *symbolTable, const char *name)
+{
+    if (symbolTable == NULL)
+    {
         return NULL;
     }
 
     unsigned int index = hashFunction(name, symbolTable->size);
     Symbol *current = symbolTable->table[index];
 
-    while (current != NULL) {
-        if (strcmp(current->name, name) == 0) {
+    while (current != NULL)
+    {
+        if (strcmp(current->name, name) == 0)
+        {
             return current;
         }
         current = current->next;

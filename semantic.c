@@ -16,19 +16,27 @@ TAC *tacHead = NULL;
 
 void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
 {
+    if (node)
+    {
+        printNodeDetails(node);
+    }
+    else
+    {
+        printf("Encountered NULL node\n");
+    }
     if (node == NULL)
         return;
 
     switch (node->type)
     {
     case NodeType_Program:
-        printf("bussy 1\n");
+        printf("Processing Program Node\n");
         // Analyze the program
         semanticAnalysis(node->program.declList, symTab);
         break;
 
     case NodeType_DeclList:
-        printf("bussy 2\n");
+        printf("Processing DeclList Node\n");
         // Analyze declarations
         semanticAnalysis(node->declList.decl, symTab);
         semanticAnalysis(node->declList.next, symTab);
@@ -36,9 +44,11 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
 
     case NodeType_FuncDecl:
     {
-        printf("bussy 3\n"); 
-        // Use the symbol table for the function's scope
-        SymbolTable *functionScope = getSymbolTableAtDepth(symTab, symTab->scope + 1);
+        printf("Processing FuncDecl Node: %s\n", node->funcDecl.funcName);
+
+        // Use the existing function's symbol table
+        SymbolTable *functionScope = node->funcDecl.symTab;
+
         if (functionScope == NULL)
         {
             fprintf(stderr, "Semantic error: Function scope not found for function %s\n", node->funcDecl.funcName);
@@ -55,7 +65,29 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
 
         // Analyze the return statement
         if (node->funcDecl.returnStmt)
+        {
             semanticAnalysis(node->funcDecl.returnStmt, functionScope);
+
+            // Check that the return type matches
+            if (node->funcDecl.returnStmt->returnStmt.expr)
+            {
+                if (strcmp(node->funcDecl.returnType, node->funcDecl.returnStmt->returnStmt.expr->dataType) != 0)
+                {
+                    fprintf(stderr, "Semantic error: Return type mismatch in function %s\n", node->funcDecl.funcName);
+                    exit(1);
+                }
+            }
+            else if (strcmp(node->funcDecl.returnType, "void") != 0)
+            {
+                fprintf(stderr, "Semantic error: Non-void function %s must return a value\n", node->funcDecl.funcName);
+                exit(1);
+            }
+        }
+        else if (strcmp(node->funcDecl.returnType, "void") != 0)
+        {
+            fprintf(stderr, "Semantic error: Non-void function %s must have a return statement\n", node->funcDecl.funcName);
+            exit(1);
+        }
 
         // Generate TAC for the function
         generateTACForFunction(node, functionScope);
@@ -64,43 +96,135 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
     }
 
     case NodeType_VarDeclList:
-        printf("bussy 4\n");
+        printf("Processing VarDeclList Node\n");
         semanticAnalysis(node->varDeclList.varDecl, symTab);
         semanticAnalysis(node->varDeclList.varDeclList, symTab);
         break;
 
     case NodeType_VarDecl:
-        printf("penis 1\n");
+    {
+        printf("Processing VarDecl Node: %s\n", node->varDecl.varName);
+
+        // The variable is already added to the symbol table in the parser
+        // Retrieve the symbol to check types
+        Symbol *varSymbol = findSymbolInCurrentScope(symTab, node->varDecl.varName);
+        if (varSymbol == NULL)
+        {
+            fprintf(stderr, "Semantic error: Variable %s not found in symbol table\n", node->varDecl.varName);
+            exit(1);
+        }
+
         // Analyze the initial value if present
         if (node->varDecl.initialValue)
+        {
             semanticAnalysis(node->varDecl.initialValue, symTab);
+
+            // Check type compatibility
+            if (strcmp(varSymbol->type, node->varDecl.initialValue->dataType) != 0)
+            {
+                fprintf(stderr, "Semantic error: Type mismatch in initialization of variable %s\n", node->varDecl.varName);
+                exit(1);
+            }
+        }
         break;
+    }
 
     case NodeType_ArrayDecl:
-        printf("penis 2\n");
-        // No additional semantic analysis needed for array declarations
+        printf("Processing ArrayDecl Node: %s\n", node->arrayDecl.varName);
+        // The array is already added to the symbol table in the parser
         break;
 
     case NodeType_StmtList:
-        printf("penis 3\n");
+        printf("Processing StmtList Node\n");
         semanticAnalysis(node->stmtList.stmt, symTab);
         semanticAnalysis(node->stmtList.stmtList, symTab);
         break;
 
     case NodeType_AssignStmt:
-        printf("penis 4\n");
+    {
+        printf("Processing AssignStmt Node: %s\n", node->assignStmt.varName);
         // Analyze the expression
         semanticAnalysis(node->assignStmt.expr, symTab);
+
+        // Check that the variable is declared
+        Symbol *assignSymbol = findSymbol(symTab, node->assignStmt.varName);
+        if (assignSymbol == NULL)
+        {
+            fprintf(stderr, "Semantic error: Variable %s has not been declared\n", node->assignStmt.varName);
+            exit(1);
+        }
+
+        // Check that the symbol is not an array
+        if (assignSymbol->isArray)
+        {
+            fprintf(stderr, "Semantic error: Cannot assign to array name %s without index\n", node->assignStmt.varName);
+            exit(1);
+        }
+
+        // Debugging statements
+        printf("Variable '%s' type: %s\n", node->assignStmt.varName, assignSymbol->type);
+        printf("Expression type: %s\n", node->assignStmt.expr->dataType);
+
+        // Check type compatibility
+        if (strcmp(assignSymbol->type, node->assignStmt.expr->dataType) != 0)
+        {
+            fprintf(stderr, "Semantic error: Type mismatch in assignment to variable %s\n", node->assignStmt.varName);
+            exit(1);
+        }
 
         // Generate TAC for the assignment
         generateTACForExpr(node, symTab);
 
         break;
+    }
+
+    case NodeType_ArrayAssign:
+    {
+        printf("Processing ArrayAssign Node: %s\n", node->arrayAssign.arrayName);
+        // Analyze the index expression
+        semanticAnalysis(node->arrayAssign.index, symTab);
+
+        // Check that index is integer
+        if (strcmp(node->arrayAssign.index->dataType, "int") != 0)
+        {
+            fprintf(stderr, "Semantic error: Array index must be an integer\n");
+            exit(1);
+        }
+
+        // Analyze the expression
+        semanticAnalysis(node->arrayAssign.expr, symTab);
+
+        // Check that the array is declared
+        Symbol *arraySymbol = findSymbol(symTab, node->arrayAssign.arrayName);
+        if (arraySymbol == NULL || !arraySymbol->isArray)
+        {
+            fprintf(stderr, "Semantic error: Array %s has not been declared\n", node->arrayAssign.arrayName);
+            exit(1);
+        }
+
+        // Debugging statements
+        printf("Array '%s' type: %s\n", node->arrayAssign.arrayName, arraySymbol->type);
+        printf("Expression type: %s\n", node->arrayAssign.expr->dataType);
+
+        // Check type compatibility
+        if (strcmp(arraySymbol->type, node->arrayAssign.expr->dataType) != 0)
+        {
+            fprintf(stderr, "Semantic error: Type mismatch in assignment to array %s\n", node->arrayAssign.arrayName);
+            exit(1);
+        }
+
+        // Generate TAC for the array assignment
+        generateTACForExpr(node, symTab);
+        break;
+    }
 
     case NodeType_BinOp:
-        printf("penis 5\n");
+        printf("Processing BinOp Node\n");
         semanticAnalysis(node->binOp.left, symTab);
         semanticAnalysis(node->binOp.right, symTab);
+
+        printf("Left operand type: %s\n", node->binOp.left->dataType);
+        printf("Right operand type: %s\n", node->binOp.right->dataType);
 
         // Type checking and setting dataType
         if ((strcmp(node->binOp.left->dataType, "int") == 0 && strcmp(node->binOp.right->dataType, "float") == 0) ||
@@ -122,7 +246,7 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
 
     case NodeType_SimpleID:
     {
-        printf("penis 6\n");
+        printf("Processing SimpleID Node: %s\n", node->simpleID.name);
         Symbol *symbol = findSymbol(symTab, node->simpleID.name);
         if (symbol == NULL)
         {
@@ -135,31 +259,45 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
     }
 
     case NodeType_SimpleExpr:
-        printf("penis 7\n");
+        printf("Processing SimpleExpr Node\n");
         node->dataType = node->simpleExpr.isFloat ? strdup("float") : strdup("int");
         break;
 
     case NodeType_WriteStmt:
-        printf("penis 8\n");
+        printf("Processing WriteStmt Node\n");
         semanticAnalysis(node->writeStmt.expr, symTab);
+
+        // Generate TAC for the write statement
         generateTACForExpr(node, symTab);
         break;
 
     case NodeType_Block:
-        printf("penis 9\n");
+        printf("Processing Block Node\n");
         if (node->block.stmtList)
             semanticAnalysis(node->block.stmtList, symTab);
         break;
 
     case NodeType_ReturnStmt:
-        printf("penis 10\n");
+    {
+        printf("Processing ReturnStmt Node\n");
         if (node->returnStmt.expr)
+        {
             semanticAnalysis(node->returnStmt.expr, symTab);
+        }
         break;
+    }
 
     case NodeType_IfStmt:
+        printf("Processing IfStmt Node\n");
         // Analyze the condition
         semanticAnalysis(node->ifStmt.condition, symTab);
+
+        // Check that condition is boolean
+        if (strcmp(node->ifStmt.condition->dataType, "bool") != 0 && strcmp(node->ifStmt.condition->dataType, "int") != 0)
+        {
+            fprintf(stderr, "Semantic error: Condition in if statement must be boolean or integer\n");
+            exit(1);
+        }
 
         // Analyze the then block
         if (node->ifStmt.thenBlock)
@@ -174,8 +312,16 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         break;
 
     case NodeType_WhileStmt:
+        printf("Processing WhileStmt Node\n");
         // Analyze the condition
         semanticAnalysis(node->whileStmt.condition, symTab);
+
+        // Check that condition is boolean
+        if (strcmp(node->whileStmt.condition->dataType, "bool") != 0 && strcmp(node->whileStmt.condition->dataType, "int") != 0)
+        {
+            fprintf(stderr, "Semantic error: Condition in while statement must be boolean or integer\n");
+            exit(1);
+        }
 
         // Analyze the block
         if (node->whileStmt.block)
@@ -187,13 +333,42 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
 
     case NodeType_FuncCall:
     {
+        printf("Processing FuncCall Node: %s\n", node->funcCall.funcName);
         // Analyze arguments
         ASTNode *argNode = node->funcCall.argList;
+        int argCount = 0;
         while (argNode)
         {
             semanticAnalysis(argNode->argList.arg, symTab);
             argNode = argNode->argList.argList;
+            argCount++;
         }
+
+        // Check that the function is declared
+        Symbol *funcSymbol = findSymbol(symTab, node->funcCall.funcName);
+        if (funcSymbol == NULL || !funcSymbol->isFunction)
+        {
+            fprintf(stderr, "Semantic error: Function %s is not declared\n", node->funcCall.funcName);
+            exit(1);
+        }
+
+        // Check number of arguments
+        int paramCount = 0;
+        ASTNode *paramNode = funcSymbol->paramList;
+        while (paramNode)
+        {
+            paramNode = paramNode->paramList.nextParam;
+            paramCount++;
+        }
+
+        if (argCount != paramCount)
+        {
+            fprintf(stderr, "Semantic error: Function %s expects %d arguments but %d were given\n",
+                    node->funcCall.funcName, paramCount, argCount);
+            exit(1);
+        }
+
+        // Additional checks for argument types can be added here
 
         // Generate TAC for the function call
         generateTACForExpr(node, symTab);
@@ -201,71 +376,94 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
     }
 
     case NodeType_ArgList:
+        printf("Processing ArgList Node\n");
         semanticAnalysis(node->argList.arg, symTab);
         semanticAnalysis(node->argList.argList, symTab);
         break;
 
     case NodeType_Arg:
+        printf("Processing Arg Node\n");
         semanticAnalysis(node->arg.expr, symTab);
         node->dataType = strdup(node->arg.expr->dataType);
         break;
 
     case NodeType_CastExpr:
+        printf("Processing CastExpr Node\n");
         // Analyze the expression being cast
         semanticAnalysis(node->castExpr.expr, symTab);
         node->dataType = strdup(node->castExpr.type);
         break;
 
     case NodeType_LogicalOp:
+        printf("Processing LogicalOp Node\n");
         semanticAnalysis(node->logicalOp.left, symTab);
         semanticAnalysis(node->logicalOp.right, symTab);
-        // Type checking can be added here
+
+        // Check that operands are boolean or integer (since C allows non-zero integers as true)
+        if ((strcmp(node->logicalOp.left->dataType, "bool") != 0 && strcmp(node->logicalOp.left->dataType, "int") != 0) ||
+            (strcmp(node->logicalOp.right->dataType, "bool") != 0 && strcmp(node->logicalOp.right->dataType, "int") != 0))
+        {
+            fprintf(stderr, "Semantic error: Logical operators require boolean or integer operands\n");
+            exit(1);
+        }
+
         node->dataType = strdup("bool");
         break;
 
     case NodeType_RelOp:
+        printf("Processing RelOp Node\n");
         semanticAnalysis(node->relOp.left, symTab);
         semanticAnalysis(node->relOp.right, symTab);
-        // Type checking can be added here
+
+        // Type checking
+        if (strcmp(node->relOp.left->dataType, node->relOp.right->dataType) != 0)
+        {
+            fprintf(stderr, "Semantic error: Type mismatch in relational operation\n");
+            exit(1);
+        }
+
         node->dataType = strdup("bool");
         break;
 
     case NodeType_NotOp:
+        printf("Processing NotOp Node\n");
         semanticAnalysis(node->notOp.expr, symTab);
-        // Type checking can be added here
+
+        // Check that operand is boolean or integer
+        if (strcmp(node->notOp.expr->dataType, "bool") != 0 && strcmp(node->notOp.expr->dataType, "int") != 0)
+        {
+            fprintf(stderr, "Semantic error: NOT operator requires a boolean or integer operand\n");
+            exit(1);
+        }
+
         node->dataType = strdup("bool");
         break;
 
-        case NodeType_ArrayAssign:
+    case NodeType_ArrayAccess:
+    {
+        printf("Processing ArrayAccess Node: %s\n", node->arrayAccess.arrayName);
+        // Analyze the index expression
+        semanticAnalysis(node->arrayAccess.index, symTab);
+
+        // Check that index is integer
+        if (strcmp(node->arrayAccess.index->dataType, "int") != 0)
         {
-            // Analyze the index expression
-            semanticAnalysis(node->arrayAssign.index, symTab);
-
-            // Analyze the right-hand side expression
-            semanticAnalysis(node->arrayAssign.expr, symTab);
-
-            // Generate TAC for the array assignment
-            generateTACForExpr(node, symTab);
-            break;
+            fprintf(stderr, "Semantic error: Array index must be an integer\n");
+            exit(1);
         }
 
-        case NodeType_ArrayAccess:
+        // Check that the array is declared
+        Symbol *symbol = findSymbol(symTab, node->arrayAccess.arrayName);
+        if (symbol == NULL || !symbol->isArray)
         {
-            // Analyze the index expression
-            semanticAnalysis(node->arrayAccess.index, symTab);
-
-            // Set the data type based on the array's element type
-            Symbol *symbol = findSymbol(symTab, node->arrayAccess.arrayName);
-            if (symbol == NULL || !symbol->isArray)
-            {
-                fprintf(stderr, "Semantic error: Array %s has not been declared\n", node->arrayAccess.arrayName);
-                exit(1);
-            }
-
-            node->dataType = strdup(symbol->type);
-            break;
+            fprintf(stderr, "Semantic error: Array %s has not been declared\n", node->arrayAccess.arrayName);
+            exit(1);
         }
 
+        // Set the data type based on the array's element type
+        node->dataType = strdup(symbol->type);
+        break;
+    }
 
     default:
         fprintf(stderr, "Semantic error: Unhandled node type %d\n", node->type);
@@ -728,7 +926,7 @@ void freeTACList(TAC *head)
     }
 }
 
-char *createLabel() 
+char *createLabel()
 {
     static int labelCounter = 0;
     char *label = (char *)malloc(16);

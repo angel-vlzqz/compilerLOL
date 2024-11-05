@@ -67,12 +67,17 @@ int constantFolding(TAC **head)
                 int operand2 = atoi(current->arg2);
                 int result = 0;
 
-                if (strcmp(current->op, "+") == 0) result = operand1 + operand2;
-                else if (strcmp(current->op, "-") == 0) result = operand1 - operand2;
-                else if (strcmp(current->op, "*") == 0) result = operand1 * operand2;
-                else if (strcmp(current->op, "/") == 0 && operand2 != 0) result = operand1 / operand2;
+                if (strcmp(current->op, "+") == 0)
+                    result = operand1 + operand2;
+                else if (strcmp(current->op, "-") == 0)
+                    result = operand1 - operand2;
+                else if (strcmp(current->op, "*") == 0)
+                    result = operand1 * operand2;
+                else if (strcmp(current->op, "/") == 0 && operand2 != 0)
+                    result = operand1 / operand2;
 
-                if (strcmp(current->op, "/") == 0 && operand2 == 0) {
+                if (strcmp(current->op, "/") == 0 && operand2 == 0)
+                {
                     fprintf(stderr, "Error: Division by zero\n");
                     current = current->next;
                     continue;
@@ -118,12 +123,14 @@ int constantPropagation(TAC **head)
                 if (temp->result && strcmp(temp->result, varName) == 0)
                     break;
 
-                if (temp->arg1 && strcmp(temp->arg1, varName) == 0) {
+                if (temp->arg1 && strcmp(temp->arg1, varName) == 0)
+                {
                     free(temp->arg1);
                     temp->arg1 = strdup(constValue);
                     changes++;
                 }
-                if (temp->arg2 && strcmp(temp->arg2, varName) == 0) {
+                if (temp->arg2 && strcmp(temp->arg2, varName) == 0)
+                {
                     free(temp->arg2);
                     temp->arg2 = strdup(constValue);
                     changes++;
@@ -157,12 +164,14 @@ int copyPropagation(TAC **head)
                 if (temp->result && strcmp(temp->result, destVar) == 0)
                     break;
 
-                if (temp->arg1 && strcmp(temp->arg1, destVar) == 0) {
+                if (temp->arg1 && strcmp(temp->arg1, destVar) == 0)
+                {
                     free(temp->arg1);
                     temp->arg1 = strdup(sourceVar);
                     changes++;
                 }
-                if (temp->arg2 && strcmp(temp->arg2, destVar) == 0) {
+                if (temp->arg2 && strcmp(temp->arg2, destVar) == 0)
+                {
                     free(temp->arg2);
                     temp->arg2 = strdup(sourceVar);
                     changes++;
@@ -174,7 +183,6 @@ int copyPropagation(TAC **head)
     }
     return changes;
 }
-
 
 // Dead Code Elimination Optimization
 int deadCodeElimination(TAC **head)

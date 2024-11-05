@@ -5,34 +5,74 @@
 #include <string.h>
 #include <ctype.h>
 
+const char *nodeTypeNames[] = {
+    "Program",
+    "DeclList",
+    "FuncDeclList",
+    "FuncDecl",
+    "ParamList",
+    "Param",
+    "FuncCall",
+    "ArgList",
+    "Arg",
+    "VarDeclList",
+    "VarDecl",
+    "ArrayDecl",
+    "StmtList",
+    "AssignStmt",
+    "ArrayAssign",
+    "BinOp",
+    "SimpleID",
+    "SimpleExpr",
+    "ArrayAccess",
+    "Block",
+    "ReturnStmt",
+    "WriteStmt",
+    "IfStmt",
+    "WhileStmt",
+    "LogicalOp",
+    "CastExpr",
+    "RelOp",
+    "NotOp"};
+
 // ---- Error Helper ----
 
-void fatal(const char *s) 
+void fatal(const char *s)
 {
     fprintf(stderr, "Fatal Error: %s\n", s);
-    exit(1);  // Exit the program with a non-zero status
+    exit(1); // Exit the program with a non-zero status
 }
 
 // ---- optimizer.c Helpers ----
 
-bool isConstant(const char* str) {
-    if (str == NULL || *str == '\0') {
+bool isConstant(const char *str)
+{
+    if (str == NULL || *str == '\0')
+    {
         return false;
     }
-    if (*str == '-') ++str;
-    while (*str) {
-        if (!isdigit((unsigned char)*str)) return false;
+    if (*str == '-')
+        ++str;
+    while (*str)
+    {
+        if (!isdigit((unsigned char)*str))
+            return false;
         ++str;
     }
     return true;
 }
 
-bool isVariable(const char* str) {
-    if (str == NULL || *str == '\0') return false;
-    if (!isalpha((unsigned char)*str) && *str != '_') return false;
+bool isVariable(const char *str)
+{
+    if (str == NULL || *str == '\0')
+        return false;
+    if (!isalpha((unsigned char)*str) && *str != '_')
+        return false;
     ++str;
-    while (*str) {
-        if (!isalnum((unsigned char)*str) && *str != '_') return false;
+    while (*str)
+    {
+        if (!isalnum((unsigned char)*str) && *str != '_')
+            return false;
         ++str;
     }
     return true;
@@ -146,4 +186,76 @@ void printTACToFile(const char *filename, TAC *tac)
     }
 
     fclose(file);
+}
+
+void printNodeDetails(ASTNode *node)
+{
+    if (!node)
+    {
+        return;
+    }
+
+    printf("Node Type: %s\n", nodeTypeNames[node->type]);
+
+    switch (node->type)
+    {
+    case NodeType_SimpleExpr:
+        if (node->simpleExpr.isFloat)
+        {
+            printf("Float Value: %f\n", node->simpleExpr.floatValue);
+        }
+        else
+        {
+            printf("Number: %d\n", node->simpleExpr.number);
+        }
+        break;
+
+    case NodeType_SimpleID:
+        printf("Name: %s\n", node->simpleID.name);
+        break;
+
+    case NodeType_FuncDecl:
+        printf("Function Name: %s, Return Type: %s\n", node->funcDecl.funcName, node->funcDecl.returnType);
+        break;
+
+    case NodeType_Param:
+        printf("Parameter Name: %s, Type: %s\n", node->param.paramName, node->param.paramType);
+        break;
+
+    case NodeType_VarDecl:
+        printf("Variable Name: %s, Type: %s\n", node->varDecl.varName, node->varDecl.varType);
+        break;
+
+    case NodeType_ArrayDecl:
+        printf("Array Name: %s, Type: %s, Size: %d\n", node->arrayDecl.varName, node->arrayDecl.varType, node->arrayDecl.size);
+        break;
+
+    case NodeType_AssignStmt:
+        printf("Assign to Variable: %s\n", node->assignStmt.varName);
+        break;
+
+    default:
+        // Handle other node types as needed
+        break;
+    }
+
+    // Recursively traverse child nodes based on the node type
+    if (node->type == NodeType_Program && node->program.declList)
+    {
+        traverseAST(node->program.declList, 1);
+    }
+    else if (node->type == NodeType_DeclList)
+    {
+        traverseAST(node->declList.decl, 1);
+        traverseAST(node->declList.next, 1);
+    }
+    else if (node->type == NodeType_FuncDecl && node->funcDecl.block)
+    {
+        traverseAST(node->funcDecl.block, 1);
+    }
+    else if (node->type == NodeType_StmtList)
+    {
+        traverseAST(node->stmtList.stmt, 1);
+        traverseAST(node->stmtList.stmtList, 1);
+    }
 }

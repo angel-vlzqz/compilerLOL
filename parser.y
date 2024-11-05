@@ -50,7 +50,7 @@ SymbolTable* currentSymTab = NULL; // Current active symbol table
 %left '*' '/'
 %nonassoc UMINUS
 
-%type <ast> Program DeclList Decl VarDeclList VarDecl Stmt StmtList Expr Block ReturnStmt IfStmt FuncDecl MainFuncDecl ParamList Param FuncCall ArgList Arg ElsePart Condition
+%type <ast> Program DeclList Decl VarDeclList VarDecl Stmt StmtList Expr Block ReturnStmt IfStmt FuncDecl MainFuncDecl ParamList Param FuncCall ArgList Arg ElsePart Condition FuncBody
 
 %start Program
 
@@ -96,31 +96,27 @@ FuncDecl:
     {
         $$ = $1;
     } // Special case for main
-    | TYPE ID '(' ParamList ')' 
+    | TYPE ID '(' ParamList ')' FuncBody
     {
-        // Action code to create function symbol table and add parameters
         printf("Parsed Function Declaration: %s\n", $2);
 
-        // Insert function declaration into global symbol table
-        if (findSymbol(globalSymTab, $2) != NULL) {
-            fprintf(stderr, "Semantic error: Function %s is already declared\n", $2);
-            exit(1);
-        }
+        // Add function to global symbol table without checking for redeclaration
+        addFunctionSymbol(globalSymTab, $2, $1);
+        setSymbolParamList(findSymbol(globalSymTab, $2), $4);
 
-        // Add function to global symbol table
-        Symbol* funcSymbol = addFunctionSymbol(globalSymTab, $2, $1);
-        setSymbolParamList(funcSymbol, $4);
-
-        // Save previous symbol table and create a new one for the function scope
+        // Create the function node and attach the body
         $$ = createNode(NodeType_FuncDecl);
         $$->funcDecl.returnType = strdup($1);
         $$->funcDecl.funcName = strdup($2);
         $$->funcDecl.paramList = $4;
-        $$->funcDecl.prevSymTab = currentSymTab;  // Save current symbol table
+        $$->funcDecl.varDeclList = $6->funcDecl.varDeclList;
+        $$->funcDecl.block = $6->funcDecl.block;
+        $$->funcDecl.returnStmt = $6->funcDecl.returnStmt;
 
-        currentSymTab = createSymbolTable(TABLE_SIZE, currentSymTab); // New symbol table for function
+        // Create a new symbol table for the function scope
+        currentSymTab = createSymbolTable(TABLE_SIZE, currentSymTab);
 
-        // Add parameters to the function's symbol table
+        // Add parameters to the function's symbol table without checking for redeclaration
         ASTNode* paramNode = $4;
         while (paramNode != NULL) {
             ASTNode* param = paramNode->paramList.param;
@@ -128,43 +124,25 @@ FuncDecl:
                 paramNode = paramNode->paramList.nextParam;
                 continue;
             }
-            if (findSymbol(currentSymTab, param->param.paramName) != NULL) {
-                fprintf(stderr, "Semantic error: Parameter %s is already declared in function %s\n", param->param.paramName, $2);
-                exit(1);
-            }
             addVariableSymbol(currentSymTab, param->param.paramName, param->param.paramType, false, NULL);
             printf("Inserted parameter: Name = %s, Type = %s\n", param->param.paramName, param->param.paramType);
             paramNode = paramNode->paramList.nextParam;
         }
-    }
-    '{' VarDeclList Block ReturnStmt '}'
-    {
-        printf("Parsed %s Function Block\n", $2);
-
-        // Action code after parsing the function body
-        $$->funcDecl.varDeclList = $8;
-        $$->funcDecl.block = $9;
-        $$->funcDecl.returnStmt = $10;
+        $$->funcDecl.symTab = currentSymTab;
 
     }
-    | VOID ID '(' ParamList ')' '{' VarDeclList Block '}'  
+    | VOID ID '(' ParamList ')' FuncBody 
     {
         printf("Parsed Function Declaration: %s\n", $2);
 
-        // Insert void function declaration into global symbol table
-        if (findSymbol(globalSymTab, $2) != NULL) {
-            fprintf(stderr, "Semantic error: Function %s is already declared\n", $2);
-            exit(1);
-        }
+        // Add void function to global symbol table without checking for redeclaration
+        addFunctionSymbol(globalSymTab, $2, "void");
+        setSymbolParamList(findSymbol(globalSymTab, $2), $4);
 
-        Symbol* funcSymbol = addFunctionSymbol(globalSymTab, $2, "void");
-        setSymbolParamList(funcSymbol, $4);
+        // Create a new symbol table for the function scope
+        currentSymTab = createSymbolTable(TABLE_SIZE, currentSymTab);
 
-        // Enter function scope by creating a new symbol table
-        SymbolTable* prevSymTab = currentSymTab;
-        currentSymTab = createSymbolTable(TABLE_SIZE, globalSymTab);
-
-        // Add parameters to the function's symbol table
+        // Add parameters to the function's symbol table without checking for redeclaration
         ASTNode* paramNode = $4;
         while (paramNode != NULL) {
             ASTNode* param = paramNode->paramList.param;
@@ -172,57 +150,63 @@ FuncDecl:
                 paramNode = paramNode->paramList.nextParam;
                 continue;
             }
-            if (findSymbol(currentSymTab, param->param.paramName) != NULL) {
-                fprintf(stderr, "Semantic error: Parameter %s is already declared in function %s\n",
-                        param->param.paramName, $2);
-                exit(1);
-            }
             addVariableSymbol(currentSymTab, param->param.paramName, param->param.paramType, false, NULL);
             printf("Inserted parameter: Name = %s, Type = %s\n", param->param.paramName, param->param.paramType);
             paramNode = paramNode->paramList.nextParam;
         }
 
+        // Create the function node and attach the body
         $$ = createNode(NodeType_FuncDecl);
         $$->funcDecl.returnType = strdup("void");
         $$->funcDecl.funcName = strdup($2);
         $$->funcDecl.paramList = $4;
-        $$->funcDecl.varDeclList = $7;
-        $$->funcDecl.block = $8;
-        $$->funcDecl.returnStmt = NULL;
-
+        $$->funcDecl.varDeclList = $6->funcDecl.varDeclList;
+        $$->funcDecl.block = $6->funcDecl.block;
+        $$->funcDecl.returnStmt = $6->funcDecl.returnStmt;
+        $$->funcDecl.symTab = currentSymTab;
     }
     ;
 
 MainFuncDecl:
-    TYPE MAIN '(' ')' 
+    TYPE MAIN '(' ')' FuncBody
     {
         printf("Parsed Main Function Declaration\n");
 
-        // Add main to the global symbol table
-        if (findSymbol(globalSymTab, "main") != NULL) {
-            fprintf(stderr, "Semantic error: Main function is already declared\n");
-            exit(1);
-        }
+        // Add main function to global symbol table without checking for redeclaration
         addFunctionSymbol(globalSymTab, "main", $1);
 
-        // Create a new AST node for the main function
+        // Create the function node and attach the body
         $$ = createNode(NodeType_FuncDecl);
         $$->funcDecl.returnType = strdup($1);
         $$->funcDecl.funcName = strdup("main");
         $$->funcDecl.paramList = NULL;
+        $$->funcDecl.varDeclList = $5->funcDecl.varDeclList;
+        $$->funcDecl.block = $5->funcDecl.block;
+        $$->funcDecl.returnStmt = $5->funcDecl.returnStmt;
 
-        // Save previous symbol table and create a new one for the main function scope
-        $$->funcDecl.prevSymTab = currentSymTab;
-        currentSymTab = createSymbolTable(TABLE_SIZE, currentSymTab); // New symbol table for main
+        // Create a new symbol table for the main function scope
+        currentSymTab = createSymbolTable(TABLE_SIZE, currentSymTab);
+        $$->funcDecl.symTab = currentSymTab;
     }
-    '{' VarDeclList Block ReturnStmt '}' 
-    {
-        printf("Parsed Main Function Block\n");
+    ;
 
-        $$->funcDecl.varDeclList = $7;
-        $$->funcDecl.block = $8;
-        $$->funcDecl.returnStmt = $9;
-    
+
+FuncBody:
+    '{' VarDeclList Block ReturnStmt '}'
+    {
+        // Create a temporary node to hold the body components
+        $$ = createNode(NodeType_FuncDecl);
+        $$->funcDecl.varDeclList = $2;
+        $$->funcDecl.block = $3;
+        $$->funcDecl.returnStmt = $4;
+    }
+    | '{' VarDeclList Block '}' 
+    {
+        // Create a temporary node to hold the body components
+        $$ = createNode(NodeType_FuncDecl);
+        $$->funcDecl.varDeclList = $2;
+        $$->funcDecl.block = $3;
+        $$->funcDecl.returnStmt = NULL;
     }
     ;
 
@@ -282,10 +266,7 @@ VarDecl:
     TYPE ID SEMICOLON
     {
         printf("Parsed variable declaration: %s %s\n", $1, $2);
-        if (findSymbolInCurrentScope(currentSymTab, $2) != NULL) {
-            fprintf(stderr, "Semantic error: Variable %s is already declared\n", $2);
-            exit(1);
-        }
+        // Add variable to the current symbol table without checking for redeclaration
         addVariableSymbol(currentSymTab, $2, $1, false, NULL);
 
         $$ = createNode(NodeType_VarDecl);
@@ -296,10 +277,7 @@ VarDecl:
     | TYPE ID ASSIGNOP Expr SEMICOLON
     {
         printf("Parsed variable declaration with initialization: %s %s\n", $1, $2);
-        if (findSymbolInCurrentScope(currentSymTab, $2) != NULL) {
-            fprintf(stderr, "Semantic error: Variable %s is already declared\n", $2);
-            exit(1);
-        }
+        // Add variable to the current symbol table without checking for redeclaration
         addVariableSymbol(currentSymTab, $2, $1, false, NULL);
 
         $$ = createNode(NodeType_VarDecl);
@@ -310,10 +288,7 @@ VarDecl:
     | TYPE ID '[' NUMBER ']' SEMICOLON
     {
         printf("Parsed array declaration: %s %s[%d]\n", $1, $2, $4);
-        if (findSymbolInCurrentScope(currentSymTab, $2) != NULL) {
-            fprintf(stderr, "Semantic error: Array %s is already declared\n", $2);
-            exit(1);
-        }
+        // Add array to the current symbol table without checking for redeclaration
         Array *arrayInfo = createArray($1, $4);
         addVariableSymbol(currentSymTab, $2, $1, true, arrayInfo);
 
@@ -355,18 +330,7 @@ Stmt:
     {
         printf("Parsed Assignment Statement: %s = ...\n", $1);
 
-        // Check if the variable is declared in the current symbol table or global symbol table
-        Symbol* symbol = findSymbol(currentSymTab, $1);
-        if (symbol == NULL) {
-            // If not found in the current symbol table, check the global symbol table
-            symbol = findSymbol(globalSymTab, $1);
-        }
-
-        if (symbol == NULL) {
-            fprintf(stderr, "Semantic error: Variable %s has not been declared\n", $1);
-            exit(1);
-        }
-
+        // Create the assignment node without checking if the variable is declared
         $$ = createNode(NodeType_AssignStmt);
         $$->assignStmt.varName = strdup($1);
         $$->assignStmt.operator = strdup($2);
@@ -374,24 +338,9 @@ Stmt:
     }
     | ID '[' Expr ']' ASSIGNOP Expr SEMICOLON
     {
-        if ($3->type == NodeType_SimpleExpr && $3->simpleExpr.isFloat) 
-        {
-            fatalError("Array index must be an integer, not a floating-point number.");
-        }
         printf("Parsed Array Assignment: %s[...]=...\n", $1);
 
-        // Check if the array is declared in the current symbol table or global symbol table
-        Symbol* symbol = findSymbol(currentSymTab, $1);
-        if (symbol == NULL || !symbol->isArray) {
-            // If not found in the current symbol table, check the global symbol table
-            symbol = findSymbol(globalSymTab, $1);
-        }
-
-        if (symbol == NULL || !symbol->isArray) {
-            fprintf(stderr, "Semantic error: Array %s has not been declared\n", $1);
-            exit(1);
-        }
-
+        // Create the array assignment node without checking if the array is declared
         $$ = createNode(NodeType_ArrayAssign);
         $$->arrayAssign.arrayName = strdup($1);
         $$->arrayAssign.index = $3;
@@ -420,6 +369,9 @@ Stmt:
         $$->whileStmt.block = $4;
     }
     | IfStmt
+    {
+
+    }
     ;
 
 IfStmt:
@@ -567,13 +519,7 @@ FuncCall:
     {
         printf("Parsed function call with arguments: %s(...)\n", $1);
 
-        // Check if the function is declared
-        Symbol* funcSymbol = findSymbol(currentSymTab, $1);
-        if (funcSymbol == NULL || !funcSymbol->isFunction) {
-            fprintf(stderr, "Semantic error: Function %s is not declared\n", $1);
-            exit(1);
-        }
-
+        // Create the function call node without checking if the function is declared
         $$ = createNode(NodeType_FuncCall);
         $$->funcCall.funcName = strdup($1);
         $$->funcCall.argList = $3;
@@ -582,13 +528,7 @@ FuncCall:
     {
         printf("Parsed function call: %s()\n", $1);
 
-        // Check if the function is declared
-        Symbol* funcSymbol = findSymbol(currentSymTab, $1);
-        if (funcSymbol == NULL || !funcSymbol->isFunction) {
-            fprintf(stderr, "Semantic error: Function %s is not declared\n", $1);
-            exit(1);
-        }
-
+        // Create the function call node without checking if the function is declared
         $$ = createNode(NodeType_FuncCall);
         $$->funcCall.funcName = strdup($1);
         $$->funcCall.argList = NULL;
@@ -672,18 +612,7 @@ Expr:
     {
         printf("Parsed Identifier: %s\n", $1);
 
-        // Check if the variable is declared in the current symbol table or global symbol table
-        Symbol* symbol = findSymbol(currentSymTab, $1);
-        if (symbol == NULL) {
-            // If not found in the current symbol table, check the global symbol table
-            symbol = findSymbol(globalSymTab, $1);
-        }
-
-        if (symbol == NULL) {
-            fprintf(stderr, "Semantic error: Variable %s has not been declared\n", $1);
-            exit(1);
-        }
-
+        // Create the identifier node without checking if the variable is declared
         $$ = createNode(NodeType_SimpleID);
         $$->simpleID.name = strdup($1);
     } 
@@ -703,24 +632,9 @@ Expr:
     }
     | ID '[' Expr ']'
     {
-        if ($3->type == NodeType_SimpleExpr && $3->simpleExpr.isFloat) 
-        {
-            fatalError("Array index must be an integer, not a floating-point number.");
-        }
         printf("Parsed Array Access: %s[...]\n", $1);
 
-        // Check if the array is declared in the current symbol table or global symbol table
-        Symbol* symbol = findSymbol(currentSymTab, $1);
-        if (symbol == NULL || !symbol->isArray) {
-            // If not found in the current symbol table, check the global symbol table
-            symbol = findSymbol(globalSymTab, $1);
-        }
-
-        if (symbol == NULL || !symbol->isArray) {
-            fprintf(stderr, "Semantic error: Array %s has not been declared\n", $1);
-            exit(1);
-        }
-
+        // Create the array access node without checking if the array is declared
         $$ = createNode(NodeType_ArrayAccess);
         $$->arrayAccess.arrayName = strdup($1);
         $$->arrayAccess.index = $3;

@@ -41,7 +41,11 @@ void traverseAST(ASTNode *node, int level)
         traverseAST(node->funcDecl.varDeclList, level + 1);
         traverseAST(node->funcDecl.block, level + 1);
         traverseAST(node->funcDecl.returnStmt, level + 1);
-        if (node->funcDecl.prevSymTab) 
+        if (node->funcDecl.prevSymTab)
+        {
+            printf("SymbolTable was here");
+        }
+        if (node->funcDecl.symTab)
         {
             printf("SymbolTable was here");
         }
@@ -352,6 +356,8 @@ ASTNode *createNode(NodeType type)
         newNode->funcDecl.varDeclList = NULL;
         newNode->funcDecl.block = NULL;
         newNode->funcDecl.returnStmt = NULL;
+        newNode->funcDecl.prevSymTab = NULL;
+        newNode->funcDecl.symTab = NULL;
         break;
 
     case NodeType_ParamList:
@@ -408,7 +414,7 @@ ASTNode *createNode(NodeType type)
         break;
 
     case NodeType_BinOp:
-        newNode->binOp.operator = '\0';
+        newNode->binOp.operator= '\0';
         newNode->binOp.left = NULL;
         newNode->binOp.right = NULL;
         break;
@@ -430,7 +436,7 @@ ASTNode *createNode(NodeType type)
         break;
 
     case NodeType_AssignStmt:
-        newNode->assignStmt.operator = NULL;
+        newNode->assignStmt.operator= NULL;
         newNode->assignStmt.varName = NULL;
         newNode->assignStmt.expr = NULL;
         break;

@@ -22,10 +22,10 @@ typedef struct Symbol
 typedef struct SymbolTable
 {
     int size;
-    Symbol **table;             // Array of symbol pointers (linked list heads)
+    Symbol **table; // Array of symbol pointers (linked list heads)
     int scope;
-    struct SymbolTable *prev;   // Pointer to the outer scope
-    struct SymbolTable *next;   // Pointer to the inner scope
+    struct SymbolTable *prev; // Pointer to the outer scope
+    struct SymbolTable *next; // Pointer to the inner scope
 } SymbolTable;
 
 extern int GlobalScope;

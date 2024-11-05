@@ -67,6 +67,7 @@ typedef struct ASTNode
             struct ASTNode *block;
             struct ASTNode *returnStmt;
             struct SymbolTable *prevSymTab;
+            struct SymbolTable *symTab;
         } funcDecl;
 
         struct
