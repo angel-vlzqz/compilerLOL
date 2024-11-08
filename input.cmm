@@ -1,20 +1,13 @@
 // Global variables with multiple types
-
 int arr[5];          // Integer array
-
 float scalar = 5.5;   // Float variable
-
-
-
 
 
 // Function declaration with different variable types and arithmetic expressions
 
-int addAndMultiply(int x, int y, float z) {
-
-    int result;
-
-    result = (x + y) * (int)z; // Casting float to int for multiplication
+float addAndMultiply(int x, int y, float z) {
+    float result;
+    result = (x + y) * z; // Casting float to int for multiplication
 
     return result;
 
@@ -23,35 +16,23 @@ int addAndMultiply(int x, int y, float z) {
 // Main function demonstrating array use, function call, and arithmetic expressions
 
 int main() {
-
     int i;             // Loop index for array initialization
-
-    int sum;           // Integer variable
-
+    float sum;           // Integer variable
     float result;      // Float result of arithmetic operation
 
     // Initialize array with arithmetic expressions
+    i = 3;
+    arr[i] = i * 2 + 1;  //some calculation
 
-    
-
-        i = 3;
-
-        arr[i] = i * 2 + 1;  //some calculation
-
-
-
-        i = i +1;
-
-        arr[i]  = arr[i] + arr[i-1];
+    i = i +1;
+    arr[i]  = arr[i] + arr[i-1];
 
    
 
     // Call function with array elements and scalar
-
     sum = addAndMultiply(arr[i], arr[i-1], scalar);
 
     // Complex arithmetic expression using array and global float
-
     result = sum / scalar + arr[i-1] * scalar - (arr[i] + scalar);
 
     return 0;

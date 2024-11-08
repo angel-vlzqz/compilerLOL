@@ -27,6 +27,8 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
     if (node == NULL)
         return;
 
+    printf("Visiting node of type: %d\n", node->type);
+
     switch (node->type)
     {
     case NodeType_Program:
@@ -36,23 +38,62 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         break;
 
     case NodeType_DeclList:
-        printf("Processing DeclList Node\n");
+        printf("Processing DeclList Node at address %p\n", node);
         // Analyze declarations
         semanticAnalysis(node->declList.decl, symTab);
-        semanticAnalysis(node->declList.next, symTab);
+        if (node->declList.next)
+        {
+            printf("Moving to next DeclList Node at address %p\n", node->declList.next);
+            semanticAnalysis(node->declList.next, symTab);
+        }
+        else
+        {
+            printf("No more DeclList Nodes\n");
+        }
         break;
 
     case NodeType_FuncDecl:
     {
         printf("Processing FuncDecl Node: %s\n", node->funcDecl.funcName);
 
-        // Use the existing function's symbol table
+        // If the function's symbol table is not set, create it
         SymbolTable *functionScope = node->funcDecl.symTab;
-
         if (functionScope == NULL)
         {
-            fprintf(stderr, "Semantic error: Function scope not found for function %s\n", node->funcDecl.funcName);
+            functionScope = createSymbolTable(TABLE_SIZE, symTab);
+            node->funcDecl.symTab = functionScope;
+        }
+
+        // Insert the function into the symbol table if not already present
+        Symbol *funcSymbol = findSymbolInCurrentScope(symTab, node->funcDecl.funcName);
+        if (funcSymbol == NULL)
+        {
+            insertSymbol(symTab, node->funcDecl.funcName, node->funcDecl.returnType, false, true, NULL);
+            funcSymbol = findSymbolInCurrentScope(symTab, node->funcDecl.funcName);
+            if (funcSymbol == NULL)
+            {
+                fprintf(stderr, "Semantic error: Failed to insert function %s into symbol table\n", node->funcDecl.funcName);
+                exit(1);
+            }
+            // Set the function's parameter list
+            funcSymbol->paramList = node->funcDecl.paramList;
+        }
+        else
+        {
+            fprintf(stderr, "Semantic error: Function %s is already declared\n", node->funcDecl.funcName);
             exit(1);
+        }
+
+        // Insert parameters into the function's symbol table
+        ASTNode *paramNode = node->funcDecl.paramList;
+        while (paramNode)
+        {
+            if (paramNode->type == NodeType_Param)
+            {
+                // Insert the parameter into the function's symbol table
+                insertSymbol(functionScope, paramNode->param.paramName, paramNode->param.paramType, false, false, NULL);
+            }
+            paramNode = paramNode->paramList.nextParam;
         }
 
         // Analyze variable declarations
@@ -94,23 +135,58 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
 
         break;
     }
-
     case NodeType_VarDeclList:
         printf("Processing VarDeclList Node\n");
         semanticAnalysis(node->varDeclList.varDecl, symTab);
         semanticAnalysis(node->varDeclList.varDeclList, symTab);
         break;
 
+    case NodeType_ParamList:
+    {
+        printf("Processing ParamList Node\n");
+        semanticAnalysis(node->paramList.param, symTab);
+        semanticAnalysis(node->paramList.nextParam, symTab);
+        break;
+    }
+
+    case NodeType_Param:
+    {
+        printf("Processing Param Node: %s\n", node->param.paramName);
+
+        // Check if the parameter is already declared in the current scope
+        Symbol *existingSymbol = findSymbolInCurrentScope(symTab, node->param.paramName);
+        if (existingSymbol != NULL)
+        {
+            fprintf(stderr, "Semantic error: Parameter %s is already declared in this scope\n", node->param.paramName);
+            exit(1);
+        }
+
+        // Insert the parameter into the current scope's symbol table
+        insertSymbol(symTab, node->param.paramName, node->param.paramType, false, false, NULL);
+
+        break;
+    }
+
     case NodeType_VarDecl:
     {
         printf("Processing VarDecl Node: %s\n", node->varDecl.varName);
 
-        // The variable is already added to the symbol table in the parser
+        // Check if the variable is already declared in the current scope
+        Symbol *existingSymbol = findSymbolInCurrentScope(symTab, node->varDecl.varName);
+        if (existingSymbol != NULL)
+        {
+            fprintf(stderr, "Semantic error: Variable %s is already declared in this scope\n", node->varDecl.varName);
+            exit(1);
+        }
+
+        // Insert the variable into the current scope's symbol table
+        insertSymbol(symTab, node->varDecl.varName, node->varDecl.varType, false, false, NULL);
+
         // Retrieve the symbol to check types
         Symbol *varSymbol = findSymbolInCurrentScope(symTab, node->varDecl.varName);
         if (varSymbol == NULL)
         {
-            fprintf(stderr, "Semantic error: Variable %s not found in symbol table\n", node->varDecl.varName);
+            fprintf(stderr, "Semantic error: Failed to insert variable %s into symbol table\n", node->varDecl.varName);
             exit(1);
         }
 
@@ -130,9 +206,25 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
     }
 
     case NodeType_ArrayDecl:
+    {
         printf("Processing ArrayDecl Node: %s\n", node->arrayDecl.varName);
-        // The array is already added to the symbol table in the parser
+
+        // Check if the array is already declared in the current scope
+        Symbol *existingSymbol = findSymbolInCurrentScope(symTab, node->arrayDecl.varName);
+        if (existingSymbol != NULL)
+        {
+            fprintf(stderr, "Semantic error: Array %s is already declared in this scope\n", node->arrayDecl.varName);
+            exit(1);
+        }
+
+        // Create array information
+        Array *arrayInfo = createArray(node->arrayDecl.varType, node->arrayDecl.size);
+
+        // Insert the array into the symbol table
+        insertSymbol(symTab, node->arrayDecl.varName, node->arrayDecl.varType, true, false, arrayInfo);
+
         break;
+    }
 
     case NodeType_StmtList:
         printf("Processing StmtList Node\n");
@@ -503,7 +595,7 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
         char *left = generateTACForExpr(expr->binOp.left, symTab);
         char *right = generateTACForExpr(expr->binOp.right, symTab);
 
-        char *result = createTempVar(symTab);
+        char *result = createTempVar(symTab, expr->dataType); // Use expr->dataType
 
         // Determine the operation
         char op[4];
@@ -721,7 +813,8 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
         Symbol *funcSymbol = findSymbol(symTab, expr->funcCall.funcName);
         if (strcmp(funcSymbol->type, "void") != 0)
         {
-            char *result = createTempVar(symTab);
+            char *result = createTempVar(symTab, expr->dataType);
+            ;
 
             // Create TAC for retrieving return value
             TAC *retTAC = (TAC *)malloc(sizeof(TAC));
@@ -778,7 +871,8 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
         printf("bussy 16\n");
         char *left = generateTACForExpr(expr->logicalOp.left, symTab);
         char *right = generateTACForExpr(expr->logicalOp.right, symTab);
-        char *result = createTempVar(symTab);
+        char *result = createTempVar(symTab, expr->dataType);
+        ;
 
         // Create TAC for logical operation
         TAC *logicalTAC = (TAC *)malloc(sizeof(TAC));
@@ -798,7 +892,7 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
         printf("bussy 17\n");
         char *left = generateTACForExpr(expr->relOp.left, symTab);
         char *right = generateTACForExpr(expr->relOp.right, symTab);
-        char *result = createTempVar(symTab);
+        char *result = createTempVar(symTab, expr->dataType);
 
         // Create TAC for relational operation
         TAC *relOpTAC = (TAC *)malloc(sizeof(TAC));
@@ -817,7 +911,8 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
     {
         printf("bussy 18\n");
         char *exprResult = generateTACForExpr(expr->notOp.expr, symTab);
-        char *result = createTempVar(symTab);
+        char *result = createTempVar(symTab, expr->dataType);
+        ;
 
         // Create TAC for NOT operation
         TAC *notOpTAC = (TAC *)malloc(sizeof(TAC));
@@ -878,14 +973,14 @@ void generateTACForFunction(ASTNode *funcNode, SymbolTable *symTab)
     appendTAC(&tacHead, epilogueTAC);
 }
 
-char *createTempVar(SymbolTable *symTab)
+char *createTempVar(SymbolTable *symTab, const char *dataType)
 {
     static int tempVarCounter = 0;
     char *tempVarName = (char *)malloc(16);
     sprintf(tempVarName, "t%d", tempVarCounter++);
 
     // Insert temp variable into symbol table
-    insertSymbol(symTab, tempVarName, "int", false, false, NULL);
+    insertSymbol(symTab, tempVarName, dataType, false, false, NULL);
 
     return tempVarName;
 }

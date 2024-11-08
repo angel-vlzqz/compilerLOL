@@ -22,7 +22,7 @@ extern TAC *tacHead; // Global head of the TAC instructions list
 void semanticAnalysis(ASTNode *node, SymbolTable *symTab);
 char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab);
 void generateTACForFunction(ASTNode *funcNode, SymbolTable *symTab);
-char *createTempVar(SymbolTable *symTab);
+char *createTempVar(SymbolTable *symTab, const char *dataType);
 void appendTAC(TAC **head, TAC *newInstruction);
 void freeTACList(TAC *head);
 char *createLabel();

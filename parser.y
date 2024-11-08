@@ -20,7 +20,6 @@ void fatalError(const char *s);
 
 ASTNode* root = NULL;
 SymbolTable* globalSymTab = NULL;  // Global symbol table
-SymbolTable* currentSymTab = NULL; // Current active symbol table
 
 %}
 
@@ -100,9 +99,7 @@ FuncDecl:
     {
         printf("Parsed Function Declaration: %s\n", $2);
 
-        // Add function to global symbol table without checking for redeclaration
-        addFunctionSymbol(globalSymTab, $2, $1);
-        setSymbolParamList(findSymbol(globalSymTab, $2), $4);
+        // Removed symbol table manipulation during parsing
 
         // Create the function node and attach the body
         $$ = createNode(NodeType_FuncDecl);
@@ -113,47 +110,13 @@ FuncDecl:
         $$->funcDecl.block = $6->funcDecl.block;
         $$->funcDecl.returnStmt = $6->funcDecl.returnStmt;
 
-        // Create a new symbol table for the function scope
-        currentSymTab = createSymbolTable(TABLE_SIZE, currentSymTab);
-
-        // Add parameters to the function's symbol table without checking for redeclaration
-        ASTNode* paramNode = $4;
-        while (paramNode != NULL) {
-            ASTNode* param = paramNode->paramList.param;
-            if (param == NULL) {
-                paramNode = paramNode->paramList.nextParam;
-                continue;
-            }
-            addVariableSymbol(currentSymTab, param->param.paramName, param->param.paramType, false, NULL);
-            printf("Inserted parameter: Name = %s, Type = %s\n", param->param.paramName, param->param.paramType);
-            paramNode = paramNode->paramList.nextParam;
-        }
-        $$->funcDecl.symTab = currentSymTab;
-
+        // Removed creation of currentSymTab during parsing
     }
     | VOID ID '(' ParamList ')' FuncBody 
     {
         printf("Parsed Function Declaration: %s\n", $2);
 
-        // Add void function to global symbol table without checking for redeclaration
-        addFunctionSymbol(globalSymTab, $2, "void");
-        setSymbolParamList(findSymbol(globalSymTab, $2), $4);
-
-        // Create a new symbol table for the function scope
-        currentSymTab = createSymbolTable(TABLE_SIZE, currentSymTab);
-
-        // Add parameters to the function's symbol table without checking for redeclaration
-        ASTNode* paramNode = $4;
-        while (paramNode != NULL) {
-            ASTNode* param = paramNode->paramList.param;
-            if (param == NULL) {
-                paramNode = paramNode->paramList.nextParam;
-                continue;
-            }
-            addVariableSymbol(currentSymTab, param->param.paramName, param->param.paramType, false, NULL);
-            printf("Inserted parameter: Name = %s, Type = %s\n", param->param.paramName, param->param.paramType);
-            paramNode = paramNode->paramList.nextParam;
-        }
+        // Removed symbol table manipulation during parsing
 
         // Create the function node and attach the body
         $$ = createNode(NodeType_FuncDecl);
@@ -163,7 +126,8 @@ FuncDecl:
         $$->funcDecl.varDeclList = $6->funcDecl.varDeclList;
         $$->funcDecl.block = $6->funcDecl.block;
         $$->funcDecl.returnStmt = $6->funcDecl.returnStmt;
-        $$->funcDecl.symTab = currentSymTab;
+
+        // Removed creation of currentSymTab during parsing
     }
     ;
 
@@ -172,8 +136,7 @@ MainFuncDecl:
     {
         printf("Parsed Main Function Declaration\n");
 
-        // Add main function to global symbol table without checking for redeclaration
-        addFunctionSymbol(globalSymTab, "main", $1);
+        // Removed symbol table manipulation during parsing
 
         // Create the function node and attach the body
         $$ = createNode(NodeType_FuncDecl);
@@ -184,9 +147,7 @@ MainFuncDecl:
         $$->funcDecl.block = $5->funcDecl.block;
         $$->funcDecl.returnStmt = $5->funcDecl.returnStmt;
 
-        // Create a new symbol table for the main function scope
-        currentSymTab = createSymbolTable(TABLE_SIZE, currentSymTab);
-        $$->funcDecl.symTab = currentSymTab;
+        // Removed creation of currentSymTab during parsing
     }
     ;
 
@@ -266,8 +227,8 @@ VarDecl:
     TYPE ID SEMICOLON
     {
         printf("Parsed variable declaration: %s %s\n", $1, $2);
-        // Add variable to the current symbol table without checking for redeclaration
-        addVariableSymbol(currentSymTab, $2, $1, false, NULL);
+
+        // Removed symbol table manipulation during parsing
 
         $$ = createNode(NodeType_VarDecl);
         $$->varDecl.varType = strdup($1);
@@ -277,8 +238,8 @@ VarDecl:
     | TYPE ID ASSIGNOP Expr SEMICOLON
     {
         printf("Parsed variable declaration with initialization: %s %s\n", $1, $2);
-        // Add variable to the current symbol table without checking for redeclaration
-        addVariableSymbol(currentSymTab, $2, $1, false, NULL);
+
+        // Removed symbol table manipulation during parsing
 
         $$ = createNode(NodeType_VarDecl);
         $$->varDecl.varType = strdup($1);
@@ -288,9 +249,8 @@ VarDecl:
     | TYPE ID '[' NUMBER ']' SEMICOLON
     {
         printf("Parsed array declaration: %s %s[%d]\n", $1, $2, $4);
-        // Add array to the current symbol table without checking for redeclaration
-        Array *arrayInfo = createArray($1, $4);
-        addVariableSymbol(currentSymTab, $2, $1, true, arrayInfo);
+
+        // Removed symbol table manipulation during parsing
 
         $$ = createNode(NodeType_ArrayDecl);
         $$->arrayDecl.varType = strdup($1);
@@ -330,7 +290,7 @@ Stmt:
     {
         printf("Parsed Assignment Statement: %s = ...\n", $1);
 
-        // Create the assignment node without checking if the variable is declared
+        // Create the assignment node
         $$ = createNode(NodeType_AssignStmt);
         $$->assignStmt.varName = strdup($1);
         $$->assignStmt.operator = strdup($2);
@@ -340,7 +300,7 @@ Stmt:
     {
         printf("Parsed Array Assignment: %s[...]=...\n", $1);
 
-        // Create the array assignment node without checking if the array is declared
+        // Create the array assignment node
         $$ = createNode(NodeType_ArrayAssign);
         $$->arrayAssign.arrayName = strdup($1);
         $$->arrayAssign.index = $3;
@@ -519,7 +479,7 @@ FuncCall:
     {
         printf("Parsed function call with arguments: %s(...)\n", $1);
 
-        // Create the function call node without checking if the function is declared
+        // Create the function call node
         $$ = createNode(NodeType_FuncCall);
         $$->funcCall.funcName = strdup($1);
         $$->funcCall.argList = $3;
@@ -528,7 +488,7 @@ FuncCall:
     {
         printf("Parsed function call: %s()\n", $1);
 
-        // Create the function call node without checking if the function is declared
+        // Create the function call node
         $$ = createNode(NodeType_FuncCall);
         $$->funcCall.funcName = strdup($1);
         $$->funcCall.argList = NULL;
@@ -612,7 +572,7 @@ Expr:
     {
         printf("Parsed Identifier: %s\n", $1);
 
-        // Create the identifier node without checking if the variable is declared
+        // Create the identifier node
         $$ = createNode(NodeType_SimpleID);
         $$->simpleID.name = strdup($1);
     } 
@@ -634,7 +594,7 @@ Expr:
     {
         printf("Parsed Array Access: %s[...]\n", $1);
 
-        // Create the array access node without checking if the array is declared
+        // Create the array access node
         $$ = createNode(NodeType_ArrayAccess);
         $$->arrayAccess.arrayName = strdup($1);
         $$->arrayAccess.index = $3;
@@ -674,14 +634,7 @@ int main()
     // Initialize the input source
     yyin = fopen("input.cmm", "r");
 
-    // Initialize global symbol table
-    globalSymTab = createSymbolTable(TABLE_SIZE, NULL);
-    if (globalSymTab == NULL) 
-    {
-        fprintf(stderr, "Error: Unable to initialize symbol table\n");
-        exit(1);
-    }
-    currentSymTab = globalSymTab;
+    // Removed initialization of currentSymTab during parsing
 
     // Initialize temporary variables
     initializeTempVars();
@@ -689,6 +642,14 @@ int main()
     if (yyparse() == 0) 
     {
         printf("=================Semantic=================\n");
+
+        // Initialize global symbol table after parsing
+        globalSymTab = createSymbolTable(TABLE_SIZE, NULL);
+        if (globalSymTab == NULL) 
+        {
+            fprintf(stderr, "Error: Unable to initialize symbol table\n");
+            exit(1);
+        }
 
         // Semantic Analysis
         semanticAnalysis(root, globalSymTab);
