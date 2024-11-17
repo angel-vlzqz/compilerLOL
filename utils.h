@@ -4,7 +4,7 @@
 
 #include "optimizer.h"
 #include "semantic.h"
-#include "ast.h"
+#include "AST.h"
 
 // Array of node type names for easy printing
 extern const char *nodeTypeNames[];

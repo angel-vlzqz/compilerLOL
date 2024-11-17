@@ -113,11 +113,6 @@ void traverseAST(ASTNode *node, int level)
         traverseAST(node->binOp.right, level + 1);
         break;
 
-    case NodeType_CastExpr:
-        printf("CastExpr to %s\n", node->castExpr.type);
-        traverseAST(node->castExpr.expr, level + 1);
-        break;
-
     case NodeType_LogicalOp:
         printf("LogicalOp: %s\n", node->logicalOp.logicalOp);
         traverseAST(node->logicalOp.left, level + 1);
@@ -260,11 +255,6 @@ void freeAST(ASTNode *node)
     case NodeType_BinOp:
         freeAST(node->binOp.left);
         freeAST(node->binOp.right);
-        break;
-
-    case NodeType_CastExpr:
-        free(node->castExpr.type);
-        freeAST(node->castExpr.expr);
         break;
 
     case NodeType_LogicalOp:
@@ -417,11 +407,6 @@ ASTNode *createNode(NodeType type)
         newNode->binOp.operator= '\0';
         newNode->binOp.left = NULL;
         newNode->binOp.right = NULL;
-        break;
-
-    case NodeType_CastExpr:
-        newNode->castExpr.type = NULL;
-        newNode->castExpr.expr = NULL;
         break;
 
     case NodeType_LogicalOp:

@@ -99,8 +99,6 @@ FuncDecl:
     {
         printf("Parsed Function Declaration: %s\n", $2);
 
-        // Removed symbol table manipulation during parsing
-
         // Create the function node and attach the body
         $$ = createNode(NodeType_FuncDecl);
         $$->funcDecl.returnType = strdup($1);
@@ -115,8 +113,6 @@ FuncDecl:
     | VOID ID '(' ParamList ')' FuncBody 
     {
         printf("Parsed Function Declaration: %s\n", $2);
-
-        // Removed symbol table manipulation during parsing
 
         // Create the function node and attach the body
         $$ = createNode(NodeType_FuncDecl);
@@ -560,13 +556,6 @@ Expr:
     {
         printf("Parsed expression in parentheses\n");
         $$ = $2;
-    }
-    | '(' TYPE ')' Expr
-    {
-        printf("Parsed casting expression\n");
-        $$ = createNode(NodeType_CastExpr);
-        $$->castExpr.type = strdup($2);
-        $$->castExpr.expr = $4;
     }
     | ID
     {

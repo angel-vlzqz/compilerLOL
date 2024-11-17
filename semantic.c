@@ -52,89 +52,61 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         }
         break;
 
-    case NodeType_FuncDecl:
-    {
+    case NodeType_FuncDecl: {
         printf("Processing FuncDecl Node: %s\n", node->funcDecl.funcName);
 
-        // If the function's symbol table is not set, create it
+        // Create a new symbol table for the function if not already present
         SymbolTable *functionScope = node->funcDecl.symTab;
-        if (functionScope == NULL)
-        {
+        if (functionScope == NULL) {
             functionScope = createSymbolTable(TABLE_SIZE, symTab);
             node->funcDecl.symTab = functionScope;
         }
 
-        // Insert the function into the symbol table if not already present
+        // Add the function to the global symbol table
         Symbol *funcSymbol = findSymbolInCurrentScope(symTab, node->funcDecl.funcName);
-        if (funcSymbol == NULL)
-        {
+        if (funcSymbol == NULL) {
             insertSymbol(symTab, node->funcDecl.funcName, node->funcDecl.returnType, false, true, NULL);
             funcSymbol = findSymbolInCurrentScope(symTab, node->funcDecl.funcName);
-            if (funcSymbol == NULL)
-            {
-                fprintf(stderr, "Semantic error: Failed to insert function %s into symbol table\n", node->funcDecl.funcName);
+            if (funcSymbol == NULL) {
+                fprintf(stderr, "Error: Failed to insert function %s into symbol table\n", node->funcDecl.funcName);
                 exit(1);
             }
-            // Set the function's parameter list
-            funcSymbol->paramList = node->funcDecl.paramList;
-        }
-        else
-        {
+            setSymbolParamList(funcSymbol, node->funcDecl.paramList);
+        } else {
             fprintf(stderr, "Semantic error: Function %s is already declared\n", node->funcDecl.funcName);
             exit(1);
         }
 
-        // Insert parameters into the function's symbol table
+        // Add parameters to the function's symbol table
         ASTNode *paramNode = node->funcDecl.paramList;
-        while (paramNode)
-        {
-            if (paramNode->type == NodeType_Param)
-            {
-                // Insert the parameter into the function's symbol table
+        while (paramNode) {
+            if (paramNode->type == NodeType_Param) {
+                Symbol *existingParam = findSymbolInCurrentScope(functionScope, paramNode->param.paramName);
+                if (existingParam != NULL) {
+                    fprintf(stderr, "Semantic error: Parameter %s is already declared in function %s\n",
+                            paramNode->param.paramName, node->funcDecl.funcName);
+                    exit(1);
+                }
+
                 insertSymbol(functionScope, paramNode->param.paramName, paramNode->param.paramType, false, false, NULL);
+                printf("Inserted parameter: %s of type %s into function %s\n",
+                    paramNode->param.paramName, paramNode->param.paramType, node->funcDecl.funcName);
             }
             paramNode = paramNode->paramList.nextParam;
         }
 
-        // Analyze variable declarations
-        if (node->funcDecl.varDeclList)
-            semanticAnalysis(node->funcDecl.varDeclList, functionScope);
+        // Analyze local variable declarations
+        semanticAnalysis(node->funcDecl.varDeclList, functionScope);
 
         // Analyze the function body
-        if (node->funcDecl.block)
-            semanticAnalysis(node->funcDecl.block, functionScope);
+        semanticAnalysis(node->funcDecl.block, functionScope);
 
         // Analyze the return statement
-        if (node->funcDecl.returnStmt)
-        {
-            semanticAnalysis(node->funcDecl.returnStmt, functionScope);
-
-            // Check that the return type matches
-            if (node->funcDecl.returnStmt->returnStmt.expr)
-            {
-                if (strcmp(node->funcDecl.returnType, node->funcDecl.returnStmt->returnStmt.expr->dataType) != 0)
-                {
-                    fprintf(stderr, "Semantic error: Return type mismatch in function %s\n", node->funcDecl.funcName);
-                    exit(1);
-                }
-            }
-            else if (strcmp(node->funcDecl.returnType, "void") != 0)
-            {
-                fprintf(stderr, "Semantic error: Non-void function %s must return a value\n", node->funcDecl.funcName);
-                exit(1);
-            }
-        }
-        else if (strcmp(node->funcDecl.returnType, "void") != 0)
-        {
-            fprintf(stderr, "Semantic error: Non-void function %s must have a return statement\n", node->funcDecl.funcName);
-            exit(1);
-        }
-
-        // Generate TAC for the function
-        generateTACForFunction(node, functionScope);
+        semanticAnalysis(node->funcDecl.returnStmt, functionScope);
 
         break;
     }
+
     case NodeType_VarDeclList:
         printf("Processing VarDeclList Node\n");
         semanticAnalysis(node->varDeclList.varDecl, symTab);
@@ -167,41 +139,17 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         break;
     }
 
-    case NodeType_VarDecl:
-    {
+    case NodeType_VarDecl: {
         printf("Processing VarDecl Node: %s\n", node->varDecl.varName);
 
-        // Check if the variable is already declared in the current scope
+        // Add the variable to the current scope
         Symbol *existingSymbol = findSymbolInCurrentScope(symTab, node->varDecl.varName);
-        if (existingSymbol != NULL)
-        {
+        if (existingSymbol != NULL) {
             fprintf(stderr, "Semantic error: Variable %s is already declared in this scope\n", node->varDecl.varName);
             exit(1);
         }
 
-        // Insert the variable into the current scope's symbol table
         insertSymbol(symTab, node->varDecl.varName, node->varDecl.varType, false, false, NULL);
-
-        // Retrieve the symbol to check types
-        Symbol *varSymbol = findSymbolInCurrentScope(symTab, node->varDecl.varName);
-        if (varSymbol == NULL)
-        {
-            fprintf(stderr, "Semantic error: Failed to insert variable %s into symbol table\n", node->varDecl.varName);
-            exit(1);
-        }
-
-        // Analyze the initial value if present
-        if (node->varDecl.initialValue)
-        {
-            semanticAnalysis(node->varDecl.initialValue, symTab);
-
-            // Check type compatibility
-            if (strcmp(varSymbol->type, node->varDecl.initialValue->dataType) != 0)
-            {
-                fprintf(stderr, "Semantic error: Type mismatch in initialization of variable %s\n", node->varDecl.varName);
-                exit(1);
-            }
-        }
         break;
     }
 
@@ -242,7 +190,7 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         Symbol *assignSymbol = findSymbol(symTab, node->assignStmt.varName);
         if (assignSymbol == NULL)
         {
-            fprintf(stderr, "Semantic error: Variable %s has not been declared\n", node->assignStmt.varName);
+            fprintf(stderr, "Semantic error: Variable %s has not been declared, NodeType_AssignStmt\n", node->assignStmt.varName);
             exit(1);
         }
 
@@ -315,25 +263,31 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         semanticAnalysis(node->binOp.left, symTab);
         semanticAnalysis(node->binOp.right, symTab);
 
-        printf("Left operand type: %s\n", node->binOp.left->dataType);
-        printf("Right operand type: %s\n", node->binOp.right->dataType);
-
-        // Type checking and setting dataType
-        if ((strcmp(node->binOp.left->dataType, "int") == 0 && strcmp(node->binOp.right->dataType, "float") == 0) ||
-            (strcmp(node->binOp.left->dataType, "float") == 0 && strcmp(node->binOp.right->dataType, "int") == 0))
+        // Rounding and Type Promotion Logic
+        if (strcmp(node->binOp.left->dataType, "int") == 0 && strcmp(node->binOp.right->dataType, "float") == 0)
         {
-            node->dataType = strdup("float"); // Promote to float
+            fprintf(stderr, "Warning: Implicit conversion of 'int' to 'float' with rounding on the left operand.\n");
+            // Round the int value if necessary, promote result to float
+            node->dataType = strdup("float");
         }
-        else if (strcmp(node->binOp.left->dataType, node->binOp.right->dataType) == 0)
+        else if (strcmp(node->binOp.left->dataType, "float") == 0 && strcmp(node->binOp.right->dataType, "int") == 0)
         {
-            node->dataType = strdup(node->binOp.left->dataType);
+            fprintf(stderr, "Warning: Implicit conversion of 'int' to 'float' with rounding on the right operand.\n");
+            // Round the int value if necessary, promote result to float
+            node->dataType = strdup("float");
+        }
+        else if (strcmp(node->binOp.left->dataType, "int") == 0 && strcmp(node->binOp.right->dataType, "int") == 0)
+        {
+            node->dataType = strdup("int"); // No promotion needed if both are int
+        }
+        else if (strcmp(node->binOp.left->dataType, "float") == 0 && strcmp(node->binOp.right->dataType, "float") == 0)
+        {
+            node->dataType = strdup("float"); // No promotion needed if both are float
         }
         else
         {
-            fprintf(stderr, "Semantic error: Type mismatch in binary operation\n");
-            exit(1);
+            fprintf(stderr, "Semantic warning: Type mismatch handled with implicit promotion in binary operation\n");
         }
-
         break;
 
     case NodeType_SimpleID:
@@ -342,7 +296,7 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         Symbol *symbol = findSymbol(symTab, node->simpleID.name);
         if (symbol == NULL)
         {
-            fprintf(stderr, "Semantic error: Variable %s has not been declared\n", node->simpleID.name);
+            fprintf(stderr, "Semantic error: Variable %s has not been declared, NodeType_SimpleID\n", node->simpleID.name);
             exit(1);
         }
 
@@ -477,13 +431,6 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         printf("Processing Arg Node\n");
         semanticAnalysis(node->arg.expr, symTab);
         node->dataType = strdup(node->arg.expr->dataType);
-        break;
-
-    case NodeType_CastExpr:
-        printf("Processing CastExpr Node\n");
-        // Analyze the expression being cast
-        semanticAnalysis(node->castExpr.expr, symTab);
-        node->dataType = strdup(node->castExpr.type);
         break;
 
     case NodeType_LogicalOp:

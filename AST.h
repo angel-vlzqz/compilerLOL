@@ -35,7 +35,6 @@ typedef enum
     NodeType_IfStmt,
     NodeType_WhileStmt,
     NodeType_LogicalOp,
-    NodeType_CastExpr,
     NodeType_RelOp,
     NodeType_NotOp
 } NodeType;
@@ -139,12 +138,6 @@ typedef struct ASTNode
             struct ASTNode *left;
             struct ASTNode *right;
         } binOp;
-
-        struct
-        {
-            char *type; // Type to cast to
-            struct ASTNode *expr;
-        } castExpr;
 
         struct
         {
