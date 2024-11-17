@@ -18,7 +18,7 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
 {
     if (node)
     {
-        printNodeDetails(node);
+        // printNodeDetails(node);
     }
     else
     {
@@ -27,7 +27,7 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
     if (node == NULL)
         return;
 
-    printf("Visiting node of type: %d\n", node->type);
+    // printf("Visiting node of type: %d\n", node->type);
 
     switch (node->type)
     {
@@ -78,8 +78,9 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         }
 
         // Add parameters to the function's symbol table
-        ASTNode *paramNode = node->funcDecl.paramList;
-        while (paramNode) {
+        ASTNode *paramListNode = node->funcDecl.paramList;
+        while (paramListNode) {
+            ASTNode *paramNode = paramListNode->paramList.param;
             if (paramNode->type == NodeType_Param) {
                 Symbol *existingParam = findSymbolInCurrentScope(functionScope, paramNode->param.paramName);
                 if (existingParam != NULL) {
@@ -92,7 +93,7 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
                 printf("Inserted parameter: %s of type %s into function %s\n",
                     paramNode->param.paramName, paramNode->param.paramType, node->funcDecl.funcName);
             }
-            paramNode = paramNode->paramList.nextParam;
+            paramListNode = paramListNode->paramList.nextParam;
         }
 
         // Analyze local variable declarations
@@ -296,6 +297,8 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         Symbol *symbol = findSymbol(symTab, node->simpleID.name);
         if (symbol == NULL)
         {
+            printAllSymbolTables(symTab);
+            // printSymbolTable(symTab);
             fprintf(stderr, "Semantic error: Variable %s has not been declared, NodeType_SimpleID\n", node->simpleID.name);
             exit(1);
         }

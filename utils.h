@@ -20,6 +20,8 @@ bool isVariable(const char *str);
 
 // ---- semantic.c Helpers ----
 
+void printAllSymbolTables(SymbolTable *symbolTable);
+void printSymbolTable(SymbolTable *symbolTable);
 void initializeTempVars(); // int tempVars[], int size
 int allocateNextAvailableTempVar(int tempVars[], int size);
 void deallocateTempVar(int tempVars[], int index);

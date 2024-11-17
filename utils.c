@@ -80,6 +80,84 @@ bool isVariable(const char *str)
 
 // ---- semantic.c Helpers ----
 
+void printAllSymbolTables(SymbolTable *symbolTable)
+{
+    if (symbolTable == NULL)
+    {
+        printf("No symbol tables to print.\n");
+        return;
+    }
+
+    printf("Printing All Symbol Tables:\n");
+    printf("================================================================\n");
+
+    // First, traverse backward to the outermost scope
+    SymbolTable *currentTable = symbolTable;
+    while (currentTable->prev != NULL)
+    {
+        currentTable = currentTable->prev;
+    }
+
+    // Now traverse forward to print all symbol tables
+    while (currentTable != NULL)
+    {
+        printf("\n--- Symbol Table at Scope: %d ---\n", currentTable->scope);
+        printSymbolTable(currentTable); // Use the simplified print function
+        currentTable = currentTable->next; // Move to the next inner scope
+    }
+
+    printf("================================================================\n");
+}
+
+void printSymbolTable(SymbolTable *symbolTable)
+{
+    if (symbolTable == NULL)
+    {
+        printf("Symbol table is empty.\n");
+        return;
+    }
+
+    printf("Symbol Table (Scope: %d):\n", symbolTable->scope);
+    printf("================================================================\n");
+    printf("| %-20s | %-10s | %-6s | %-5s | %-5s |\n", "Name", "Type", "Index", "Array", "Func");
+    printf("================================================================\n");
+
+    for (int i = 0; i < symbolTable->size; i++)
+    {
+        Symbol *symbol = symbolTable->table[i];
+        while (symbol != NULL)
+        {
+            printf("| %-20s | %-10s | %-6d | %-5s | %-5s |\n",
+                   symbol->name,
+                   symbol->type,
+                   symbol->index,
+                   symbol->isArray ? "Yes" : "No",
+                   symbol->isFunction ? "Yes" : "No");
+
+            if (symbol->isArray)
+            {
+                printf("    [Array]\n");
+            }
+
+            if (symbol->isFunction && symbol->paramList != NULL)
+            {
+                printf("    [Function with parameters]\n");
+            }
+
+            symbol = symbol->next;
+        }
+    }
+
+    printf("================================================================\n");
+
+    // Recursively print inner scopes
+    if (symbolTable->next != NULL)
+    {
+        printf("\nEntering Inner Scope:\n");
+        printSymbolTable(symbolTable->next);
+    }
+}
+
 void initializeTempVars()
 {
     for (int i = 0; i < 50; i++)

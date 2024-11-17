@@ -31,7 +31,7 @@ typedef struct SymbolTable
 extern int GlobalScope;
 
 // Function Declarations
-unsigned int hashFunction(const char *name, int tableSize);
+void printAllSymbolTables(SymbolTable *symbolTable);
 Symbol *addFunctionSymbol(SymbolTable *symbolTable, const char *name, const char *returnType);
 Symbol *addVariableSymbol(SymbolTable *symbolTable, const char *name, const char *type, bool isArray, Array *arrayInfo);
 Symbol *createSymbol(const char *name, const char *type, int index, bool isArray, bool isFunction, Array *arrayInfo);

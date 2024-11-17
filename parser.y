@@ -179,15 +179,9 @@ ParamList:
     {
         printf("Parsed parameter list\n");
         // Attach the new parameter to the end of the existing list
-        ASTNode* temp = $1;
-        while (temp->paramList.nextParam != NULL) {
-            temp = temp->paramList.nextParam;
-        }
-        ASTNode* newParamList = createNode(NodeType_ParamList);
-        newParamList->paramList.param = $3;
-        newParamList->paramList.nextParam = NULL;
-        temp->paramList.nextParam = newParamList;
-        $$ = $1;
+        $$ = createNode(NodeType_ParamList);
+        $$->paramList.param = $3;
+        $$->paramList.nextParam = $1;
     }
     | /* empty */
     {
