@@ -52,38 +52,47 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         }
         break;
 
-    case NodeType_FuncDecl: {
+    case NodeType_FuncDecl:
+    {
         printf("Processing FuncDecl Node: %s\n", node->funcDecl.funcName);
 
         // Create a new symbol table for the function if not already present
         SymbolTable *functionScope = node->funcDecl.symTab;
-        if (functionScope == NULL) {
+        if (functionScope == NULL)
+        {
             functionScope = createSymbolTable(TABLE_SIZE, symTab);
             node->funcDecl.symTab = functionScope;
         }
 
         // Add the function to the global symbol table
         Symbol *funcSymbol = findSymbolInCurrentScope(symTab, node->funcDecl.funcName);
-        if (funcSymbol == NULL) {
+        if (funcSymbol == NULL)
+        {
             insertSymbol(symTab, node->funcDecl.funcName, node->funcDecl.returnType, false, true, NULL);
             funcSymbol = findSymbolInCurrentScope(symTab, node->funcDecl.funcName);
-            if (funcSymbol == NULL) {
+            if (funcSymbol == NULL)
+            {
                 fprintf(stderr, "Error: Failed to insert function %s into symbol table\n", node->funcDecl.funcName);
                 exit(1);
             }
             setSymbolParamList(funcSymbol, node->funcDecl.paramList);
-        } else {
+        }
+        else
+        {
             fprintf(stderr, "Semantic error: Function %s is already declared\n", node->funcDecl.funcName);
             exit(1);
         }
 
         // Add parameters to the function's symbol table
         ASTNode *paramListNode = node->funcDecl.paramList;
-        while (paramListNode) {
+        while (paramListNode)
+        {
             ASTNode *paramNode = paramListNode->paramList.param;
-            if (paramNode->type == NodeType_Param) {
+            if (paramNode->type == NodeType_Param)
+            {
                 Symbol *existingParam = findSymbolInCurrentScope(functionScope, paramNode->param.paramName);
-                if (existingParam != NULL) {
+                if (existingParam != NULL)
+                {
                     fprintf(stderr, "Semantic error: Parameter %s is already declared in function %s\n",
                             paramNode->param.paramName, node->funcDecl.funcName);
                     exit(1);
@@ -91,7 +100,7 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
 
                 insertSymbol(functionScope, paramNode->param.paramName, paramNode->param.paramType, false, false, NULL);
                 printf("Inserted parameter: %s of type %s into function %s\n",
-                    paramNode->param.paramName, paramNode->param.paramType, node->funcDecl.funcName);
+                       paramNode->param.paramName, paramNode->param.paramType, node->funcDecl.funcName);
             }
             paramListNode = paramListNode->paramList.nextParam;
         }
@@ -104,6 +113,9 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
 
         // Analyze the return statement
         semanticAnalysis(node->funcDecl.returnStmt, functionScope);
+
+        // Generate TAC for the function
+        generateTACForFunction(node, functionScope);
 
         break;
     }
@@ -140,12 +152,14 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         break;
     }
 
-    case NodeType_VarDecl: {
+    case NodeType_VarDecl:
+    {
         printf("Processing VarDecl Node: %s\n", node->varDecl.varName);
 
         // Add the variable to the current scope
         Symbol *existingSymbol = findSymbolInCurrentScope(symTab, node->varDecl.varName);
-        if (existingSymbol != NULL) {
+        if (existingSymbol != NULL)
+        {
             fprintf(stderr, "Semantic error: Variable %s is already declared in this scope\n", node->varDecl.varName);
             exit(1);
         }
@@ -401,6 +415,9 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
             exit(1);
         }
 
+        // Set the data type based on function's return type
+        node->dataType = strdup(funcSymbol->type);
+
         // Check number of arguments
         int paramCount = 0;
         ASTNode *paramNode = funcSymbol->paramList;
@@ -416,8 +433,6 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
                     node->funcCall.funcName, paramCount, argCount);
             exit(1);
         }
-
-        // Additional checks for argument types can be added here
 
         // Generate TAC for the function call
         generateTACForExpr(node, symTab);
@@ -522,7 +537,6 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
     {
     case NodeType_AssignStmt:
     {
-        printf("bussy 5\n");
         char *rhs = generateTACForExpr(expr->assignStmt.expr, symTab);
         char *lhs = expr->assignStmt.varName;
 
@@ -541,7 +555,6 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
     case NodeType_BinOp:
     {
-        printf("bussy 6\n");
         char *left = generateTACForExpr(expr->binOp.left, symTab);
         char *right = generateTACForExpr(expr->binOp.right, symTab);
 
@@ -566,7 +579,6 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
     case NodeType_SimpleExpr:
     {
-        printf("bussy 7\n");
         char buffer[32];
         if (expr->simpleExpr.isFloat)
             snprintf(buffer, sizeof(buffer), "%.6f", expr->simpleExpr.floatValue);
@@ -577,12 +589,10 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
     }
 
     case NodeType_SimpleID:
-        printf("bussy 8\n");
         return strdup(expr->simpleID.name);
 
     case NodeType_WriteStmt:
     {
-        printf("bussy 9\n");
         char *exprResult = generateTACForExpr(expr->writeStmt.expr, symTab);
 
         // Create TAC for write
@@ -600,7 +610,6 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
     case NodeType_IfStmt:
     {
-        printf("bussy 10\n");
         // Generate labels
         char *labelTrue = createLabel();
         char *labelFalse = createLabel();
@@ -666,7 +675,6 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
     case NodeType_WhileStmt:
     {
-        printf("bussy 11\n");
         // Generate labels
         char *labelStart = createLabel();
         char *labelEnd = createLabel();
@@ -726,7 +734,6 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
     case NodeType_FuncCall:
     {
-        printf("bussy 12\n");
         // Process arguments
         ASTNode *argNode = expr->funcCall.argList;
         int argCount = 0;
@@ -734,6 +741,11 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
         while (argNode)
         {
             char *argResult = generateTACForExpr(argNode->argList.arg, symTab);
+            if (!argResult)
+            {
+                fprintf(stderr, "Error: Failed to generate TAC for argument\n");
+                continue;
+            }
 
             // Create TAC for pushing argument
             TAC *paramTAC = (TAC *)malloc(sizeof(TAC));
@@ -761,10 +773,9 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
         // If the function returns a value
         Symbol *funcSymbol = findSymbol(symTab, expr->funcCall.funcName);
-        if (strcmp(funcSymbol->type, "void") != 0)
+        if (funcSymbol && strcmp(funcSymbol->type, "void") != 0)
         {
-            char *result = createTempVar(symTab, expr->dataType);
-            ;
+            char *result = createTempVar(symTab, funcSymbol->type);
 
             // Create TAC for retrieving return value
             TAC *retTAC = (TAC *)malloc(sizeof(TAC));
@@ -784,7 +795,6 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
     case NodeType_ReturnStmt:
     {
-        printf("bussy 13\n");
         char *retValue = NULL;
 
         if (expr->returnStmt.expr)
@@ -804,21 +814,30 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
     }
 
     case NodeType_Block:
-        printf("bussy 14\n");
         // Process statements in the block
         if (expr->block.stmtList)
             generateTACForExpr(expr->block.stmtList, symTab);
         return NULL;
 
     case NodeType_StmtList:
-        printf("bussy 15\n");
-        generateTACForExpr(expr->stmtList.stmt, symTab);
-        generateTACForExpr(expr->stmtList.stmtList, symTab);
-        return NULL;
+    {
+        // Process the current statement
+        if (expr->stmtList.stmt)
+        {
+            generateTACForExpr(expr->stmtList.stmt, symTab);
+        }
+
+        // Process the rest of the statement list
+        if (expr->stmtList.stmtList)
+        {
+            generateTACForExpr(expr->stmtList.stmtList, symTab);
+        }
+
+        return NULL; // Statement lists don't produce a value
+    }
 
     case NodeType_LogicalOp:
     {
-        printf("bussy 16\n");
         char *left = generateTACForExpr(expr->logicalOp.left, symTab);
         char *right = generateTACForExpr(expr->logicalOp.right, symTab);
         char *result = createTempVar(symTab, expr->dataType);
@@ -839,7 +858,6 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
     case NodeType_RelOp:
     {
-        printf("bussy 17\n");
         char *left = generateTACForExpr(expr->relOp.left, symTab);
         char *right = generateTACForExpr(expr->relOp.right, symTab);
         char *result = createTempVar(symTab, expr->dataType);
@@ -859,7 +877,6 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
     case NodeType_NotOp:
     {
-        printf("bussy 18\n");
         char *exprResult = generateTACForExpr(expr->notOp.expr, symTab);
         char *result = createTempVar(symTab, expr->dataType);
         ;
@@ -875,6 +892,31 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
         appendTAC(&tacHead, notOpTAC);
 
         return result;
+    }
+
+    case NodeType_ArrayAccess:
+    {
+        printf("Generating TAC for array access\n");
+        char *index = generateTACForExpr(expr->arrayAccess.index, symTab);
+        char *result = createTempVar(symTab, expr->dataType);
+
+        // Create TAC for array access
+        TAC *arrayTAC = (TAC *)malloc(sizeof(TAC));
+        arrayTAC->op = strdup("array_load");
+        arrayTAC->arg1 = strdup(expr->arrayAccess.arrayName);
+        arrayTAC->arg2 = strdup(index);
+        arrayTAC->result = strdup(result);
+        arrayTAC->next = NULL;
+
+        appendTAC(&tacHead, arrayTAC);
+
+        return result;
+    }
+    case NodeType_Arg:
+    {
+        printf("Generating TAC for argument\n");
+        // For arguments, we just need to generate TAC for the expression
+        return generateTACForExpr(expr->arg.expr, symTab);
     }
 
     default:
@@ -895,8 +937,25 @@ void generateTACForFunction(ASTNode *funcNode, SymbolTable *symTab)
     labelTAC->arg2 = NULL;
     labelTAC->result = NULL;
     labelTAC->next = NULL;
-
     appendTAC(&tacHead, labelTAC);
+
+    // Generate TAC for parameters
+    ASTNode *paramList = funcNode->funcDecl.paramList;
+    int paramCount = 0;
+    while (paramList != NULL)
+    {
+        // Create TAC for parameter declaration
+        TAC *paramTAC = (TAC *)malloc(sizeof(TAC));
+        paramTAC->op = strdup("param");
+        paramTAC->arg1 = strdup(paramList->paramList.param->param.paramName);
+        paramTAC->arg2 = strdup(paramList->paramList.param->param.paramType);
+        paramTAC->result = NULL;
+        paramTAC->next = NULL;
+        appendTAC(&tacHead, paramTAC);
+
+        paramList = paramList->paramList.nextParam;
+        paramCount++;
+    }
 
     // Prologue
     TAC *prologueTAC = (TAC *)malloc(sizeof(TAC));
@@ -905,7 +964,6 @@ void generateTACForFunction(ASTNode *funcNode, SymbolTable *symTab)
     prologueTAC->arg2 = NULL;
     prologueTAC->result = NULL;
     prologueTAC->next = NULL;
-
     appendTAC(&tacHead, prologueTAC);
 
     // Generate TAC for function body
@@ -919,7 +977,6 @@ void generateTACForFunction(ASTNode *funcNode, SymbolTable *symTab)
     epilogueTAC->arg2 = NULL;
     epilogueTAC->result = NULL;
     epilogueTAC->next = NULL;
-
     appendTAC(&tacHead, epilogueTAC);
 }
 

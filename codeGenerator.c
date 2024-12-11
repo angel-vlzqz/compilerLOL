@@ -982,6 +982,63 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
         // Move the floating-point value from srcReg to destReg
         fprintf(outputFile, "\tmov.s %s, %s\n", destReg, srcReg);
     }
+    else if (strcmp(current->op, "param") == 0)
+    {
+        // Handle parameter passing
+        if (current->arg2) {  // If type information is available
+            if (strcmp(current->arg2, "float") == 0) {
+                fprintf(outputFile, "\tl.s $f12, %s\n", current->arg1);  // Load float parameter
+            } else {
+                fprintf(outputFile, "\tlw $a0, %s\n", current->arg1);    // Load integer parameter
+            }
+        } else {
+            // If no type info, default to integer
+            fprintf(outputFile, "\tlw $a0, %s\n", current->arg1);
+        }
+        return;
+    }
+    else if (strcmp(current->op, "array_load") == 0)
+    {
+        fprintf(outputFile, "# Generating MIPS code for array load\n");
+        // Load base address of array
+        fprintf(outputFile, "\tla %s, %s\n", BASE_ADDRESS_REGISTER, current->arg1);
+
+        // Handle the index
+        const char *indexReg = getRegisterForVariable(current->arg2);
+        if (!indexReg)
+        {
+            indexReg = allocateRegister();
+            if (!indexReg)
+            {
+                fprintf(stderr, "Error: No available registers for index\n");
+                exit(1);
+            }
+            setRegisterForVariable(current->arg2, indexReg);
+            loadOperand(current->arg2, indexReg);
+        }
+
+        // Calculate offset: index * 4
+        fprintf(outputFile, "\tmul %s, %s, 4\n", ADDRESS_CALC_REGISTER, indexReg);
+        
+        // Add base address
+        fprintf(outputFile, "\tadd %s, %s, %s\n", ADDRESS_CALC_REGISTER, BASE_ADDRESS_REGISTER, ADDRESS_CALC_REGISTER);
+
+        // Load value into result register
+        const char *resultReg = getRegisterForVariable(current->result);
+        if (!resultReg)
+        {
+            resultReg = allocateRegister();
+            if (!resultReg)
+            {
+                fprintf(stderr, "Error: No available registers for result\n");
+                exit(1);
+            }
+            setRegisterForVariable(current->result, resultReg);
+        }
+        
+        // Load from computed address
+        fprintf(outputFile, "\tlw %s, 0(%s)\n", resultReg, ADDRESS_CALC_REGISTER);
+    }
     else
     {
         fprintf(stderr, "Warning: Unsupported TAC operation '%s'\n", current->op);

@@ -94,20 +94,8 @@ FuncDecl:
     MainFuncDecl 
     {
         $$ = $1;
-    } // Special case for main
-    | TYPE ID '(' 
-    {
-        // create symtab for function here
-        // function symtab
-        // global symtab
-        // 
-        // Global <-> func1 <-> func2 <-> ...
-        //   ^         ^          ^
-        // glob var
-        // func1
-        // func2
     }
-    ParamList ')' FuncBody
+    | TYPE ID '(' ParamList ')' FuncBody
     {
         printf("Parsed Function Declaration: %s\n", $2);
 
@@ -119,8 +107,6 @@ FuncDecl:
         $$->funcDecl.varDeclList = $6->funcDecl.varDeclList;
         $$->funcDecl.block = $6->funcDecl.block;
         $$->funcDecl.returnStmt = $6->funcDecl.returnStmt;
-
-        // Removed creation of currentSymTab during parsing
     }
     | VOID ID '(' ParamList ')' FuncBody 
     {
