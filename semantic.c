@@ -18,7 +18,7 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
 {
     if (node)
     {
-        // printNodeDetails(node);
+        printNodeDetails(node);
     }
     else
     {
@@ -27,7 +27,7 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
     if (node == NULL)
         return;
 
-    // printf("Visiting node of type: %d\n", node->type);
+    printf("Visiting node of type: %d\n", node->type);
 
     switch (node->type)
     {

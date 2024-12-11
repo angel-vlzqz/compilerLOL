@@ -95,7 +95,19 @@ FuncDecl:
     {
         $$ = $1;
     } // Special case for main
-    | TYPE ID '(' ParamList ')' FuncBody
+    | TYPE ID '(' 
+    {
+        // create symtab for function here
+        // function symtab
+        // global symtab
+        // 
+        // Global <-> func1 <-> func2 <-> ...
+        //   ^         ^          ^
+        // glob var
+        // func1
+        // func2
+    }
+    ParamList ')' FuncBody
     {
         printf("Parsed Function Declaration: %s\n", $2);
 
