@@ -10,14 +10,13 @@ float addAndMultiply(int x, int y, float z) {
     result = (x + y) * z; // Casting float to int for multiplication
 
     return result;
-
 }
 
 // Main function demonstrating array use, function call, and arithmetic expressions
 
 int main() {
     int i;             // Loop index for array initialization
-    float sum;           // Integer variable
+    float sum;         // Integer variable
     float result;      // Float result of arithmetic operation
 
     // Initialize array with arithmetic expressions
@@ -34,6 +33,9 @@ int main() {
 
     // Complex arithmetic expression using array and global float
     result = sum / scalar + arr[i-1] * scalar - (arr[i] + scalar);
+
+    write(sum);
+    write(result);
 
     return 0;
 
