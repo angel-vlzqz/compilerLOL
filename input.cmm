@@ -1,6 +1,8 @@
 // Global variables with multiple types
 int arr[5];          // Integer array
 float scalar = 5.5;   // Float variable
+float scalar2 = 10.5;
+int scalar3 = 10;
 
 
 // Function declaration with different variable types and arithmetic expressions
@@ -36,6 +38,8 @@ int main() {
 
     write(sum);
     write(result);
+    write(scalar2);
+    write(scalar3);
 
     return 0;
 

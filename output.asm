@@ -1,5 +1,7 @@
 .data
 arr: .space 20
+scalar3: .word 10
+scalar2: .float 10.500000
 scalar: .float 5.500000
 x: .word 0
 y: .word 0
@@ -61,16 +63,30 @@ main:
 	sw $t2, scalar
 # Integer arithmetic -
 	sub $t2, $t4, $t1
-# Write float
+# Generating MIPS code for write_float operation
 	mov.s $f12, $f0
 	li $v0, 2
 	syscall
 	li $a0, 10
 	li $v0, 11
 	syscall
-# Write float
-	mov.s $f12, $f0
+# Generating MIPS code for write_float operation
+	l.s $f12, sum
 	li $v0, 2
+	syscall
+	li $a0, 10
+	li $v0, 11
+	syscall
+# Generating MIPS code for write_float operation
+	l.s $f12, scalar2
+	li $v0, 2
+	syscall
+	li $a0, 10
+	li $v0, 11
+	syscall
+# Generating MIPS code for write operation
+	lw $a0, scalar3
+	li $v0, 1
 	syscall
 	li $a0, 10
 	li $v0, 11

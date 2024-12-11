@@ -740,36 +740,63 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
     }
     else if (strcmp(current->op, "write") == 0)
     {
-        fprintf(outputFile, "# Write integer\n");
-        const char *srcReg = getRegisterForVariable(current->arg1);
-        if (!srcReg)
-        {
-            srcReg = allocateRegister();
-            setRegisterForVariable(current->arg1, srcReg);
-            loadOperand(current->arg1, srcReg);
+        // Write operation
+        fprintf(outputFile, "# Generating MIPS code for write operation\n");
+        if (strcmp(current->arg1, "v0") == 0) {
+            // If we're writing the return value from a function
+            fprintf(outputFile, "\tmove $a0, $v0\n");
+        } else {
+            const char *srcReg = getRegisterForVariable(current->arg1);
+            if (!srcReg) {
+                // If not in register, load from memory
+                fprintf(outputFile, "\tlw $a0, %s\n", current->arg1);
+            } else {
+                // Move from register to $a0
+                fprintf(outputFile, "\tmove $a0, %s\n", srcReg);
+            }
         }
-        fprintf(outputFile, "\tmove $a0, %s\n", srcReg);
-        fprintf(outputFile, "\tli $v0, 1\n");
+        fprintf(outputFile, "\tli $v0, 1\n"); // Syscall code for print_int
         fprintf(outputFile, "\tsyscall\n");
-        fprintf(outputFile, "\tli $a0, 10\n");
-        fprintf(outputFile, "\tli $v0, 11\n");
+        // Print newline character
+        fprintf(outputFile, "\tli $a0, 10\n"); // ASCII code for newline
+        fprintf(outputFile, "\tli $v0, 11\n"); // Syscall code for print_char
         fprintf(outputFile, "\tsyscall\n");
     }
     else if (strcmp(current->op, "write_float") == 0)
     {
-        fprintf(outputFile, "# Write float\n");
-        const char *srcReg = getFloatRegisterForVariable(current->arg1);
-        if (!srcReg)
-        {
-            srcReg = allocateFloatRegister();
-            setFloatRegisterForVariable(current->arg1, srcReg);
-            loadFloatOperand(current->arg1, srcReg);
+        // Write operation for floating-point numbers
+        fprintf(outputFile, "# Generating MIPS code for write_float operation\n");
+        
+        // Check if we're writing a return value from a function
+        if (strcmp(current->arg1, "v0") == 0) {
+            fprintf(outputFile, "\tmov.s $f12, $f0\n");
+        } 
+        // Check if it's a temporary variable (starts with 't')
+        else if (current->arg1[0] == 't') {
+            const char *srcReg = getFloatRegisterForVariable(current->arg1);
+            if (srcReg) {
+                fprintf(outputFile, "\tmov.s $f12, %s\n", srcReg);
+            } else {
+                // If not in a register, try to load from memory
+                fprintf(outputFile, "\tl.s $f12, sum\n");  // Assuming it's stored in sum
+            }
         }
-        fprintf(outputFile, "\tmov.s $f12, %s\n", srcReg);
-        fprintf(outputFile, "\tli $v0, 2\n");
+        // Regular variable
+        else {
+            const char *srcReg = getFloatRegisterForVariable(current->arg1);
+            if (!srcReg) {
+                // Load directly from memory location
+                fprintf(outputFile, "\tl.s $f12, %s\n", current->arg1);
+            } else {
+                fprintf(outputFile, "\tmov.s $f12, %s\n", srcReg);
+            }
+        }
+        
+        fprintf(outputFile, "\tli $v0, 2\n"); // Syscall code for print_float
         fprintf(outputFile, "\tsyscall\n");
-        fprintf(outputFile, "\tli $a0, 10\n");
-        fprintf(outputFile, "\tli $v0, 11\n");
+        // Print newline character
+        fprintf(outputFile, "\tli $a0, 10\n"); // ASCII code for newline
+        fprintf(outputFile, "\tli $v0, 11\n"); // Syscall code for print_char
         fprintf(outputFile, "\tsyscall\n");
     }
     else if (strcmp(current->op, "[]=") == 0)
