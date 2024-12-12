@@ -354,6 +354,7 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
     collectAllSymbols(symTab, &symbolList, &symbolCount, &symbolCapacity);
 
     fprintf(outputFile, ".data\n");
+    fprintf(outputFile, "spill_area: .word 0\n");
 
     int declaredCapacity = 100;
     int declaredCount = 0;
@@ -595,27 +596,41 @@ static int currentArgCount = 0;
 
 void handleFunctionArguments(TAC *current, int *argCount)
 {
-    if (strcmp(current->op, "param") != 0) {
+    if (strcmp(current->op, "param") != 0)
+    {
         *argCount = 0;
         return;
     }
 
     const char *argReg;
-    switch (*argCount) {
-        case 0: argReg = "$a0"; break;
-        case 1: argReg = "$a1"; break;
-        case 2: argReg = "$a2"; break;
-        case 3: argReg = "$a3"; break;
-        default:
-            fprintf(stderr, "Warning: More than 4 arguments not supported\n");
-            return;
+    switch (*argCount)
+    {
+    case 0:
+        argReg = "$a0";
+        break;
+    case 1:
+        argReg = "$a1";
+        break;
+    case 2:
+        argReg = "$a2";
+        break;
+    case 3:
+        argReg = "$a3";
+        break;
+    default:
+        fprintf(stderr, "Warning: More than 4 arguments not supported\n");
+        return;
     }
 
-    if (current->arg2 && strcmp(current->arg2, "float") == 0) {
+    if (current->arg2 && strcmp(current->arg2, "float") == 0)
+    {
         fprintf(outputFile, "\tl.s $f12, %s\n", current->arg1);
-    } else {
+    }
+    else
+    {
         const char *srcReg = getRegisterForVariable(current->arg1);
-        if (!srcReg) {
+        if (!srcReg)
+        {
             srcReg = allocateRegister();
             setRegisterForVariable(current->arg1, srcReg);
             loadOperand(current->arg1, srcReg);
@@ -659,7 +674,7 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
     {
         fprintf(outputFile, "# Function call to %s\n", current->arg1);
         fprintf(outputFile, "\tjal %s\n", current->arg1);
-        currentArgCount = 0;  // Reset argument counter after function call
+        currentArgCount = 0; // Reset argument counter after function call
     }
     else if (strcmp(current->op, "=") == 0)
     {
@@ -742,15 +757,21 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
     {
         // Write operation
         fprintf(outputFile, "# Generating MIPS code for write operation\n");
-        if (strcmp(current->arg1, "v0") == 0) {
+        if (strcmp(current->arg1, "v0") == 0)
+        {
             // If we're writing the return value from a function
             fprintf(outputFile, "\tmove $a0, $v0\n");
-        } else {
+        }
+        else
+        {
             const char *srcReg = getRegisterForVariable(current->arg1);
-            if (!srcReg) {
+            if (!srcReg)
+            {
                 // If not in register, load from memory
                 fprintf(outputFile, "\tlw $a0, %s\n", current->arg1);
-            } else {
+            }
+            else
+            {
                 // Move from register to $a0
                 fprintf(outputFile, "\tmove $a0, %s\n", srcReg);
             }
@@ -766,32 +787,41 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
     {
         // Write operation for floating-point numbers
         fprintf(outputFile, "# Generating MIPS code for write_float operation\n");
-        
+
         // Check if we're writing a return value from a function
-        if (strcmp(current->arg1, "v0") == 0) {
+        if (strcmp(current->arg1, "v0") == 0)
+        {
             fprintf(outputFile, "\tmov.s $f12, $f0\n");
-        } 
+        }
         // Check if it's a temporary variable (starts with 't')
-        else if (current->arg1[0] == 't') {
+        else if (current->arg1[0] == 't')
+        {
             const char *srcReg = getFloatRegisterForVariable(current->arg1);
-            if (srcReg) {
+            if (srcReg)
+            {
                 fprintf(outputFile, "\tmov.s $f12, %s\n", srcReg);
-            } else {
+            }
+            else
+            {
                 // If not in a register, try to load from memory
-                fprintf(outputFile, "\tl.s $f12, sum\n");  // Assuming it's stored in sum
+                fprintf(outputFile, "\tl.s $f12, sum\n"); // Assuming it's stored in sum
             }
         }
         // Regular variable
-        else {
+        else
+        {
             const char *srcReg = getFloatRegisterForVariable(current->arg1);
-            if (!srcReg) {
+            if (!srcReg)
+            {
                 // Load directly from memory location
                 fprintf(outputFile, "\tl.s $f12, %s\n", current->arg1);
-            } else {
+            }
+            else
+            {
                 fprintf(outputFile, "\tmov.s $f12, %s\n", srcReg);
             }
         }
-        
+
         fprintf(outputFile, "\tli $v0, 2\n"); // Syscall code for print_float
         fprintf(outputFile, "\tsyscall\n");
         // Print newline character
@@ -801,35 +831,74 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
     }
     else if (strcmp(current->op, "[]=") == 0)
     {
-        fprintf(outputFile, "# Array store\n");
+        // Array assignment operation
+        fprintf(outputFile, "# Generating MIPS code for array assignment\n");
+        // Load base address of array into BASE_ADDRESS_REGISTER
         fprintf(outputFile, "\tla %s, %s\n", BASE_ADDRESS_REGISTER, current->arg1);
-
+        // Compute offset if possible
         char *offsetValue = computeOffset(current->arg2, 4);
-        const char *valueReg = getRegisterForVariable(current->result);
-        if (!valueReg)
-        {
-            valueReg = allocateRegister();
-            setRegisterForVariable(current->result, valueReg);
-            loadOperand(current->result, valueReg);
-        }
-
         if (offsetValue != NULL)
         {
+            // Ensure temporary variable is in the symbol table
+            if (isTemporaryVariable(current->arg2))
+            {
+                if (!findSymbol(symTab, current->arg2))
+                {
+                    insertSymbol(symTab, current->arg2, "int", false, NULL, NULL);
+                }
+            }
+            // Load value
+            const char *valueReg = getRegisterForVariable(current->result);
+            if (!valueReg)
+            {
+                valueReg = allocateRegister();
+                if (!valueReg)
+                {
+                    fprintf(stderr, "Error: No available registers for value\n");
+                    exit(1);
+                }
+                setRegisterForVariable(current->result, valueReg);
+                loadOperand(current->result, valueReg);
+            }
             fprintf(outputFile, "\tsw %s, %s(%s)\n", valueReg, offsetValue, BASE_ADDRESS_REGISTER);
             free(offsetValue);
         }
         else
         {
-            const char *indexReg = getRegisterForVariable(current->arg2);
+            // Index is variable, compute at runtime
+            // Load index
+            const char *indexReg = getRegisterForVariable(current->arg1);
             if (!indexReg)
             {
                 indexReg = allocateRegister();
-                setRegisterForVariable(current->arg2, indexReg);
-                loadOperand(current->arg2, indexReg);
+                if (!indexReg)
+                {
+                    fprintf(stderr, "Error: No available registers for index\n");
+                    exit(1);
+                }
+                setRegisterForVariable(current->arg1, indexReg);
+                loadOperand(current->arg1, indexReg);
             }
-            fprintf(outputFile, "\tmul %s, %s, 4\n", ADDRESS_CALC_REGISTER, indexReg);
-            fprintf(outputFile, "\tadd %s, %s, %s\n", ADDRESS_CALC_REGISTER, BASE_ADDRESS_REGISTER, ADDRESS_CALC_REGISTER);
-            fprintf(outputFile, "\tsw %s, 0(%s)\n", valueReg, ADDRESS_CALC_REGISTER);
+            // Load value
+            const char *valueReg = getRegisterForVariable(current->arg2);
+            if (!valueReg)
+            {
+                valueReg = allocateRegister();
+                if (!valueReg)
+                {
+                    fprintf(stderr, "Error: No available registers for value\n");
+                    exit(1);
+                }
+                setRegisterForVariable(current->arg2, valueReg);
+                loadOperand(current->arg2, valueReg);
+            }
+            // Calculate offset: indexReg * 4
+            const char *tempReg = ADDRESS_CALC_REGISTER;
+            fprintf(outputFile, "\tmul %s, %s, 4\n", tempReg, indexReg);
+            // Effective address: BASE_ADDRESS_REGISTER + tempReg
+            fprintf(outputFile, "\tadd %s, %s, %s\n", tempReg, BASE_ADDRESS_REGISTER, tempReg);
+            // Store value
+            fprintf(outputFile, "\tsw %s, 0(%s)\n", valueReg, tempReg);
         }
     }
     else if (strcmp(current->op, "=[]") == 0)

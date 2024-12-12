@@ -309,12 +309,12 @@ Stmt:
         $$->ifStmt.thenBlock = $4;
         $$->ifStmt.elseBlock = $6;
     }
-    | WHILE Expr DO Block 
+    | WHILE '(' Condition ')' '{' Block '}'
     {
         printf("Parsed While Statement\n");
         $$ = createNode(NodeType_WhileStmt);
-        $$->whileStmt.condition = $2;
-        $$->whileStmt.block = $4;
+        $$->whileStmt.condition = $3;
+        $$->whileStmt.block = $6;
     }
     | IfStmt
     {

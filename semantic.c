@@ -151,16 +151,22 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         }
 
         // Add this section to handle initial values
-        if (node->varDecl.initialValue != NULL) {
+        if (node->varDecl.initialValue != NULL)
+        {
             char valueStr[32];
-            if (strcmp(node->varDecl.varType, "float") == 0) {
+            if (strcmp(node->varDecl.varType, "float") == 0)
+            {
                 snprintf(valueStr, sizeof(valueStr), "%f", node->varDecl.initialValue->simpleExpr.floatValue);
-            } else {
+            }
+            else
+            {
                 snprintf(valueStr, sizeof(valueStr), "%d", node->varDecl.initialValue->simpleExpr.number);
             }
             insertSymbol(symTab, node->varDecl.varName, node->varDecl.varType, false, false, NULL);
             updateSymbolValue(symTab, node->varDecl.varName, valueStr);
-        } else {
+        }
+        else
+        {
             insertSymbol(symTab, node->varDecl.varName, node->varDecl.varType, false, false, NULL);
         }
         break;
@@ -214,11 +220,15 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         }
 
         // Add this section to update the symbol value
-        if (node->assignStmt.expr->type == NodeType_SimpleExpr) {
+        if (node->assignStmt.expr->type == NodeType_SimpleExpr)
+        {
             char valueStr[32];
-            if (node->assignStmt.expr->simpleExpr.isFloat) {
+            if (node->assignStmt.expr->simpleExpr.isFloat)
+            {
                 snprintf(valueStr, sizeof(valueStr), "%f", node->assignStmt.expr->simpleExpr.floatValue);
-            } else {
+            }
+            else
+            {
                 snprintf(valueStr, sizeof(valueStr), "%d", node->assignStmt.expr->simpleExpr.number);
             }
             updateSymbolValue(symTab, node->assignStmt.varName, valueStr);
@@ -514,23 +524,63 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 
     case NodeType_BinOp:
     {
+        // Generate TAC for left and right operands
         char *left = generateTACForExpr(expr->binOp.left, symTab);
         char *right = generateTACForExpr(expr->binOp.right, symTab);
 
+        // Check the data types of the operands
+        Symbol *leftSymbol = findSymbol(symTab, left);
+        Symbol *rightSymbol = findSymbol(symTab, right);
+        bool isFloatOp = false;
+
+        if ((leftSymbol && strcmp(leftSymbol->type, "float") == 0) ||
+            (rightSymbol && strcmp(rightSymbol->type, "float") == 0))
+        {
+            isFloatOp = true;
+        }
+
+        // Allocate a register for the result
         char *result = createTempVar(symTab, expr->dataType);
         char op[4];
         snprintf(op, sizeof(op), "%c", expr->binOp.operator);
 
+        // Create a TAC instruction for the binary operation
         TAC *binOpTAC = (TAC *)malloc(sizeof(TAC));
-        binOpTAC->op = strdup(op);
+        char opStr[5]; // Need more space to differentiate between fadd, fsub, etc.
+        if (isFloatOp)
+        {
+            if (expr->binOp.operator== '+')
+            {
+                strcpy(opStr, "fadd");
+            }
+            else if (expr->binOp.operator== '-')
+            {
+                strcpy(opStr, "fsub");
+            }
+            else if (expr->binOp.operator== '*')
+            {
+                strcpy(opStr, "fmul");
+            }
+            else if (expr->binOp.operator== '/')
+            {
+                strcpy(opStr, "fdiv");
+            }
+        }
+        else
+        {
+            opStr[0] = expr->binOp.operator;
+            opStr[1] = '\0';
+        }
+
+        binOpTAC->op = strdup(opStr);
         binOpTAC->arg1 = strdup(left);
         binOpTAC->arg2 = strdup(right);
-        binOpTAC->result = strdup(result);
+        binOpTAC->result = strdup(result); // Store result in the allocated register
         binOpTAC->next = NULL;
 
         appendTAC(&tacHead, binOpTAC);
 
-        return result;
+        return strdup(result);
     }
 
     case NodeType_SimpleExpr:
@@ -814,6 +864,7 @@ char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
         assignTAC->next = NULL;
 
         appendTAC(&tacHead, assignTAC);
+        printf("Generated TAC for array assign: %s[%s] = %s\n", expr->arrayAssign.arrayName, index, rhs);
 
         return NULL;
     }
