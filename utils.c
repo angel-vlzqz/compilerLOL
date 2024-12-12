@@ -216,7 +216,8 @@ void printTACToFile(const char *filename, TAC *tac)
             }
             else if (strcmp(current->op, "[]=") == 0)
             {
-                fprintf(file, "%s [ %s ] = %s\n", current->result ? current->result : "", current->arg1 ? current->arg1 : "", current->arg2 ? current->arg2 : "");
+                // print: arrayName [ index ] = rhs
+                fprintf(file, "%s [ %s ] = %s\n", current->arg1 ? current->arg1 : "", current->arg2 ? current->arg2 : "", current->result ? current->result : "");
             }
             else if (strcmp(current->op, "=[]") == 0)
             {

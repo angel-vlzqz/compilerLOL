@@ -49,7 +49,7 @@ SymbolTable* globalSymTab = NULL;  // Global symbol table
 %left '*' '/'
 %nonassoc UMINUS
 
-%type <ast> Program DeclList Decl VarDeclList VarDecl Stmt StmtList Expr Block ReturnStmt IfStmt FuncDecl MainFuncDecl ParamList Param FuncCall ArgList Arg ElsePart Condition FuncBody
+%type <ast> Program DeclList Decl VarDeclList VarDecl Stmt StmtList Expr Block ReturnStmt IfStmt FuncDecl MainFuncDecl ParamList Param FuncCall ArgList Arg ElsePart Condition FuncBody 
 
 %start Program
 

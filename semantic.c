@@ -37,11 +37,11 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         break;
 
     case NodeType_DeclList:
-        printf("Processing DeclList Node at address %p\n", node);
+        printf("Processing DeclList Node at address %p\n", (void*)node);
         semanticAnalysis(node->declList.decl, symTab);
         if (node->declList.next)
         {
-            printf("Moving to next DeclList Node at address %p\n", node->declList.next);
+            printf("Moving to next DeclList Node at address %p\n", (void*)node->declList.next);
             semanticAnalysis(node->declList.next, symTab);
         }
         else
@@ -213,13 +213,27 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
             exit(1);
         }
 
+        // Check types and allow automatic casting
         if (strcmp(assignSymbol->type, node->assignStmt.expr->dataType) != 0)
         {
-            fprintf(stderr, "Semantic error: Type mismatch in assignment to variable %s\n", node->assignStmt.varName);
-            exit(1);
+            // Attempt automatic casting if one is int and the other is float
+            if ((strcmp(assignSymbol->type, "int") == 0 && strcmp(node->assignStmt.expr->dataType, "float") == 0) ||
+                (strcmp(assignSymbol->type, "float") == 0 && strcmp(node->assignStmt.expr->dataType, "int") == 0))
+            {
+                fprintf(stderr, "Info: Automatically casting %s to %s in assignment to %s.\n",
+                        node->assignStmt.expr->dataType, assignSymbol->type, node->assignStmt.varName);
+                // Set the expression's dataType to the variable's type after casting
+                free(node->assignStmt.expr->dataType);
+                node->assignStmt.expr->dataType = strdup(assignSymbol->type);
+            }
+            else
+            {
+                fprintf(stderr, "Semantic error: Type mismatch in assignment to variable %s (cannot cast)\n", node->assignStmt.varName);
+                exit(1);
+            }
         }
 
-        // Add this section to update the symbol value
+        // Update symbol value if it's a simple expression
         if (node->assignStmt.expr->type == NodeType_SimpleExpr)
         {
             char valueStr[32];
@@ -259,10 +273,22 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
             exit(1);
         }
 
+        // Attempt automatic casting for array assignments
         if (strcmp(arraySymbol->type, node->arrayAssign.expr->dataType) != 0)
         {
-            fprintf(stderr, "Semantic error: Type mismatch in assignment to array %s\n", node->arrayAssign.arrayName);
-            exit(1);
+            if ((strcmp(arraySymbol->type, "int") == 0 && strcmp(node->arrayAssign.expr->dataType, "float") == 0) ||
+                (strcmp(arraySymbol->type, "float") == 0 && strcmp(node->arrayAssign.expr->dataType, "int") == 0))
+            {
+                fprintf(stderr, "Info: Automatically casting %s to %s in assignment to array %s.\n",
+                        node->arrayAssign.expr->dataType, arraySymbol->type, node->arrayAssign.arrayName);
+                free(node->arrayAssign.expr->dataType);
+                node->arrayAssign.expr->dataType = strdup(arraySymbol->type);
+            }
+            else
+            {
+                fprintf(stderr, "Semantic error: Type mismatch in assignment to array %s (cannot cast)\n", node->arrayAssign.arrayName);
+                exit(1);
+            }
         }
 
         generateTACForExpr(node, symTab);
@@ -274,27 +300,28 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         semanticAnalysis(node->binOp.left, symTab);
         semanticAnalysis(node->binOp.right, symTab);
 
+        // Handle automatic casting for binary operations
         if (strcmp(node->binOp.left->dataType, "int") == 0 && strcmp(node->binOp.right->dataType, "float") == 0)
         {
-            fprintf(stderr, "Warning: Implicit conversion of 'int' to 'float'\n");
+            fprintf(stderr, "Info: Automatically casting int to float in binary operation.\n");
             node->dataType = strdup("float");
         }
         else if (strcmp(node->binOp.left->dataType, "float") == 0 && strcmp(node->binOp.right->dataType, "int") == 0)
         {
-            fprintf(stderr, "Warning: Implicit conversion of 'int' to 'float'\n");
+            fprintf(stderr, "Info: Automatically casting int to float in binary operation.\n");
             node->dataType = strdup("float");
         }
-        else if (strcmp(node->binOp.left->dataType, "int") == 0 && strcmp(node->binOp.right->dataType, "int") == 0)
+        else if (strcmp(node->binOp.left->dataType, node->binOp.right->dataType) == 0)
         {
-            node->dataType = strdup("int");
-        }
-        else if (strcmp(node->binOp.left->dataType, "float") == 0 && strcmp(node->binOp.right->dataType, "float") == 0)
-        {
-            node->dataType = strdup("float");
+            // Same type, just assign
+            node->dataType = strdup(node->binOp.left->dataType);
         }
         else
         {
-            fprintf(stderr, "Semantic warning: Type mismatch handled with implicit promotion in binary operation\n");
+            fprintf(stderr, "Semantic warning: Complex type mismatch, attempted implicit promotion failed.\n");
+            // Handle other complex mismatches if needed
+            // For now, let's just default to float
+            node->dataType = strdup("float");
         }
         break;
 
@@ -321,7 +348,6 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
     case NodeType_WriteStmt:
         printf("Processing WriteStmt Node\n");
         semanticAnalysis(node->writeStmt.expr, symTab);
-        // TAC generation handled in generateTACForExpr
         generateTACForExpr(node, symTab);
         break;
 
@@ -497,6 +523,7 @@ void semanticAnalysis(ASTNode *node, SymbolTable *symTab)
         break;
     }
 }
+
 
 char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab)
 {

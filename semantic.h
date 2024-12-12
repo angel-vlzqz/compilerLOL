@@ -20,8 +20,10 @@ extern int tempVars[50];
 extern TAC *tacHead; // Global head of the TAC instructions list
 
 void semanticAnalysis(ASTNode *node, SymbolTable *symTab);
+void generateTACForGlobalsAndFunctions(ASTNode *root, SymbolTable *globalSymTab);
 char *generateTACForExpr(ASTNode *expr, SymbolTable *symTab);
 void generateTACForFunction(ASTNode *funcNode, SymbolTable *symTab);
+void generateTACForGlobals(ASTNode *declList, SymbolTable *symTab);
 char *createTempVar(SymbolTable *symTab, const char *dataType);
 void appendTAC(TAC **head, TAC *newInstruction);
 void freeTACList(TAC *head);

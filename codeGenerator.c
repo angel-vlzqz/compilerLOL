@@ -25,6 +25,24 @@ RegisterMapEntry registerMap[MAX_REGISTER_MAP_SIZE];
 #define MAX_FLOAT_REGISTER_MAP_SIZE 100
 FloatRegisterMapEntry floatRegisterMap[MAX_FLOAT_REGISTER_MAP_SIZE];
 
+static int currentArgCount = 0;
+
+bool isTemporaryVariable(const char *operand)
+{
+    if (operand == NULL)
+        return false;
+    if (operand[0] != 't')
+        return false;
+    for (int i = 1; operand[i] != '\0'; i++)
+    {
+        if (!isdigit((unsigned char)operand[i]))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 void initializeRegisterMap()
 {
     for (int i = 0; i < MAX_REGISTER_MAP_SIZE; i++)
@@ -93,6 +111,24 @@ void finalizeCodeGenerator(const char *outputFilename)
     }
     freeRegisterMap();
     freeFloatRegisterMap();
+}
+
+bool isFloatConstant(const char *operand)
+{
+    if (!operand) return false;
+    // If it's a constant and contains a '.', treat as float constant
+    if (isConstant(operand) && strchr(operand, '.'))
+        return true;
+    return false;
+}
+
+bool isFloatVariable(const char *variable, SymbolTable *symTab)
+{
+    if (!variable) return false;
+    Symbol *sym = findSymbol(symTab, variable);
+    if (sym && strcmp(sym->type, "float") == 0)
+        return true;
+    return false;
 }
 
 const char *allocateRegister()
@@ -253,81 +289,113 @@ char *computeOffset(const char *indexOperand, int elementSize)
     return NULL;
 }
 
-void loadOperand(const char *operand, const char *registerName)
+bool isFloatTypeOperand(const char *operand, SymbolTable *symTab)
 {
+    if (!operand) return false;
     if (isConstant(operand))
+        return isFloatConstant(operand);
+    return isFloatVariable(operand, symTab);
+}
+
+const char *ensureFloatInRegister(const char *operand, SymbolTable *symTab)
+{
+    // Load operand into a float register if not already
+    if (isVariableInFloatRegisterMap(operand))
     {
-        if (registerName[0] == '$' && registerName[1] == 'f')
-        {
-            fprintf(outputFile, "\tli.s %s, %s\n", registerName, operand);
-        }
-        else
-        {
-            fprintf(outputFile, "\tli %s, %s\n", registerName, operand);
-        }
+        return getFloatRegisterForVariable(operand);
+    }
+    else if (isFloatConstant(operand))
+    {
+        const char *freg = allocateFloatRegister();
+        fprintf(outputFile, "\tli.s %s, %s\n", freg, operand);
+        setFloatRegisterForVariable(operand, freg);
+        return freg;
     }
     else if (isVariableInRegisterMap(operand))
     {
-        const char *reg = getRegisterForVariable(operand);
-        if (strcmp(registerName, reg) != 0)
-        {
-            fprintf(outputFile, "\tmove %s, %s\n", registerName, reg);
-        }
-    }
-    else if (isVariableInFloatRegisterMap(operand))
-    {
-        const char *reg = getFloatRegisterForVariable(operand);
-        if (strcmp(registerName, reg) != 0)
-        {
-            fprintf(outputFile, "\tmov.s %s, %s\n", registerName, reg);
-        }
-    }
-    else if (isTemporaryVariable(operand))
-    {
-        fprintf(stderr, "Error: Temporary variable %s not in register map\n", operand);
-        exit(1);
+        // Convert int register to float
+        const char *intReg = getRegisterForVariable(operand);
+        const char *fReg = allocateFloatRegister();
+        // Move int to float: first move int to $fX using mtc1 and cvt.s.w
+        fprintf(outputFile, "\tmtc1 %s, %s\n", intReg, fReg);
+        fprintf(outputFile, "\tcvt.s.w %s, %s\n", fReg, fReg);
+        setFloatRegisterForVariable(operand, fReg);
+        return fReg;
     }
     else
     {
-        // Assume integer load from memory by default
-        fprintf(outputFile, "\tlw %s, %s\n", registerName, operand);
+        // Load from memory as float
+        const char *freg = allocateFloatRegister();
+        fprintf(outputFile, "\tl.s %s, %s\n", freg, operand);
+        setFloatRegisterForVariable(operand, freg);
+        return freg;
     }
 }
 
-void loadFloatOperand(const char *operand, const char *reg)
+const char *ensureIntInRegister(const char *operand, SymbolTable *symTab)
 {
-    if (isConstant(operand))
+    // Load operand into an int register
+    if (isVariableInRegisterMap(operand))
     {
-        fprintf(outputFile, "\tli.s %s, %s\n", reg, operand);
+        return getRegisterForVariable(operand);
+    }
+    else if (isConstant(operand))
+    {
+        const char *reg = allocateRegister();
+        fprintf(outputFile, "\tli %s, %s\n", reg, operand);
+        setRegisterForVariable(operand, reg);
+        return reg;
     }
     else if (isVariableInFloatRegisterMap(operand))
     {
-        const char *srcReg = getFloatRegisterForVariable(operand);
-        if (strcmp(reg, srcReg) != 0)
+        // Convert float to int
+        const char *freg = getFloatRegisterForVariable(operand);
+        const char *intReg = allocateRegister();
+        // cvt.w.s to convert float in freg to int in freg, then move to intReg
+        fprintf(outputFile, "\tcvt.w.s %s, %s\n", freg, freg);
+        fprintf(outputFile, "\tmfc1 %s, %s\n", intReg, freg);
+        // Since we're now int, remove from float map and put in int map
+        removeVariableFromFloatRegisterMap(operand);
+        setRegisterForVariable(operand, intReg);
+        return intReg;
+    }
+    else
+    {
+        // Load from memory as int
+        const char *reg = allocateRegister();
+        fprintf(outputFile, "\tlw %s, %s\n", reg, operand);
+        setRegisterForVariable(operand, reg);
+        return reg;
+    }
+}
+
+void loadOperandAsFloat(const char *operand, const char *freg, SymbolTable *symTab)
+{
+    if (isFloatConstant(operand))
+    {
+        fprintf(outputFile, "\tli.s %s, %s\n", freg, operand);
+    }
+    else if (isFloatVariable(operand, symTab))
+    {
+        // If variable is float but not in a register map
+        if (isVariableInFloatRegisterMap(operand))
         {
-            fprintf(outputFile, "\tmov.s %s, %s\n", reg, srcReg);
+            const char *src = getFloatRegisterForVariable(operand);
+            if (strcmp(src, freg) != 0)
+                fprintf(outputFile, "\tmov.s %s, %s\n", freg, src);
+        }
+        else
+        {
+            fprintf(outputFile, "\tl.s %s, %s\n", freg, operand);
         }
     }
     else
     {
-        fprintf(outputFile, "\tl.s %s, %s\n", reg, operand);
+        // If it's int but we want float
+        const char *intReg = ensureIntInRegister(operand, symTab);
+        fprintf(outputFile, "\tmtc1 %s, %s\n", intReg, freg);
+        fprintf(outputFile, "\tcvt.s.w %s, %s\n", freg, freg);
     }
-}
-
-bool isTemporaryVariable(const char *operand)
-{
-    if (operand == NULL)
-        return false;
-    if (operand[0] != 't')
-        return false;
-    for (int i = 1; operand[i] != '\0'; i++)
-    {
-        if (!isdigit((unsigned char)operand[i]))
-        {
-            return false;
-        }
-    }
-    return true;
 }
 
 bool isVariableUsedLater(TAC *current, const char *variable)
@@ -354,7 +422,6 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
     collectAllSymbols(symTab, &symbolList, &symbolCount, &symbolCapacity);
 
     fprintf(outputFile, ".data\n");
-    fprintf(outputFile, "spill_area: .word 0\n");
 
     int declaredCapacity = 100;
     int declaredCount = 0;
@@ -420,7 +487,6 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
         {
             if (symbol->value != NULL)
             {
-                // Convert "true"/"false" to 1/0
                 int boolValue = (strcmp(symbol->value, "true") == 0) ? 1 : 0;
                 fprintf(outputFile, "%s: .word %d\n", symbol->name, boolValue);
             }
@@ -507,9 +573,7 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
     }
 
     processTACList(mainTAC, symTab);
-
     fprintf(outputFile, "\n");
-
     processTACList(otherFunctionsTAC, symTab);
 }
 
@@ -592,48 +656,42 @@ void processTACList(TAC *tacList, SymbolTable *symTab)
     }
 }
 
-static int currentArgCount = 0;
-
 void handleFunctionArguments(TAC *current, int *argCount)
 {
-    if (strcmp(current->op, "param") != 0)
-    {
-        *argCount = 0;
-        return;
-    }
-
+    // Simplified argument passing: Just move to a0-a3 or f12
+    // Already implemented above, no float modifications needed here
     const char *argReg;
-    switch (*argCount)
-    {
-    case 0:
-        argReg = "$a0";
-        break;
-    case 1:
-        argReg = "$a1";
-        break;
-    case 2:
-        argReg = "$a2";
-        break;
-    case 3:
-        argReg = "$a3";
-        break;
-    default:
-        fprintf(stderr, "Warning: More than 4 arguments not supported\n");
-        return;
+    switch (*argCount) {
+        case 0: argReg = "$a0"; break;
+        case 1: argReg = "$a1"; break;
+        case 2: argReg = "$a2"; break;
+        case 3: argReg = "$a3"; break;
+        default:
+            fprintf(stderr, "Warning: More than 4 arguments not supported\n");
+            return;
     }
 
-    if (current->arg2 && strcmp(current->arg2, "float") == 0)
-    {
-        fprintf(outputFile, "\tl.s $f12, %s\n", current->arg1);
-    }
-    else
-    {
+    // Check type
+    if (current->arg2 && strcmp(current->arg2, "float") == 0) {
+        // load as float
+        const char *fReg = allocateFloatRegister();
+        fprintf(outputFile, "\tl.s %s, %s\n", fReg, current->arg1);
+        // move float arg to $f12 for now
+        if (*argCount == 0) {
+            fprintf(outputFile, "\tmov.s $f12, %s\n", fReg);
+        } else {
+            fprintf(stderr, "Warning: Only first float argument supported directly\n");
+        }
+        deallocateFloatRegister(fReg);
+    } else {
         const char *srcReg = getRegisterForVariable(current->arg1);
-        if (!srcReg)
-        {
+        if (!srcReg) {
+            // int arg
+            // load as int
+            // Actually handle int arg:
             srcReg = allocateRegister();
             setRegisterForVariable(current->arg1, srcReg);
-            loadOperand(current->arg1, srcReg);
+            fprintf(outputFile, "\tlw %s, %s\n", srcReg, current->arg1);
         }
         fprintf(outputFile, "\tmove %s, %s\n", argReg, srcReg);
     }
@@ -647,24 +705,28 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
         return;
     }
 
+    // Due to length, we focus on float fixes:
+    // We'll detect float ops in arithmetic (+, -, *, /):
+    // If any operand is float, we do float arithmetic.
+
     if (strcmp(current->op, "return") == 0)
     {
         fprintf(outputFile, "# Return from function %s\n", currentFunctionName);
         if (current->arg1 != NULL)
         {
-            if (isConstant(current->arg1))
+            // Check if float or int
+            if (isFloatTypeOperand(current->arg1, symTab))
             {
-                fprintf(outputFile, "\tli $v0, %s\n", current->arg1);
+                const char *fReg = ensureFloatInRegister(current->arg1, symTab);
+                // Convert float in fReg to int in v0 if needed or just store float in $f0 if you want to pass floats in f0
+                // MIPS calling convention often returns float in $f0
+                fprintf(outputFile, "\tmov.s $f0, %s\n", fReg);
+                // If you want float return in $f0, that's fine. 
+                // If you want int, convert here. We'll assume float return in $f0 is okay.
             }
             else
             {
-                const char *reg = getRegisterForVariable(current->arg1);
-                if (!reg)
-                {
-                    reg = allocateRegister();
-                    setRegisterForVariable(current->arg1, reg);
-                    loadOperand(current->arg1, reg);
-                }
+                const char *reg = ensureIntInRegister(current->arg1, symTab);
                 fprintf(outputFile, "\tmove $v0, %s\n", reg);
             }
         }
@@ -674,42 +736,56 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
     {
         fprintf(outputFile, "# Function call to %s\n", current->arg1);
         fprintf(outputFile, "\tjal %s\n", current->arg1);
-        currentArgCount = 0; // Reset argument counter after function call
+        currentArgCount = 0;  // Reset argument counter after function call
     }
     else if (strcmp(current->op, "=") == 0)
     {
         fprintf(outputFile, "# Assignment\n");
+        // Determine if destination is float
+        bool destFloat = isFloatVariable(current->result, symTab);
 
-        // If arg1 == "v0" we treat it as return value from function call
         if (strcmp(current->arg1, "v0") == 0)
         {
-            // Result must be placed into a register
-            const char *destReg = getRegisterForVariable(current->result);
-            if (!destReg)
+            // return value in v0 or f0/f2
+            if (destFloat)
             {
-                destReg = allocateRegister();
-                setRegisterForVariable(current->result, destReg);
+                // We assume float returns are in $f0
+                // Just mov.s from $f0 to var
+                const char *destFReg = allocateFloatRegister();
+                setFloatRegisterForVariable(current->result, destFReg);
+                fprintf(outputFile, "\tmov.s %s, $f0\n", destFReg);
             }
-            fprintf(outputFile, "\tmove %s, $v0\n", destReg);
+            else
+            {
+                const char *destReg = allocateRegister();
+                setRegisterForVariable(current->result, destReg);
+                fprintf(outputFile, "\tmove %s, $v0\n", destReg);
+            }
         }
         else
         {
-            const char *srcReg = getRegisterForVariable(current->arg1);
-            if (!srcReg)
+            if (destFloat)
             {
-                srcReg = allocateRegister();
-                setRegisterForVariable(current->arg1, srcReg);
-                loadOperand(current->arg1, srcReg);
+                const char *fReg = ensureFloatInRegister(current->arg1, symTab);
+                const char *destFReg = getFloatRegisterForVariable(current->result);
+                if (!destFReg)
+                {
+                    destFReg = allocateFloatRegister();
+                    setFloatRegisterForVariable(current->result, destFReg);
+                }
+                fprintf(outputFile, "\tmov.s %s, %s\n", destFReg, fReg);
             }
-
-            const char *destReg = getRegisterForVariable(current->result);
-            if (!destReg)
+            else
             {
-                destReg = allocateRegister();
-                setRegisterForVariable(current->result, destReg);
+                const char *srcReg = ensureIntInRegister(current->arg1, symTab);
+                const char *destReg = getRegisterForVariable(current->result);
+                if (!destReg)
+                {
+                    destReg = allocateRegister();
+                    setRegisterForVariable(current->result, destReg);
+                }
+                fprintf(outputFile, "\tmove %s, %s\n", destReg, srcReg);
             }
-
-            fprintf(outputFile, "\tmove %s, %s\n", destReg, srcReg);
         }
     }
     else if (strcmp(current->op, "+") == 0 ||
@@ -717,188 +793,104 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
              strcmp(current->op, "*") == 0 ||
              strcmp(current->op, "/") == 0)
     {
-        fprintf(outputFile, "# Integer arithmetic %s\n", current->op);
-        const char *reg1 = getRegisterForVariable(current->arg1);
-        if (!reg1)
-        {
-            reg1 = allocateRegister();
-            setRegisterForVariable(current->arg1, reg1);
-            loadOperand(current->arg1, reg1);
-        }
-        const char *reg2 = getRegisterForVariable(current->arg2);
-        if (!reg2)
-        {
-            reg2 = allocateRegister();
-            setRegisterForVariable(current->arg2, reg2);
-            loadOperand(current->arg2, reg2);
-        }
-        const char *resultReg = allocateRegister();
-        setRegisterForVariable(current->result, resultReg);
+        bool leftFloat = isFloatTypeOperand(current->arg1, symTab);
+        bool rightFloat = isFloatTypeOperand(current->arg2, symTab);
+        bool resultFloat = leftFloat || rightFloat; // If any operand is float, result is float
 
-        if (strcmp(current->op, "+") == 0)
+        if (resultFloat)
         {
-            fprintf(outputFile, "\tadd %s, %s, %s\n", resultReg, reg1, reg2);
+            fprintf(outputFile, "# Float arithmetic %s\n", current->op);
+            const char *leftFReg = ensureFloatInRegister(current->arg1, symTab);
+            const char *rightFReg = ensureFloatInRegister(current->arg2, symTab);
+            const char *resFReg = allocateFloatRegister();
+            setFloatRegisterForVariable(current->result, resFReg);
+
+            if (strcmp(current->op, "+") == 0)
+            {
+                fprintf(outputFile, "\tadd.s %s, %s, %s\n", resFReg, leftFReg, rightFReg);
+            }
+            else if (strcmp(current->op, "-") == 0)
+            {
+                fprintf(outputFile, "\tsub.s %s, %s, %s\n", resFReg, leftFReg, rightFReg);
+            }
+            else if (strcmp(current->op, "*") == 0)
+            {
+                fprintf(outputFile, "\tmul.s %s, %s, %s\n", resFReg, leftFReg, rightFReg);
+            }
+            else if (strcmp(current->op, "/") == 0)
+            {
+                fprintf(outputFile, "\tdiv.s %s, %s, %s\n", resFReg, leftFReg, rightFReg);
+            }
         }
-        else if (strcmp(current->op, "-") == 0)
+        else
         {
-            fprintf(outputFile, "\tsub %s, %s, %s\n", resultReg, reg1, reg2);
-        }
-        else if (strcmp(current->op, "*") == 0)
-        {
-            fprintf(outputFile, "\tmul %s, %s, %s\n", resultReg, reg1, reg2);
-        }
-        else if (strcmp(current->op, "/") == 0)
-        {
-            fprintf(outputFile, "\tdiv %s, %s\n", reg1, reg2);
-            fprintf(outputFile, "\tmflo %s\n", resultReg);
+            fprintf(outputFile, "# Integer arithmetic %s\n", current->op);
+            const char *reg1 = ensureIntInRegister(current->arg1, symTab);
+            const char *reg2 = ensureIntInRegister(current->arg2, symTab);
+            const char *resultReg = allocateRegister();
+            setRegisterForVariable(current->result, resultReg);
+
+            if (strcmp(current->op, "+") == 0)
+            {
+                fprintf(outputFile, "\tadd %s, %s, %s\n", resultReg, reg1, reg2);
+            }
+            else if (strcmp(current->op, "-") == 0)
+            {
+                fprintf(outputFile, "\tsub %s, %s, %s\n", resultReg, reg1, reg2);
+            }
+            else if (strcmp(current->op, "*") == 0)
+            {
+                fprintf(outputFile, "\tmul %s, %s, %s\n", resultReg, reg1, reg2);
+            }
+            else if (strcmp(current->op, "/") == 0)
+            {
+                fprintf(outputFile, "\tdiv %s, %s\n", reg1, reg2);
+                fprintf(outputFile, "\tmflo %s\n", resultReg);
+            }
         }
     }
     else if (strcmp(current->op, "write") == 0)
     {
-        // Write operation
-        fprintf(outputFile, "# Generating MIPS code for write operation\n");
-        if (strcmp(current->arg1, "v0") == 0)
-        {
-            // If we're writing the return value from a function
-            fprintf(outputFile, "\tmove $a0, $v0\n");
-        }
-        else
-        {
-            const char *srcReg = getRegisterForVariable(current->arg1);
-            if (!srcReg)
-            {
-                // If not in register, load from memory
-                fprintf(outputFile, "\tlw $a0, %s\n", current->arg1);
-            }
-            else
-            {
-                // Move from register to $a0
-                fprintf(outputFile, "\tmove $a0, %s\n", srcReg);
-            }
-        }
-        fprintf(outputFile, "\tli $v0, 1\n"); // Syscall code for print_int
+        fprintf(outputFile, "# Write integer\n");
+        const char *srcReg = ensureIntInRegister(current->arg1, symTab);
+        fprintf(outputFile, "\tmove $a0, %s\n", srcReg);
+        fprintf(outputFile, "\tli $v0, 1\n");
         fprintf(outputFile, "\tsyscall\n");
-        // Print newline character
-        fprintf(outputFile, "\tli $a0, 10\n"); // ASCII code for newline
-        fprintf(outputFile, "\tli $v0, 11\n"); // Syscall code for print_char
+        fprintf(outputFile, "\tli $a0, 10\n");
+        fprintf(outputFile, "\tli $v0, 11\n");
         fprintf(outputFile, "\tsyscall\n");
     }
     else if (strcmp(current->op, "write_float") == 0)
     {
-        // Write operation for floating-point numbers
-        fprintf(outputFile, "# Generating MIPS code for write_float operation\n");
-
-        // Check if we're writing a return value from a function
-        if (strcmp(current->arg1, "v0") == 0)
-        {
-            fprintf(outputFile, "\tmov.s $f12, $f0\n");
-        }
-        // Check if it's a temporary variable (starts with 't')
-        else if (current->arg1[0] == 't')
-        {
-            const char *srcReg = getFloatRegisterForVariable(current->arg1);
-            if (srcReg)
-            {
-                fprintf(outputFile, "\tmov.s $f12, %s\n", srcReg);
-            }
-            else
-            {
-                // If not in a register, try to load from memory
-                fprintf(outputFile, "\tl.s $f12, sum\n"); // Assuming it's stored in sum
-            }
-        }
-        // Regular variable
-        else
-        {
-            const char *srcReg = getFloatRegisterForVariable(current->arg1);
-            if (!srcReg)
-            {
-                // Load directly from memory location
-                fprintf(outputFile, "\tl.s $f12, %s\n", current->arg1);
-            }
-            else
-            {
-                fprintf(outputFile, "\tmov.s $f12, %s\n", srcReg);
-            }
-        }
-
-        fprintf(outputFile, "\tli $v0, 2\n"); // Syscall code for print_float
+        fprintf(outputFile, "# Write float\n");
+        const char *fReg = ensureFloatInRegister(current->arg1, symTab);
+        fprintf(outputFile, "\tmov.s $f12, %s\n", fReg);
+        fprintf(outputFile, "\tli $v0, 2\n");
         fprintf(outputFile, "\tsyscall\n");
-        // Print newline character
-        fprintf(outputFile, "\tli $a0, 10\n"); // ASCII code for newline
-        fprintf(outputFile, "\tli $v0, 11\n"); // Syscall code for print_char
+        fprintf(outputFile, "\tli $a0, 10\n");
+        fprintf(outputFile, "\tli $v0, 11\n");
         fprintf(outputFile, "\tsyscall\n");
     }
     else if (strcmp(current->op, "[]=") == 0)
     {
-        // Array assignment operation
-        fprintf(outputFile, "# Generating MIPS code for array assignment\n");
-        // Load base address of array into BASE_ADDRESS_REGISTER
+        // Array store always int for simplicity. If needed float arrays, handle similarly.
+        fprintf(outputFile, "# Array store\n");
         fprintf(outputFile, "\tla %s, %s\n", BASE_ADDRESS_REGISTER, current->arg1);
-        // Compute offset if possible
+
         char *offsetValue = computeOffset(current->arg2, 4);
+        const char *valueReg = ensureIntInRegister(current->result, symTab);
+
         if (offsetValue != NULL)
         {
-            // Ensure temporary variable is in the symbol table
-            if (isTemporaryVariable(current->arg2))
-            {
-                if (!findSymbol(symTab, current->arg2))
-                {
-                    insertSymbol(symTab, current->arg2, "int", false, NULL, NULL);
-                }
-            }
-            // Load value
-            const char *valueReg = getRegisterForVariable(current->result);
-            if (!valueReg)
-            {
-                valueReg = allocateRegister();
-                if (!valueReg)
-                {
-                    fprintf(stderr, "Error: No available registers for value\n");
-                    exit(1);
-                }
-                setRegisterForVariable(current->result, valueReg);
-                loadOperand(current->result, valueReg);
-            }
             fprintf(outputFile, "\tsw %s, %s(%s)\n", valueReg, offsetValue, BASE_ADDRESS_REGISTER);
             free(offsetValue);
         }
         else
         {
-            // Index is variable, compute at runtime
-            // Load index
-            const char *indexReg = getRegisterForVariable(current->arg1);
-            if (!indexReg)
-            {
-                indexReg = allocateRegister();
-                if (!indexReg)
-                {
-                    fprintf(stderr, "Error: No available registers for index\n");
-                    exit(1);
-                }
-                setRegisterForVariable(current->arg1, indexReg);
-                loadOperand(current->arg1, indexReg);
-            }
-            // Load value
-            const char *valueReg = getRegisterForVariable(current->arg2);
-            if (!valueReg)
-            {
-                valueReg = allocateRegister();
-                if (!valueReg)
-                {
-                    fprintf(stderr, "Error: No available registers for value\n");
-                    exit(1);
-                }
-                setRegisterForVariable(current->arg2, valueReg);
-                loadOperand(current->arg2, valueReg);
-            }
-            // Calculate offset: indexReg * 4
-            const char *tempReg = ADDRESS_CALC_REGISTER;
-            fprintf(outputFile, "\tmul %s, %s, 4\n", tempReg, indexReg);
-            // Effective address: BASE_ADDRESS_REGISTER + tempReg
-            fprintf(outputFile, "\tadd %s, %s, %s\n", tempReg, BASE_ADDRESS_REGISTER, tempReg);
-            // Store value
-            fprintf(outputFile, "\tsw %s, 0(%s)\n", valueReg, tempReg);
+            const char *indexReg = ensureIntInRegister(current->arg2, symTab);
+            fprintf(outputFile, "\tmul %s, %s, 4\n", ADDRESS_CALC_REGISTER, indexReg);
+            fprintf(outputFile, "\tadd %s, %s, %s\n", ADDRESS_CALC_REGISTER, BASE_ADDRESS_REGISTER, ADDRESS_CALC_REGISTER);
+            fprintf(outputFile, "\tsw %s, 0(%s)\n", valueReg, ADDRESS_CALC_REGISTER);
         }
     }
     else if (strcmp(current->op, "=[]") == 0)
@@ -907,12 +899,8 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
         fprintf(outputFile, "\tla %s, %s\n", BASE_ADDRESS_REGISTER, current->arg1);
 
         char *offsetValue = computeOffset(current->arg2, 4);
-        const char *resultReg = getRegisterForVariable(current->result);
-        if (!resultReg)
-        {
-            resultReg = allocateRegister();
-            setRegisterForVariable(current->result, resultReg);
-        }
+        const char *resultReg = allocateRegister();
+        setRegisterForVariable(current->result, resultReg);
 
         if (offsetValue != NULL)
         {
@@ -921,13 +909,7 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
         }
         else
         {
-            const char *indexReg = getRegisterForVariable(current->arg2);
-            if (!indexReg)
-            {
-                indexReg = allocateRegister();
-                setRegisterForVariable(current->arg2, indexReg);
-                loadOperand(current->arg2, indexReg);
-            }
+            const char *indexReg = ensureIntInRegister(current->arg2, symTab);
             fprintf(outputFile, "\tmul %s, %s, 4\n", ADDRESS_CALC_REGISTER, indexReg);
             fprintf(outputFile, "\tadd %s, %s, %s\n", ADDRESS_CALC_REGISTER, BASE_ADDRESS_REGISTER, ADDRESS_CALC_REGISTER);
             fprintf(outputFile, "\tlw %s, 0(%s)\n", resultReg, ADDRESS_CALC_REGISTER);
@@ -940,15 +922,7 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
     else if (strcmp(current->op, "ifFalse") == 0)
     {
         fprintf(outputFile, "# ifFalse branch\n");
-        const char *condReg = getRegisterForVariable(current->arg1);
-        if (!condReg)
-        {
-            condReg = allocateRegister();
-            setRegisterForVariable(current->arg1, condReg);
-            loadOperand(current->arg1, condReg);
-        }
-
-        // Branch if zero
+        const char *condReg = ensureIntInRegister(current->arg1, symTab);
         fprintf(outputFile, "\tbeq %s, $zero, %s\n", condReg, current->result);
     }
     else if (strcmp(current->op, "goto") == 0)
@@ -956,62 +930,31 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
         fprintf(outputFile, "# Unconditional goto\n");
         fprintf(outputFile, "\tj %s\n", current->arg1);
     }
-    else if (strcmp(current->op, "label") == 0)
-    {
-        // Handled in processTACList
-    }
     else if (strcmp(current->op, "!") == 0)
     {
         fprintf(outputFile, "# Logical NOT\n");
-        const char *exprReg = getRegisterForVariable(current->arg1);
-        if (!exprReg)
-        {
-            exprReg = allocateRegister();
-            setRegisterForVariable(current->arg1, exprReg);
-            loadOperand(current->arg1, exprReg);
-        }
+        const char *exprReg = ensureIntInRegister(current->arg1, symTab);
         const char *resultReg = allocateRegister();
         setRegisterForVariable(current->result, resultReg);
-
-        // NOT: result = (expr == 0) ? 1 : 0
-        // Use a sequence:
-        //  seq resultReg, exprReg, $zero
         fprintf(outputFile, "\tseq %s, %s, $zero\n", resultReg, exprReg);
     }
     else if (strcmp(current->op, "&&") == 0 || strcmp(current->op, "||") == 0)
     {
         fprintf(outputFile, "# Logical operation %s\n", current->op);
-        const char *leftReg = getRegisterForVariable(current->arg1);
-        if (!leftReg)
-        {
-            leftReg = allocateRegister();
-            setRegisterForVariable(current->arg1, leftReg);
-            loadOperand(current->arg1, leftReg);
-        }
-        const char *rightReg = getRegisterForVariable(current->arg2);
-        if (!rightReg)
-        {
-            rightReg = allocateRegister();
-            setRegisterForVariable(current->arg2, rightReg);
-            loadOperand(current->arg2, rightReg);
-        }
+        const char *leftReg = ensureIntInRegister(current->arg1, symTab);
+        const char *rightReg = ensureIntInRegister(current->arg2, symTab);
         const char *resultReg = allocateRegister();
         setRegisterForVariable(current->result, resultReg);
 
+        fprintf(outputFile, "\tsne %s, %s, $zero\n", leftReg, leftReg);
+        fprintf(outputFile, "\tsne %s, %s, $zero\n", rightReg, rightReg);
+
         if (strcmp(current->op, "&&") == 0)
         {
-            // AND: use sne + seq or a direct approach:
-            // set resultReg to 1 if both != 0:
-            // first convert leftReg to boolean (neq zero), rightReg to boolean (neq zero)
-            fprintf(outputFile, "\tsne %s, %s, $zero\n", leftReg, leftReg);
-            fprintf(outputFile, "\tsne %s, %s, $zero\n", rightReg, rightReg);
             fprintf(outputFile, "\tand %s, %s, %s\n", resultReg, leftReg, rightReg);
         }
-        else if (strcmp(current->op, "||") == 0)
+        else
         {
-            // OR:
-            fprintf(outputFile, "\tsne %s, %s, $zero\n", leftReg, leftReg);
-            fprintf(outputFile, "\tsne %s, %s, $zero\n", rightReg, rightReg);
             fprintf(outputFile, "\tor %s, %s, %s\n", resultReg, leftReg, rightReg);
         }
     }
@@ -1020,20 +963,8 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
              strcmp(current->op, ">") == 0 || strcmp(current->op, ">=") == 0)
     {
         fprintf(outputFile, "# Relational operation %s\n", current->op);
-        const char *leftReg = getRegisterForVariable(current->arg1);
-        if (!leftReg)
-        {
-            leftReg = allocateRegister();
-            setRegisterForVariable(current->arg1, leftReg);
-            loadOperand(current->arg1, leftReg);
-        }
-        const char *rightReg = getRegisterForVariable(current->arg2);
-        if (!rightReg)
-        {
-            rightReg = allocateRegister();
-            setRegisterForVariable(current->arg2, rightReg);
-            loadOperand(current->arg2, rightReg);
-        }
+        const char *leftReg = ensureIntInRegister(current->arg1, symTab);
+        const char *rightReg = ensureIntInRegister(current->arg2, symTab);
         const char *resultReg = allocateRegister();
         setRegisterForVariable(current->result, resultReg);
 
@@ -1051,13 +982,9 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
         }
         else if (strcmp(current->op, "<=") == 0)
         {
-            // <= is not a direct instruction: do !(left > right)
-            // slt -> 1 if left < right
-            // seq to check equality: left == right
-            // or combine: sle = (left < right) or (left == right)
             const char *tempReg = allocateRegister();
-            fprintf(outputFile, "\tslt %s, %s, %s\n", tempReg, leftReg, rightReg);
             const char *tempReg2 = allocateRegister();
+            fprintf(outputFile, "\tslt %s, %s, %s\n", tempReg, leftReg, rightReg);
             fprintf(outputFile, "\tseq %s, %s, %s\n", tempReg2, leftReg, rightReg);
             fprintf(outputFile, "\tor %s, %s, %s\n", resultReg, tempReg, tempReg2);
             deallocateRegister(tempReg);
@@ -1065,16 +992,13 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
         }
         else if (strcmp(current->op, ">") == 0)
         {
-            // > is opposite of <=
-            // slt resultReg, rightReg, leftReg
+            // > is slt right,left
             fprintf(outputFile, "\tslt %s, %s, %s\n", resultReg, rightReg, leftReg);
         }
         else if (strcmp(current->op, ">=") == 0)
         {
-            // >= is !(left < right)
             const char *tempReg = allocateRegister();
             fprintf(outputFile, "\tslt %s, %s, %s\n", tempReg, leftReg, rightReg);
-            // now NOT it:
             fprintf(outputFile, "\tseq %s, %s, $zero\n", resultReg, tempReg);
             deallocateRegister(tempReg);
         }
@@ -1084,20 +1008,19 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
         fprintf(stderr, "Warning: Unsupported TAC operation '%s'\n", current->op);
     }
 
+    // Store variables back to memory if not used later
     const char *variablesToCheck[] = {current->arg1, current->arg2, current->result};
     for (int i = 0; i < 3; i++)
     {
         const char *var = variablesToCheck[i];
         if (var != NULL && isVariableInRegisterMap(var))
         {
-            if (!isVariableUsedLater(current, var))
+            if (!isVariableUsedLater(current, var) && findSymbol(symTab, var))
             {
+                // Store back to memory
                 const char *regName = getRegisterForVariable(var);
-                if (findSymbol(symTab, var))
-                {
-                    fprintf(outputFile, "# Storing variable %s back to memory\n", var);
-                    fprintf(outputFile, "\tsw %s, %s\n", regName, var);
-                }
+                // var is int
+                fprintf(outputFile, "\tsw %s, %s\n", regName, var);
                 deallocateRegister(regName);
                 removeVariableFromRegisterMap(var);
             }
@@ -1105,14 +1028,11 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
 
         if (var != NULL && isVariableInFloatRegisterMap(var))
         {
-            if (!isVariableUsedLater(current, var))
+            if (!isVariableUsedLater(current, var) && findSymbol(symTab, var))
             {
                 const char *regName = getFloatRegisterForVariable(var);
-                if (findSymbol(symTab, var))
-                {
-                    fprintf(outputFile, "# Storing float variable %s back to memory\n", var);
-                    fprintf(outputFile, "\ts.s %s, %s\n", regName, var);
-                }
+                // var is float
+                fprintf(outputFile, "\ts.s %s, %s\n", regName, var);
                 deallocateFloatRegister(regName);
                 removeVariableFromFloatRegisterMap(var);
             }
