@@ -50,6 +50,10 @@ void initializeRegisterMap();
 void freeRegisterMap();
 void setRegisterForVariable(const char *variable, const char *regName);
 const char *getRegisterForVariable(const char *variable);
+void cleanupRegisters(TAC *current);
+void loadIntegerConstant(const char *reg, const char *value);
+void cleanupFloatRegisters(TAC *current);
+int addFloatConstantToData(const char *value);
 bool isVariableInRegisterMap(const char *variable);
 void removeVariableFromRegisterMap(const char *variable);
 
