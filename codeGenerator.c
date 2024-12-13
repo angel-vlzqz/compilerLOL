@@ -30,8 +30,10 @@ static int floatConstCount = 0;
 
 bool isTemporaryVariable(const char *operand)
 {
-    if (operand == NULL) return false;
-    if (operand[0] != 't') return false;
+    if (operand == NULL)
+        return false;
+    if (operand[0] != 't')
+        return false;
     for (int i = 1; operand[i] != '\0'; i++)
     {
         if (!isdigit((unsigned char)operand[i]))
@@ -112,7 +114,8 @@ void finalizeCodeGenerator(const char *outputFilename)
 
 bool isFloatConstant(const char *operand)
 {
-    if (!operand) return false;
+    if (!operand)
+        return false;
     if (isConstant(operand) && strchr(operand, '.'))
         return true;
     return false;
@@ -120,7 +123,8 @@ bool isFloatConstant(const char *operand)
 
 bool isFloatVariable(const char *variable, SymbolTable *symTab)
 {
-    if (!variable) return false;
+    if (!variable)
+        return false;
     Symbol *sym = findSymbol(symTab, variable);
     if (sym && strcmp(sym->type, "float") == 0)
         return true;
@@ -404,7 +408,7 @@ const char *ensureFloatInRegister(const char *operand, SymbolTable *symTab)
             fprintf(stderr, "Error: Attempting to load temporary variable '%s' from memory.\n", operand);
             exit(1);
         }
-        
+
         const char *fReg = allocateFloatRegister();
         const char *tempReg = allocateRegister();
         fprintf(outputFile, "\tla %s, %s\n", tempReg, operand);
@@ -478,14 +482,23 @@ const char *ensureIntInRegister(const char *operand, SymbolTable *symTab)
 void handleFunctionArguments(TAC *current, int *argCount)
 {
     const char *argReg;
-    switch (*argCount) {
-        case 0: argReg = "$a0"; break;
-        case 1: argReg = "$a1"; break;
-        case 2: argReg = "$a2"; break;
-        case 3: argReg = "$a3"; break;
-        default:
-            fprintf(stderr, "Warning: More than 4 arguments not supported\n");
-            return;
+    switch (*argCount)
+    {
+    case 0:
+        argReg = "$a0";
+        break;
+    case 1:
+        argReg = "$a1";
+        break;
+    case 2:
+        argReg = "$a2";
+        break;
+    case 3:
+        argReg = "$a3";
+        break;
+    default:
+        fprintf(stderr, "Warning: More than 4 arguments not supported\n");
+        return;
     }
 
     // Float arguments simplified assumption (handled similarly to ints)
@@ -512,10 +525,12 @@ void handleFunctionArguments(TAC *current, int *argCount)
 
 void storeIfNotUsedLater(const char *var, TAC *current, SymbolTable *symTab)
 {
-    if (var == NULL) return;
+    if (var == NULL)
+        return;
     Symbol *sym = findSymbol(symTab, var);
     bool isTemp = isTemporaryVariable(var);
-    if (!isTemp && sym != NULL) {
+    if (!isTemp && sym != NULL)
+    {
         // Real variable
         if (!isVariableUsedLater(current, var))
         {
@@ -567,7 +582,15 @@ void storeIfNotUsedLater(const char *var, TAC *current, SymbolTable *symTab)
 
 void generateTACOperation(TAC *current, SymbolTable *symTab, const char *currentFunctionName)
 {
-    if (!current->op) return;
+    if (!current || !current->op)
+        return;
+
+    // Add debug output
+    printf("Debug: Processing operation '%s' with arg1='%s', arg2='%s', result='%s'\n",
+           current->op,
+           current->arg1 ? current->arg1 : "NULL",
+           current->arg2 ? current->arg2 : "NULL",
+           current->result ? current->result : "NULL");
 
     // Float arithmetic operations
     if (strcmp(current->op, "fadd") == 0 ||
@@ -589,9 +612,11 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
         else if (strcmp(current->op, "fdiv") == 0)
             fprintf(outputFile, "\tdiv.s %s, %s, %s\n", resultReg, reg1, reg2);
 
+        // Clean up temporary registers immediately
         storeIfNotUsedLater(current->arg1, current, symTab);
         storeIfNotUsedLater(current->arg2, current, symTab);
         storeIfNotUsedLater(current->result, current, symTab);
+
         return;
     }
 
@@ -610,14 +635,17 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
             fprintf(outputFile, "\tsub %s, %s, %s\n", resultReg, reg1, reg2);
         else if (strcmp(current->op, "*") == 0)
             fprintf(outputFile, "\tmul %s, %s, %s\n", resultReg, reg1, reg2);
-        else if (strcmp(current->op, "/") == 0) {
+        else if (strcmp(current->op, "/") == 0)
+        {
             fprintf(outputFile, "\tdiv %s, %s\n", reg1, reg2);
             fprintf(outputFile, "\tmflo %s\n", resultReg);
         }
 
+        // Clean up temporary registers immediately
         storeIfNotUsedLater(current->arg1, current, symTab);
         storeIfNotUsedLater(current->arg2, current, symTab);
         storeIfNotUsedLater(current->result, current, symTab);
+
         return;
     }
 
@@ -688,30 +716,67 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
     // Array store []=
     if (strcmp(current->op, "[]=") == 0)
     {
+        if (!current->arg1 || !current->arg2 || !current->result)
+        {
+            fprintf(stderr, "Error: Invalid array store operation - missing operands\n");
+            exit(1);
+        }
+
         const char *arrayName = current->arg1;
         const char *indexOperand = current->arg2;
         const char *valueOperand = current->result;
 
-        fprintf(outputFile, "\tla %s, %s\n", BASE_ADDRESS_REGISTER, arrayName);
-        char *offsetValue = computeOffset(indexOperand, 4);
-        const char *valueReg = ensureIntInRegister(valueOperand, symTab);
-
-        if (offsetValue != NULL)
+        // Verify array exists in symbol table
+        Symbol *arraySymbol = findSymbol(symTab, arrayName);
+        if (!arraySymbol)
         {
-            fprintf(outputFile, "\tsw %s, %s(%s)\n", valueReg, offsetValue, BASE_ADDRESS_REGISTER);
-            free(offsetValue);
+            fprintf(stderr, "Error: Array '%s' not found in symbol table\n", arrayName);
+            exit(1);
+        }
+
+        if (!arraySymbol->isArray)
+        {
+            fprintf(stderr, "Error: '%s' is not an array\n", arrayName);
+            exit(1);
+        }
+
+        // Load the value to store
+        const char *valueReg;
+        if (isConstant(valueOperand))
+        {
+            valueReg = allocateRegister();
+            loadIntegerConstant(valueReg, valueOperand);
+        }
+        else
+        {
+            valueReg = ensureIntInRegister(valueOperand, symTab);
+        }
+
+        fprintf(outputFile, "\tla %s, %s\n", BASE_ADDRESS_REGISTER, arrayName);
+
+        // Handle index
+        if (isConstant(indexOperand))
+        {
+            int offset = atoi(indexOperand) * 4;
+            fprintf(outputFile, "\tsw %s, %d(%s)\n", valueReg, offset, BASE_ADDRESS_REGISTER);
         }
         else
         {
             const char *indexReg = ensureIntInRegister(indexOperand, symTab);
-            fprintf(outputFile, "\tmul %s, %s, 4\n", ADDRESS_CALC_REGISTER, indexReg);
+            fprintf(outputFile, "\tsll %s, %s, 2\n", ADDRESS_CALC_REGISTER, indexReg);
             fprintf(outputFile, "\tadd %s, %s, %s\n", ADDRESS_CALC_REGISTER, BASE_ADDRESS_REGISTER, ADDRESS_CALC_REGISTER);
             fprintf(outputFile, "\tsw %s, 0(%s)\n", valueReg, ADDRESS_CALC_REGISTER);
-            storeIfNotUsedLater(indexOperand, current, symTab);
+
+            if (!isVariableUsedLater(current, indexOperand))
+            {
+                deallocateRegister(indexReg);
+            }
         }
 
-        storeIfNotUsedLater(valueOperand, current, symTab);
-        storeIfNotUsedLater(arrayName, current, symTab);
+        if (!isVariableUsedLater(current, valueOperand))
+        {
+            deallocateRegister(valueReg);
+        }
         return;
     }
 
@@ -827,7 +892,8 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
             fprintf(outputFile, "\tsne %s, %s, %s\n", resultReg, leftReg, rightReg);
         else if (strcmp(current->op, "<") == 0)
             fprintf(outputFile, "\tslt %s, %s, %s\n", resultReg, leftReg, rightReg);
-        else if (strcmp(current->op, "<=") == 0) {
+        else if (strcmp(current->op, "<=") == 0)
+        {
             const char *tempReg = allocateRegister();
             const char *tempReg2 = allocateRegister();
             fprintf(outputFile, "\tslt %s, %s, %s\n", tempReg, leftReg, rightReg);
@@ -838,7 +904,8 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
         }
         else if (strcmp(current->op, ">") == 0)
             fprintf(outputFile, "\tslt %s, %s, %s\n", resultReg, rightReg, leftReg);
-        else if (strcmp(current->op, ">=") == 0) {
+        else if (strcmp(current->op, ">=") == 0)
+        {
             const char *tempReg = allocateRegister();
             fprintf(outputFile, "\tslt %s, %s, %s\n", tempReg, leftReg, rightReg);
             fprintf(outputFile, "\tseq %s, %s, $zero\n", resultReg, tempReg);
@@ -855,9 +922,28 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
     fprintf(stderr, "Warning: Unsupported TAC operation '%s'\n", current->op);
 }
 
+void debugPrintSymbolTableState(SymbolTable *symTab, const char *context)
+{
+    printf("\nDebug: Symbol Table State at %s\n", context);
+    printf("----------------------------------------\n");
+    for (int i = 0; i < symTab->size; i++)
+    {
+        Symbol *current = symTab->table[i];
+        while (current != NULL)
+        {
+            printf("Symbol: %s, Type: %s, IsArray: %s\n",
+                   current->name,
+                   current->type,
+                   current->isArray ? "true" : "false");
+            current = current->next;
+        }
+    }
+    printf("----------------------------------------\n");
+}
 
 void processTACList(TAC *tacList, SymbolTable *symTab)
 {
+    debugPrintSymbolTableState(symTab, "Start of TAC Processing");
     TAC *current = tacList;
     const char *currentFunctionName = NULL;
     bool inFunction = false;
@@ -913,7 +999,7 @@ void processTACList(TAC *tacList, SymbolTable *symTab)
                 }
                 else
                 {
-                    if(strcmp(current->result, "NULL") != 0)
+                    if (strcmp(current->result, "NULL") != 0)
                     {
                         fprintf(outputFile, "\tli $v0, %s\n", current->result ? current->result : "NULL");
                     }
@@ -1049,16 +1135,20 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
         {
             if (inMainFunction)
             {
-                if (!mainTAC) mainTAC = mainTACTail = current;
-                else {
+                if (!mainTAC)
+                    mainTAC = mainTACTail = current;
+                else
+                {
                     mainTACTail->next = current;
                     mainTACTail = current;
                 }
             }
             else
             {
-                if (!otherFunctionsTAC) otherFunctionsTAC = otherFunctionsTACTail = current;
-                else {
+                if (!otherFunctionsTAC)
+                    otherFunctionsTAC = otherFunctionsTACTail = current;
+                else
+                {
                     otherFunctionsTACTail->next = current;
                     otherFunctionsTACTail = current;
                 }
