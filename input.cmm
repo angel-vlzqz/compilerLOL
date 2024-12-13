@@ -8,10 +8,10 @@ int scalar3 = 10;
 // Function declaration with different variable types and arithmetic expressions
 
 float addAndMultiply(int x, int y, float z) {
-    float result;
-    result = (x + y) * z; // Casting float to int for multiplication
+    float done;
+    done = (x + y) * z; // Casting float to int for multiplication
 
-    return result;
+    return done;
 }
 
 // Main function demonstrating array use, function call, and arithmetic expressions
@@ -19,7 +19,7 @@ float addAndMultiply(int x, int y, float z) {
 int main() {
     int i;             // Loop index for array initialization
     float sum;         // Integer variable
-    float result;      // Float result of arithmetic operation
+    float done;      // Float done of arithmetic operation
     int comp;
     float fcomp;
 
@@ -42,10 +42,10 @@ int main() {
     sum = addAndMultiply(arr[i], arr[i-1], scalar);
 
     // Complex arithmetic expression using array and global float
-    result = sum / scalar + arr[i-1] * scalar - (arr[i] + scalar);
+    done = sum / scalar + arr[i-1] * scalar - (arr[i] + scalar);
 
     write(sum);
-    write(result);
+    write(done);
     write(scalar);
     write(scalar2);
     write(scalar3);

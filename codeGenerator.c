@@ -1,3 +1,4 @@
+// codeGenerator.c
 #include "codeGenerator.h"
 #include "SymbolTable.h"
 #include "utils.h"
@@ -6,28 +7,43 @@
 #include <stdlib.h>
 #include <ctype.h>
 
+// Output file pointer
 static FILE *outputFile;
 
+// Available integer registers
 const char *availableRegisters[] = {"$t0", "$t1", "$t2", "$t3", "$t4", "$t5", "$t6", "$t7"};
 #define NUM_AVAILABLE_REGISTERS 8
 bool registerInUse[NUM_AVAILABLE_REGISTERS] = {false};
 
-const char *availableFloatRegisters[] = {"$f0", "$f2", "$f4", "$f6", "$f8", "$f10", "$f12", "$f14"};
-#define NUM_AVAILABLE_FLOAT_REGISTERS 8
+// Available floating-point registers (excluding $f0)
+const char *availableFloatRegisters[] = {"$f2", "$f4", "$f6", "$f8", "$f10", "$f12", "$f14"};
+#define NUM_AVAILABLE_FLOAT_REGISTERS 7
 bool floatRegisterInUse[NUM_AVAILABLE_FLOAT_REGISTERS] = {false};
 
+// Temporary registers for address calculations
 #define ADDRESS_CALC_REGISTER "$t9"
 #define BASE_ADDRESS_REGISTER "$t8"
 
+// Register mapping sizes
 #define MAX_REGISTER_MAP_SIZE 100
 RegisterMapEntry registerMap[MAX_REGISTER_MAP_SIZE];
 
 #define MAX_FLOAT_REGISTER_MAP_SIZE 100
 FloatRegisterMapEntry floatRegisterMap[MAX_FLOAT_REGISTER_MAP_SIZE];
 
-static int currentArgCount = 0;
+// Counters for function arguments and float constants
+static int currentIntArgCount = 0;
+static int currentFloatArgCount = 0;
+
+// Buffer to store float constants
+#define MAX_FLOAT_CONSTANTS 100
+static char *floatConstants[MAX_FLOAT_CONSTANTS];
 static int floatConstCount = 0;
 
+// Track if the last function call returned a float
+static bool lastCallReturnFloat = false;
+
+// Utility function to check if an operand is a temporary variable (e.g., t0, t1)
 bool isTemporaryVariable(const char *operand)
 {
     if (operand == NULL)
@@ -42,6 +58,7 @@ bool isTemporaryVariable(const char *operand)
     return true;
 }
 
+// Initialize the integer register map
 void initializeRegisterMap()
 {
     for (int i = 0; i < MAX_REGISTER_MAP_SIZE; i++)
@@ -51,6 +68,7 @@ void initializeRegisterMap()
     }
 }
 
+// Initialize the floating-point register map
 void initializeFloatRegisterMap()
 {
     for (int i = 0; i < MAX_FLOAT_REGISTER_MAP_SIZE; i++)
@@ -60,6 +78,7 @@ void initializeFloatRegisterMap()
     }
 }
 
+// Free memory allocated for the integer register map
 void freeRegisterMap()
 {
     for (int i = 0; i < MAX_REGISTER_MAP_SIZE; i++)
@@ -74,6 +93,7 @@ void freeRegisterMap()
     }
 }
 
+// Free memory allocated for the floating-point register map
 void freeFloatRegisterMap()
 {
     for (int i = 0; i < MAX_FLOAT_REGISTER_MAP_SIZE; i++)
@@ -88,6 +108,7 @@ void freeFloatRegisterMap()
     }
 }
 
+// Initialize the code generator by opening the output file and setting up register maps
 void initCodeGenerator(const char *outputFilename)
 {
     outputFile = fopen(outputFilename, "w");
@@ -100,6 +121,7 @@ void initCodeGenerator(const char *outputFilename)
     initializeFloatRegisterMap();
 }
 
+// Finalize the code generator by closing the output file and freeing register maps
 void finalizeCodeGenerator(const char *outputFilename)
 {
     if (outputFile)
@@ -112,15 +134,15 @@ void finalizeCodeGenerator(const char *outputFilename)
     freeFloatRegisterMap();
 }
 
+// Check if an operand is a floating-point constant
 bool isFloatConstant(const char *operand)
 {
     if (!operand)
         return false;
-    if (isConstant(operand) && strchr(operand, '.'))
-        return true;
-    return false;
+    return (isConstant(operand) && strchr(operand, '.') != NULL);
 }
 
+// Check if a variable is of type float
 bool isFloatVariable(const char *variable, SymbolTable *symTab)
 {
     if (!variable)
@@ -131,6 +153,7 @@ bool isFloatVariable(const char *variable, SymbolTable *symTab)
     return false;
 }
 
+// Allocate an available integer register
 const char *allocateRegister()
 {
     for (int i = 0; i < NUM_AVAILABLE_REGISTERS; i++)
@@ -143,11 +166,14 @@ const char *allocateRegister()
     }
 
     fprintf(stderr, "Error: No available integer registers\n");
-    exit(1);
+    exit(EXIT_FAILURE);
 }
 
+// Deallocate an integer register
 void deallocateRegister(const char *regName)
 {
+    if (regName == NULL)
+        return;
     for (int i = 0; i < NUM_AVAILABLE_REGISTERS; i++)
     {
         if (strcmp(regName, availableRegisters[i]) == 0)
@@ -158,21 +184,50 @@ void deallocateRegister(const char *regName)
     }
 }
 
+// Map a variable to an integer register
 void setRegisterForVariable(const char *variable, const char *regName)
 {
+    if (!variable || !regName) return;
+    // Remove old entry if exists
+    for (int i = 0; i < MAX_REGISTER_MAP_SIZE; i++)
+    {
+        if (registerMap[i].variable && strcmp(registerMap[i].variable, variable) == 0)
+        {
+            free(registerMap[i].variable);
+            free(registerMap[i].regName);
+            registerMap[i].variable = NULL;
+            registerMap[i].regName = NULL;
+        }
+    }
+
     for (int i = 0; i < MAX_REGISTER_MAP_SIZE; i++)
     {
         if (registerMap[i].variable == NULL)
         {
             registerMap[i].variable = strdup(variable);
+            if (!registerMap[i].variable)
+            {
+                perror("Failed to duplicate variable name");
+                exit(EXIT_FAILURE);
+            }
             registerMap[i].regName = strdup(regName);
+            if (!registerMap[i].regName)
+            {
+                perror("Failed to duplicate register name");
+                free(registerMap[i].variable);
+                exit(EXIT_FAILURE);
+            }
             return;
         }
     }
+    fprintf(stderr, "Error: Register map is full\n");
+    exit(EXIT_FAILURE);
 }
 
+// Retrieve the register mapped to a variable
 const char *getRegisterForVariable(const char *variable)
 {
+    if (!variable) return NULL;
     for (int i = 0; i < MAX_REGISTER_MAP_SIZE; i++)
     {
         if (registerMap[i].variable != NULL && strcmp(registerMap[i].variable, variable) == 0)
@@ -183,11 +238,13 @@ const char *getRegisterForVariable(const char *variable)
     return NULL;
 }
 
+// Check if a variable is already mapped to an integer register
 bool isVariableInRegisterMap(const char *variable)
 {
     return getRegisterForVariable(variable) != NULL;
 }
 
+// Remove a variable from the integer register map
 void removeVariableFromRegisterMap(const char *variable)
 {
     for (int i = 0; i < MAX_REGISTER_MAP_SIZE; i++)
@@ -203,6 +260,7 @@ void removeVariableFromRegisterMap(const char *variable)
     }
 }
 
+// Allocate an available floating-point register
 const char *allocateFloatRegister()
 {
     for (int i = 0; i < NUM_AVAILABLE_FLOAT_REGISTERS; i++)
@@ -214,11 +272,13 @@ const char *allocateFloatRegister()
         }
     }
     fprintf(stderr, "Error: No available floating-point registers\n");
-    exit(1);
+    exit(EXIT_FAILURE);
 }
 
+// Deallocate a floating-point register
 void deallocateFloatRegister(const char *regName)
 {
+    if (!regName) return;
     for (int i = 0; i < NUM_AVAILABLE_FLOAT_REGISTERS; i++)
     {
         if (strcmp(availableFloatRegisters[i], regName) == 0)
@@ -229,8 +289,50 @@ void deallocateFloatRegister(const char *regName)
     }
 }
 
+// Map a variable to a floating-point register
+void setFloatRegisterForVariable(const char *variable, const char *regName)
+{
+    if (!variable || !regName) return;
+    // Remove old entry if exists
+    for (int i = 0; i < MAX_FLOAT_REGISTER_MAP_SIZE; i++)
+    {
+        if (floatRegisterMap[i].variable && strcmp(floatRegisterMap[i].variable, variable) == 0)
+        {
+            free(floatRegisterMap[i].variable);
+            free(floatRegisterMap[i].regName);
+            floatRegisterMap[i].variable = NULL;
+            floatRegisterMap[i].regName = NULL;
+        }
+    }
+
+    for (int i = 0; i < MAX_FLOAT_REGISTER_MAP_SIZE; i++)
+    {
+        if (floatRegisterMap[i].variable == NULL)
+        {
+            floatRegisterMap[i].variable = strdup(variable);
+            if (!floatRegisterMap[i].variable)
+            {
+                perror("Failed to duplicate variable name for float register");
+                exit(EXIT_FAILURE);
+            }
+            floatRegisterMap[i].regName = strdup(regName);
+            if (!floatRegisterMap[i].regName)
+            {
+                perror("Failed to duplicate float register name");
+                free(floatRegisterMap[i].variable);
+                exit(EXIT_FAILURE);
+            }
+            return;
+        }
+    }
+    fprintf(stderr, "Error: Float register map is full\n");
+    exit(EXIT_FAILURE);
+}
+
+// Retrieve the floating-point register mapped to a variable
 const char *getFloatRegisterForVariable(const char *variable)
 {
+    if (!variable) return NULL;
     for (int i = 0; i < MAX_FLOAT_REGISTER_MAP_SIZE; i++)
     {
         if (floatRegisterMap[i].variable != NULL && strcmp(floatRegisterMap[i].variable, variable) == 0)
@@ -241,26 +343,13 @@ const char *getFloatRegisterForVariable(const char *variable)
     return NULL;
 }
 
-void setFloatRegisterForVariable(const char *variable, const char *regName)
-{
-    for (int i = 0; i < MAX_FLOAT_REGISTER_MAP_SIZE; i++)
-    {
-        if (floatRegisterMap[i].variable == NULL)
-        {
-            floatRegisterMap[i].variable = strdup(variable);
-            floatRegisterMap[i].regName = strdup(regName);
-            return;
-        }
-    }
-    fprintf(stderr, "Error: Float register map is full\n");
-    exit(1);
-}
-
+// Check if a variable is already mapped to a floating-point register
 bool isVariableInFloatRegisterMap(const char *variable)
 {
     return getFloatRegisterForVariable(variable) != NULL;
 }
 
+// Remove a variable from the floating-point register map
 void removeVariableFromFloatRegisterMap(const char *variable)
 {
     for (int i = 0; i < MAX_FLOAT_REGISTER_MAP_SIZE; i++)
@@ -276,19 +365,7 @@ void removeVariableFromFloatRegisterMap(const char *variable)
     }
 }
 
-char *computeOffset(const char *indexOperand, int elementSize)
-{
-    if (isConstant(indexOperand))
-    {
-        int indexValue = atoi(indexOperand);
-        int offset = indexValue * elementSize;
-        char *offsetStr = (char *)malloc(16);
-        snprintf(offsetStr, 16, "%d", offset);
-        return offsetStr;
-    }
-    return NULL;
-}
-
+// Check if a variable is used later in the TAC list
 bool isVariableUsedLater(TAC *current, const char *variable)
 {
     TAC *temp = current->next;
@@ -305,12 +382,26 @@ bool isVariableUsedLater(TAC *current, const char *variable)
     return false;
 }
 
+// Add a floating-point constant to the floatConstants buffer and return its index
 int addFloatConstantToData(const char *value)
 {
-    fprintf(outputFile, "float_%d: .float %s\n", floatConstCount, value);
+    if (floatConstCount >= MAX_FLOAT_CONSTANTS)
+    {
+        fprintf(stderr, "Error: Too many float constants\n");
+        exit(EXIT_FAILURE);
+    }
+
+    floatConstants[floatConstCount] = strdup(value);
+    if (!floatConstants[floatConstCount])
+    {
+        perror("Failed to duplicate float constant");
+        exit(EXIT_FAILURE);
+    }
+
     return floatConstCount++;
 }
 
+// Load an integer constant into a register
 void loadIntegerConstant(const char *reg, const char *value)
 {
     if (strchr(value, '.'))
@@ -325,103 +416,115 @@ void loadIntegerConstant(const char *reg, const char *value)
     }
 }
 
-// Helper to load a variable or label address into a register
-static const char *loadAddress(const char *label)
+// Handle the operand 'v0' based on the context (float or int)
+static const char *handleV0Operand(bool floatContext)
 {
-    const char *tempReg = allocateRegister();
-    fprintf(outputFile, "\tla %s, %s\n", tempReg, label);
-    return tempReg;
+    // If lastCallReturnFloat is true and floatContext is true, return $f0
+    // If lastCallReturnFloat is false and not floatContext, return $v0
+    // If mismatch occurs, handle by converting.
+    if (lastCallReturnFloat && floatContext) {
+        // Return floating-point register $f0
+        return "$f0";
+    } else if (!lastCallReturnFloat && !floatContext) {
+        // Return integer register $v0
+        return "$v0";
+    } else if (lastCallReturnFloat && !floatContext) {
+        // Float in $f0, convert to int
+        const char *intReg = allocateRegister();
+        fprintf(outputFile, "\tcvt.w.s $f0, $f0\n");
+        fprintf(outputFile, "\tmfc1 %s, $f0\n", intReg);
+        fprintf(outputFile, "# Converted float return value in $f0 to integer register %s\n", intReg);
+        return intReg; // Treat as a temp register
+    } else {
+        // Int in $v0, but float context needed
+        const char *fReg = allocateFloatRegister();
+        fprintf(outputFile, "\tmtc1 $v0, %s\n", fReg);
+        fprintf(outputFile, "\tcvt.s.w %s, %s\n", fReg, fReg);
+        fprintf(outputFile, "# Converted integer return value in $v0 to float register %s\n", fReg);
+        return fReg;
+    }
 }
 
-// Load float from memory using lwc1 instead of l.s
-static void loadFloatFromMemory(const char *freg, const char *label, const char *offset)
-{
-    const char *tempReg = allocateRegister();
-    fprintf(outputFile, "\tla %s, %s\n", tempReg, label);
-    if (offset)
-        fprintf(outputFile, "\tlwc1 %s, %s(%s)\n", freg, offset, tempReg);
-    else
-        fprintf(outputFile, "\tlwc1 %s, 0(%s)\n", freg, tempReg);
-    deallocateRegister(tempReg);
-}
-
-// Load int from memory remains the same
-static void loadIntFromMemory(const char *reg, const char *label, const char *offset)
-{
-    const char *tempReg = allocateRegister();
-    fprintf(outputFile, "\tla %s, %s\n", tempReg, label);
-    if (offset)
-        fprintf(outputFile, "\tlw %s, %s(%s)\n", reg, offset, tempReg);
-    else
-        fprintf(outputFile, "\tlw %s, 0(%s)\n", reg, tempReg);
-    deallocateRegister(tempReg);
-}
-
+// Ensure that a float operand is loaded into a floating-point register
 const char *ensureFloatInRegister(const char *operand, SymbolTable *symTab)
 {
-    // If operand is already in a float register
+    if (operand && strcmp(operand, "v0") == 0)
+    {
+        return handleV0Operand(true);
+    }
+
+    // Float register from variable?
     if (isVariableInFloatRegisterMap(operand))
     {
         return getFloatRegisterForVariable(operand);
     }
-    // If operand is a float constant
-    else if (isFloatConstant(operand))
+
+    if (isFloatConstant(operand))
     {
         const char *fReg = allocateFloatRegister();
         int constIndex = addFloatConstantToData(operand);
         const char *tempReg = allocateRegister();
-        fprintf(outputFile, "\tla %s, float_%d\n", tempReg, constIndex);
+        fprintf(outputFile, "\t# Loading float constant %s into register %s\n", operand, fReg);
+        fprintf(outputFile, "\tla %s, float_%d\n", tempReg, constIndex); // Correct label usage
         fprintf(outputFile, "\tlwc1 %s, 0(%s)\n", fReg, tempReg);
         deallocateRegister(tempReg);
-
-        setFloatRegisterForVariable(operand, fReg);
+        // Do not set in map, it's a constant
         return fReg;
     }
-    // If operand is an integer constant that needs to be treated as float
     else if (isConstant(operand) && !isFloatConstant(operand))
     {
+        // Convert integer constant to float
         const char *intReg = allocateRegister();
         loadIntegerConstant(intReg, operand);
         const char *fReg = allocateFloatRegister();
+        fprintf(outputFile, "\t# Converting integer constant %s in %s to float register %s\n", operand, intReg, fReg);
         fprintf(outputFile, "\tmtc1 %s, %s\n", intReg, fReg);
         fprintf(outputFile, "\tcvt.s.w %s, %s\n", fReg, fReg);
-        setFloatRegisterForVariable(operand, fReg);
         deallocateRegister(intReg);
+        // No map entry for constants
         return fReg;
     }
-    else if (isVariableInRegisterMap(operand))
+
+    // If operand is in integer register map, convert to float
+    if (isVariableInRegisterMap(operand))
     {
-        // Operand is an int in a register, convert it to float
         const char *intReg = getRegisterForVariable(operand);
         const char *fReg = allocateFloatRegister();
+        fprintf(outputFile, "\t# Converting integer variable %s in %s to float register %s\n", operand, intReg, fReg);
         fprintf(outputFile, "\tmtc1 %s, %s\n", intReg, fReg);
         fprintf(outputFile, "\tcvt.s.w %s, %s\n", fReg, fReg);
-        setFloatRegisterForVariable(operand, fReg);
         return fReg;
     }
-    else
+
+    // Load from memory if not in any register
+    Symbol *sym = findSymbol(symTab, operand);
+    if (!sym && isTemporaryVariable(operand))
     {
-        // Load from memory as a float variable
-        Symbol *sym = findSymbol(symTab, operand);
-        if (!sym && isTemporaryVariable(operand))
-        {
-            fprintf(stderr, "Error: Attempting to load temporary variable '%s' from memory.\n", operand);
-            exit(1);
-        }
-
-        const char *fReg = allocateFloatRegister();
-        const char *tempReg = allocateRegister();
-        fprintf(outputFile, "\tla %s, %s\n", tempReg, operand);
-        fprintf(outputFile, "\tlwc1 %s, 0(%s)\n", fReg, tempReg);
-        deallocateRegister(tempReg);
-
-        setFloatRegisterForVariable(operand, fReg);
-        return fReg;
+        // Temporary variable not in memory; should not happen
+        fprintf(stderr, "Error: Attempting to load temp '%s' from memory.\n", operand);
+        exit(1);
     }
+
+    const char *fReg = allocateFloatRegister();
+    const char *tempReg = allocateRegister();
+    fprintf(outputFile, "\t# Loading float variable %s into register %s\n", operand, fReg);
+    fprintf(outputFile, "\tla %s, %s\n", tempReg, operand);
+    fprintf(outputFile, "\tlwc1 %s, 0(%s)\n", fReg, tempReg);
+    deallocateRegister(tempReg);
+
+    // Store in map for future use
+    setFloatRegisterForVariable(operand, fReg);
+    return fReg;
 }
 
+// Ensure that an integer operand is loaded into an integer register
 const char *ensureIntInRegister(const char *operand, SymbolTable *symTab)
 {
+    if (operand && strcmp(operand, "v0") == 0)
+    {
+        return handleV0Operand(false);
+    }
+
     if (isVariableInRegisterMap(operand))
     {
         return getRegisterForVariable(operand);
@@ -429,25 +532,21 @@ const char *ensureIntInRegister(const char *operand, SymbolTable *symTab)
     else if (isConstant(operand) && !isFloatConstant(operand))
     {
         const char *reg = allocateRegister();
+        fprintf(outputFile, "\t# Loading integer constant %s into register %s\n", operand, reg);
         loadIntegerConstant(reg, operand);
-        setRegisterForVariable(operand, reg);
+        // No map for constants
         return reg;
     }
     else if (isFloatConstant(operand))
     {
-        const char *fReg = allocateFloatRegister();
-        int constIndex = addFloatConstantToData(operand);
-        const char *tempReg = allocateRegister();
-        fprintf(outputFile, "\tla %s, float_%d\n", tempReg, constIndex);
-        fprintf(outputFile, "\tlwc1 %s, 0(%s)\n", fReg, tempReg);
-        deallocateRegister(tempReg);
-
-        fprintf(outputFile, "\tcvt.w.s %s, %s\n", fReg, fReg);
+        // Convert float constant to integer
+        const char *fReg = ensureFloatInRegister(operand, symTab);
         const char *intReg = allocateRegister();
+        fprintf(outputFile, "\tcvt.w.s %s, %s\n", fReg, fReg);
+        fprintf(outputFile, "\t# Moving converted float from %s to integer register %s\n", fReg, intReg);
         fprintf(outputFile, "\tmfc1 %s, %s\n", intReg, fReg);
         deallocateFloatRegister(fReg);
 
-        setRegisterForVariable(operand, intReg);
         return intReg;
     }
     else if (isVariableInFloatRegisterMap(operand))
@@ -455,8 +554,9 @@ const char *ensureIntInRegister(const char *operand, SymbolTable *symTab)
         const char *fReg = getFloatRegisterForVariable(operand);
         fprintf(outputFile, "\tcvt.w.s %s, %s\n", fReg, fReg);
         const char *intReg = allocateRegister();
+        fprintf(outputFile, "\t# Moving converted float from %s to integer register %s\n", fReg, intReg);
         fprintf(outputFile, "\tmfc1 %s, %s\n", intReg, fReg);
-        setRegisterForVariable(operand, intReg);
+        // Not removing from float map since variable still known. If not used again, storeIfNotUsedLater will handle.
         return intReg;
     }
     else
@@ -464,216 +564,308 @@ const char *ensureIntInRegister(const char *operand, SymbolTable *symTab)
         Symbol *sym = findSymbol(symTab, operand);
         if (!sym && isTemporaryVariable(operand))
         {
-            fprintf(stderr, "Error: Attempting to load temporary variable '%s' from memory.\n", operand);
+            fprintf(stderr, "Error: Attempting to load temp '%s' from memory.\n", operand);
             exit(1);
         }
 
         const char *reg = allocateRegister();
         const char *tempReg = allocateRegister();
+        fprintf(outputFile, "\t# Loading integer variable %s into register %s\n", operand, reg);
         fprintf(outputFile, "\tla %s, %s\n", tempReg, operand);
         fprintf(outputFile, "\tlw %s, 0(%s)\n", reg, tempReg);
         deallocateRegister(tempReg);
 
+        // Store in register map if not a constant
         setRegisterForVariable(operand, reg);
         return reg;
     }
 }
 
-void handleFunctionArguments(TAC *current, int *argCount)
+// Store a variable's value from register back to memory
+void storeVariableToMemory(const char *var, SymbolTable *symTab)
 {
-    const char *argReg;
-    switch (*argCount)
+    if (!var) return;
+    Symbol *sym = findSymbol(symTab, var);
+
+    const char *reg = getRegisterForVariable(var);
+    if (reg)
     {
-    case 0:
-        argReg = "$a0";
-        break;
-    case 1:
-        argReg = "$a1";
-        break;
-    case 2:
-        argReg = "$a2";
-        break;
-    case 3:
-        argReg = "$a3";
-        break;
-    default:
-        fprintf(stderr, "Warning: More than 4 arguments not supported\n");
-        return;
+        const char *tempReg = allocateRegister();
+        fprintf(outputFile, "\t# Storing integer variable %s from register %s to memory\n", var, reg);
+        fprintf(outputFile, "\tla %s, %s\n", tempReg, var);
+        fprintf(outputFile, "\tsw %s, 0(%s)\n", reg, tempReg);
+        deallocateRegister(tempReg);
+        deallocateRegister(reg);
+        removeVariableFromRegisterMap(var);
     }
 
-    // Float arguments simplified assumption (handled similarly to ints)
-    if (current->arg2 && strcmp(current->arg2, "float") == 0)
+    const char *freg = getFloatRegisterForVariable(var);
+    if (freg)
     {
-        const char *fReg = ensureFloatInRegister(current->arg1, NULL);
-        if (*argCount == 0)
+        const char *tempReg = allocateRegister();
+        fprintf(outputFile, "\t# Storing float variable %s from register %s to memory\n", var, freg);
+        fprintf(outputFile, "\tla %s, %s\n", tempReg, var);
+        fprintf(outputFile, "\tswc1 %s, 0(%s)\n", freg, tempReg);
+        deallocateRegister(tempReg);
+        deallocateFloatRegister(freg);
+        removeVariableFromFloatRegisterMap(var);
+    }
+}
+
+// Store a variable to memory if it's not used later in the TAC list
+void storeIfNotUsedLater(const char *var, TAC *current, SymbolTable *symTab)
+{
+    if (!var) return;
+
+    // If var is a constant or 'v0', no storage needed
+    if (isConstant(var) || strcmp(var, "v0") == 0)
+    {
+        return; 
+    }
+
+    bool laterUse = isVariableUsedLater(current, var);
+    if (!laterUse)
+    {
+        // If it's a real variable, store to memory
+        Symbol *sym = findSymbol(symTab, var);
+        if (sym && !sym->isFunction && !isTemporaryVariable(var))
         {
-            fprintf(outputFile, "\tmov.s $f12, %s\n", fReg);
+            storeVariableToMemory(var, symTab);
         }
         else
         {
-            fprintf(stderr, "Warning: Only first float argument supported directly\n");
+            // Otherwise, just free the registers
+            const char *r = getRegisterForVariable(var);
+            if (r)
+            {
+                deallocateRegister(r);
+                removeVariableFromRegisterMap(var);
+            }
+            const char *fr = getFloatRegisterForVariable(var);
+            if (fr)
+            {
+                deallocateFloatRegister(fr);
+                removeVariableFromFloatRegisterMap(var);
+            }
         }
     }
-    else
-    {
-        const char *srcReg = ensureIntInRegister(current->arg1, NULL);
-        fprintf(outputFile, "\tmove %s, %s\n", argReg, srcReg);
-    }
-
-    (*argCount)++;
 }
 
-void storeIfNotUsedLater(const char *var, TAC *current, SymbolTable *symTab)
+// Handle function arguments by moving them into $a0-$a3 and $f12-$f15
+void handleFunctionArguments(TAC *current, SymbolTable *symTab)
 {
-    if (var == NULL)
-        return;
-    Symbol *sym = findSymbol(symTab, var);
-    bool isTemp = isTemporaryVariable(var);
-    if (!isTemp && sym != NULL)
+    // Determine if the argument is float or int based on symbol table
+    Symbol *argSym = findSymbol(symTab, current->arg1);
+    bool isFloat = argSym && strcmp(argSym->type, "float") == 0;
+
+    if (isFloat)
     {
-        // Real variable
-        if (!isVariableUsedLater(current, var))
+        const char *fReg = ensureFloatInRegister(current->arg1, symTab);
+        const char *argReg;
+
+        switch (currentFloatArgCount)
         {
-            if (isVariableInRegisterMap(var))
-            {
-                const char *regName = getRegisterForVariable(var);
-                const char *tempReg = allocateRegister();
-                fprintf(outputFile, "\tla %s, %s\n", tempReg, var);
-                fprintf(outputFile, "\tsw %s, 0(%s)\n", regName, tempReg);
-                deallocateRegister(tempReg);
-
-                deallocateRegister(regName);
-                removeVariableFromRegisterMap(var);
-            }
-            if (isVariableInFloatRegisterMap(var))
-            {
-                const char *regName = getFloatRegisterForVariable(var);
-                const char *tempReg = allocateRegister();
-                fprintf(outputFile, "\tla %s, %s\n", tempReg, var);
-                fprintf(outputFile, "\tswc1 %s, 0(%s)\n", regName, tempReg);
-                deallocateRegister(tempReg);
-
-                deallocateFloatRegister(regName);
-                removeVariableFromFloatRegisterMap(var);
-            }
+        case 0:
+            argReg = "$f12";
+            break;
+        case 1:
+            argReg = "$f13";
+            break;
+        case 2:
+            argReg = "$f14";
+            break;
+        case 3:
+            argReg = "$f15";
+            break;
+        default:
+            fprintf(stderr, "Warning: More than 4 float arguments not supported\n");
+            return;
         }
+
+        fprintf(outputFile, "\t# Moving float argument %s into %s\n", current->arg1, argReg);
+        fprintf(outputFile, "\tmov.s %s, %s\n", argReg, fReg);
+        // If srcReg was a constant or not used again, free it
+        if (isFloatConstant(current->arg1))
+            deallocateFloatRegister(fReg);
+        else
+            storeIfNotUsedLater(current->arg1, current, symTab);
+
+        currentFloatArgCount++;
     }
     else
     {
-        // It's a temporary or not in symbol table
-        // If not used later, just free register
-        if (!isVariableUsedLater(current, var))
+        const char *srcReg = ensureIntInRegister(current->arg1, symTab);
+        const char *argReg;
+
+        switch (currentIntArgCount)
         {
-            if (isVariableInRegisterMap(var))
-            {
-                const char *regName = getRegisterForVariable(var);
-                deallocateRegister(regName);
-                removeVariableFromRegisterMap(var);
-            }
-            if (isVariableInFloatRegisterMap(var))
-            {
-                const char *freg = getFloatRegisterForVariable(var);
-                deallocateFloatRegister(freg);
-                removeVariableFromFloatRegisterMap(var);
-            }
+        case 0:
+            argReg = "$a0";
+            break;
+        case 1:
+            argReg = "$a1";
+            break;
+        case 2:
+            argReg = "$a2";
+            break;
+        case 3:
+            argReg = "$a3";
+            break;
+        default:
+            fprintf(stderr, "Warning: More than 4 integer arguments not supported\n");
+            return;
         }
+
+        fprintf(outputFile, "\t# Moving integer argument %s into %s\n", current->arg1, argReg);
+        fprintf(outputFile, "\tmove %s, %s\n", argReg, srcReg);
+
+        // If srcReg was a constant or not used again, free it
+        if (isConstant(current->arg1))
+            deallocateRegister(srcReg);
+        else
+            storeIfNotUsedLater(current->arg1, current, symTab);
+
+        currentIntArgCount++;
     }
 }
 
+// Generate MIPS instructions for a given TAC operation with added comments
 void generateTACOperation(TAC *current, SymbolTable *symTab, const char *currentFunctionName)
 {
     if (!current || !current->op)
         return;
 
-    // Add debug output
+    // Print debug information
     printf("Debug: Processing operation '%s' with arg1='%s', arg2='%s', result='%s'\n",
-           current->op,
+           current->op ? current->op : "NULL",
            current->arg1 ? current->arg1 : "NULL",
            current->arg2 ? current->arg2 : "NULL",
            current->result ? current->result : "NULL");
 
-    // Float arithmetic operations
-    if (strcmp(current->op, "fadd") == 0 ||
-        strcmp(current->op, "fsub") == 0 ||
-        strcmp(current->op, "fmul") == 0 ||
-        strcmp(current->op, "fdiv") == 0)
+    // Handle specific operations
+    if (strcmp(current->op, "call") == 0)
     {
-        const char *reg1 = ensureFloatInRegister(current->arg1, symTab);
-        const char *reg2 = ensureFloatInRegister(current->arg2, symTab);
-        const char *resultReg = allocateFloatRegister();
-        setFloatRegisterForVariable(current->result, resultReg);
+        Symbol *funcSym = findSymbol(symTab, current->arg1);
+        bool isFloatReturnType = (funcSym && strcmp(funcSym->type, "float") == 0);
+        lastCallReturnFloat = isFloatReturnType;
 
-        if (strcmp(current->op, "fadd") == 0)
-            fprintf(outputFile, "\tadd.s %s, %s, %s\n", resultReg, reg1, reg2);
-        else if (strcmp(current->op, "fsub") == 0)
-            fprintf(outputFile, "\tsub.s %s, %s, %s\n", resultReg, reg1, reg2);
-        else if (strcmp(current->op, "fmul") == 0)
-            fprintf(outputFile, "\tmul.s %s, %s, %s\n", resultReg, reg1, reg2);
-        else if (strcmp(current->op, "fdiv") == 0)
-            fprintf(outputFile, "\tdiv.s %s, %s, %s\n", resultReg, reg1, reg2);
+        fprintf(outputFile, "\t# Calling function %s\n", current->arg1);
+        fprintf(outputFile, "\tjal %s\n", current->arg1);
+        currentIntArgCount = 0;
+        currentFloatArgCount = 0;
+        return;
+    }
 
-        // Clean up temporary registers immediately
-        storeIfNotUsedLater(current->arg1, current, symTab);
-        storeIfNotUsedLater(current->arg2, current, symTab);
-        storeIfNotUsedLater(current->result, current, symTab);
+    if (strcmp(current->op, "param") == 0)
+    {
+        handleFunctionArguments(current, symTab);
+        return;
+    }
+
+    // Array Store: []= arr[index] = value
+    if (strcmp(current->op, "[]=") == 0)
+    {
+        // arr[index] = value
+        const char *arrayName = current->arg1;
+        const char *indexOperand = current->arg2;
+        const char *valueOperand = current->result;
+
+        fprintf(outputFile, "\t# TAC: %s[%s] = %s\n", arrayName, indexOperand, valueOperand);
+        fprintf(outputFile, "\tla %s, %s\n", BASE_ADDRESS_REGISTER, arrayName);
+
+        const char *valReg = ensureIntInRegister(valueOperand, symTab);
+        const char *idxReg = ensureIntInRegister(indexOperand, symTab);
+        fprintf(outputFile, "\tsll %s, %s, 2\t# Calculating byte offset for index\n", ADDRESS_CALC_REGISTER, idxReg);
+        fprintf(outputFile, "\tadd %s, %s, %s\t# Calculating address of %s[%s]\n", ADDRESS_CALC_REGISTER, BASE_ADDRESS_REGISTER, ADDRESS_CALC_REGISTER, arrayName, indexOperand);
+        fprintf(outputFile, "\tsw %s, 0(%s)\t# Storing value into %s[%s]\n", valReg, ADDRESS_CALC_REGISTER, arrayName, indexOperand);
+
+        // Free registers if not used later
+        if (isConstant(valueOperand))
+            deallocateRegister(valReg);
+        else
+            storeIfNotUsedLater(valueOperand, current, symTab);
+
+        if (isConstant(indexOperand))
+            deallocateRegister(idxReg);
+        else
+            storeIfNotUsedLater(indexOperand, current, symTab);
+
+        storeIfNotUsedLater(arrayName, current, symTab);
 
         return;
     }
 
-    // Integer arithmetic operations
-    if (strcmp(current->op, "+") == 0 || strcmp(current->op, "-") == 0 ||
-        strcmp(current->op, "*") == 0 || strcmp(current->op, "/") == 0)
+    // Array Load: =[] arr[index] -> var
+    if (strcmp(current->op, "=[]") == 0)
     {
-        const char *reg1 = ensureIntInRegister(current->arg1, symTab);
-        const char *reg2 = ensureIntInRegister(current->arg2, symTab);
-        const char *resultReg = allocateRegister();
-        setRegisterForVariable(current->result, resultReg);
+        // var = arr[index]
+        const char *arrayName = current->arg1;
+        const char *indexOperand = current->arg2;
+        const char *resultVar = current->result;
 
-        if (strcmp(current->op, "+") == 0)
-            fprintf(outputFile, "\tadd %s, %s, %s\n", resultReg, reg1, reg2);
-        else if (strcmp(current->op, "-") == 0)
-            fprintf(outputFile, "\tsub %s, %s, %s\n", resultReg, reg1, reg2);
-        else if (strcmp(current->op, "*") == 0)
-            fprintf(outputFile, "\tmul %s, %s, %s\n", resultReg, reg1, reg2);
-        else if (strcmp(current->op, "/") == 0)
-        {
-            fprintf(outputFile, "\tdiv %s, %s\n", reg1, reg2);
-            fprintf(outputFile, "\tmflo %s\n", resultReg);
-        }
+        fprintf(outputFile, "\t# TAC: %s = %s[%s]\n", resultVar, arrayName, indexOperand);
+        fprintf(outputFile, "\tla %s, %s\n", BASE_ADDRESS_REGISTER, arrayName);
 
-        // Clean up temporary registers immediately
-        storeIfNotUsedLater(current->arg1, current, symTab);
-        storeIfNotUsedLater(current->arg2, current, symTab);
-        storeIfNotUsedLater(current->result, current, symTab);
+        const char *idxReg = ensureIntInRegister(indexOperand, symTab);
+        fprintf(outputFile, "\tsll %s, %s, 2\t# Calculating byte offset for index\n", ADDRESS_CALC_REGISTER, idxReg);
+        fprintf(outputFile, "\tadd %s, %s, %s\t# Calculating address of %s[%s]\n", ADDRESS_CALC_REGISTER, BASE_ADDRESS_REGISTER, ADDRESS_CALC_REGISTER, arrayName, indexOperand);
+        fprintf(outputFile, "\tlw %s, 0(%s)\t# Loading value from %s[%s] into %s\n", ADDRESS_CALC_REGISTER, ADDRESS_CALC_REGISTER, arrayName, indexOperand, ADDRESS_CALC_REGISTER);
+
+        // Assign to result variable
+        setRegisterForVariable(resultVar, ADDRESS_CALC_REGISTER);
+
+        // Free index register if not used later
+        if (isConstant(indexOperand))
+            deallocateRegister(idxReg);
+        else
+            storeIfNotUsedLater(indexOperand, current, symTab);
+
+        storeIfNotUsedLater(arrayName, current, symTab);
 
         return;
     }
 
-    // Assignment =
+    // Assignment: = var = value
     if (strcmp(current->op, "=") == 0)
     {
         bool destFloat = isFloatVariable(current->result, symTab);
         if (destFloat)
         {
             const char *fReg = ensureFloatInRegister(current->arg1, symTab);
-            const char *destFReg = getFloatRegisterForVariable(current->result);
-            if (!destFReg)
+            // If result var not in float map, set it
+            if (!isVariableInFloatRegisterMap(current->result))
+                setFloatRegisterForVariable(current->result, fReg);
+            else
             {
-                destFReg = allocateFloatRegister();
-                setFloatRegisterForVariable(current->result, destFReg);
+                // If already has a float register, move
+                const char *destFReg = getFloatRegisterForVariable(current->result);
+                fprintf(outputFile, "\t# TAC: %s = %s\n", current->result, current->arg1);
+                fprintf(outputFile, "\tmov.s %s, %s\t# Moving float value to %s\n", destFReg, fReg, current->result);
+                // Free fReg if it was a constant
+                if (isFloatConstant(current->arg1))
+                    deallocateFloatRegister(fReg);
             }
-            fprintf(outputFile, "\tmov.s %s, %s\n", destFReg, fReg);
+
+            // **Store the float register back to memory**
+            storeVariableToMemory(current->result, symTab);
         }
         else
         {
             const char *srcReg = ensureIntInRegister(current->arg1, symTab);
-            const char *destReg = getRegisterForVariable(current->result);
-            if (!destReg)
+            if (!isVariableInRegisterMap(current->result))
             {
-                destReg = allocateRegister();
-                setRegisterForVariable(current->result, destReg);
+                setRegisterForVariable(current->result, srcReg);
+                fprintf(outputFile, "\t# TAC: %s = %s\n", current->result, current->arg1);
+                fprintf(outputFile, "\tmove %s, %s\t# Moving integer value to %s\n", getRegisterForVariable(current->result), srcReg, current->result);
             }
-            fprintf(outputFile, "\tmove %s, %s\n", destReg, srcReg);
+            else
+            {
+                const char *destReg = getRegisterForVariable(current->result);
+                fprintf(outputFile, "\t# TAC: %s = %s\n", current->result, current->arg1);
+                fprintf(outputFile, "\tmove %s, %s\t# Moving integer value to %s\n", destReg, srcReg, current->result);
+                if (isConstant(current->arg1))
+                    deallocateRegister(srcReg);
+            }
         }
 
         storeIfNotUsedLater(current->arg1, current, symTab);
@@ -681,240 +873,363 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
         return;
     }
 
-    // Write int
-    if (strcmp(current->op, "write") == 0)
+    // Floating-point Division: fdiv
+    if (strcmp(current->op, "fdiv") == 0)
     {
-        const char *srcReg = ensureIntInRegister(current->arg1, symTab);
-        fprintf(outputFile, "\tmove $a0, %s\n", srcReg);
-        fprintf(outputFile, "\tli $v0, 1\n");
-        fprintf(outputFile, "\tsyscall\n");
-        // Newline
-        fprintf(outputFile, "\tli $a0, 10\n");
-        fprintf(outputFile, "\tli $v0, 11\n");
-        fprintf(outputFile, "\tsyscall\n");
+        fprintf(outputFile, "\t# TAC: %s = %s / %s\n", current->result, current->arg1, current->arg2);
+        const char *reg1 = ensureFloatInRegister(current->arg1, symTab);
+        const char *reg2 = ensureFloatInRegister(current->arg2, symTab);
+        const char *resultReg = allocateFloatRegister();
+        fprintf(outputFile, "\tdiv.s %s, %s, %s\t# Performing floating-point division\n", resultReg, reg1, reg2);
+        // Set result variable
+        setFloatRegisterForVariable(current->result, resultReg);
+
+        // **Store the float register back to memory**
+        storeVariableToMemory(current->result, symTab);
 
         storeIfNotUsedLater(current->arg1, current, symTab);
+        storeIfNotUsedLater(current->arg2, current, symTab);
+        storeIfNotUsedLater(current->result, current, symTab);
         return;
     }
 
-    // Write float
-    if (strcmp(current->op, "write_float") == 0)
+    // Integer Subtraction: -
+    if (strcmp(current->op, "-") == 0)
     {
-        const char *fReg = ensureFloatInRegister(current->arg1, symTab);
-        fprintf(outputFile, "\tmov.s $f12, %s\n", fReg);
-        fprintf(outputFile, "\tli $v0, 2\n");
-        fprintf(outputFile, "\tsyscall\n");
-        // Newline
-        fprintf(outputFile, "\tli $a0, 10\n");
-        fprintf(outputFile, "\tli $v0, 11\n");
-        fprintf(outputFile, "\tsyscall\n");
+        fprintf(outputFile, "\t# TAC: %s = %s - %s\n", current->result, current->arg1, current->arg2);
+        const char *reg1 = ensureIntInRegister(current->arg1, symTab);
+        const char *reg2 = ensureIntInRegister(current->arg2, symTab);
+        const char *resReg = allocateRegister();
+        fprintf(outputFile, "\tsub %s, %s, %s\t# Performing integer subtraction\n", resReg, reg1, reg2);
+        setRegisterForVariable(current->result, resReg);
 
         storeIfNotUsedLater(current->arg1, current, symTab);
+        storeIfNotUsedLater(current->arg2, current, symTab);
+        storeIfNotUsedLater(current->result, current, symTab);
         return;
     }
 
-    // Array store []=
-    if (strcmp(current->op, "[]=") == 0)
+    // Integer Addition: add
+    if (strcmp(current->op, "+") == 0)
     {
-        if (!current->arg1 || !current->arg2 || !current->result)
-        {
-            fprintf(stderr, "Error: Invalid array store operation - missing operands\n");
-            exit(1);
-        }
+        fprintf(outputFile, "\t# TAC: %s = %s + %s\n", current->result, current->arg1, current->arg2);
+        const char *reg1 = ensureIntInRegister(current->arg1, symTab);
+        const char *reg2 = ensureIntInRegister(current->arg2, symTab);
+        const char *resReg = allocateRegister();
+        fprintf(outputFile, "\tadd %s, %s, %s\t# Performing integer addition\n", resReg, reg1, reg2);
+        setRegisterForVariable(current->result, resReg);
 
-        const char *arrayName = current->arg1;
-        const char *indexOperand = current->arg2;
-        const char *valueOperand = current->result;
-
-        // Verify array exists in symbol table
-        Symbol *arraySymbol = findSymbol(symTab, arrayName);
-        if (!arraySymbol)
-        {
-            fprintf(stderr, "Error: Array '%s' not found in symbol table\n", arrayName);
-            exit(1);
-        }
-
-        if (!arraySymbol->isArray)
-        {
-            fprintf(stderr, "Error: '%s' is not an array\n", arrayName);
-            exit(1);
-        }
-
-        // Load the value to store
-        const char *valueReg;
-        if (isConstant(valueOperand))
-        {
-            valueReg = allocateRegister();
-            loadIntegerConstant(valueReg, valueOperand);
-        }
-        else
-        {
-            valueReg = ensureIntInRegister(valueOperand, symTab);
-        }
-
-        fprintf(outputFile, "\tla %s, %s\n", BASE_ADDRESS_REGISTER, arrayName);
-
-        // Handle index
-        if (isConstant(indexOperand))
-        {
-            int offset = atoi(indexOperand) * 4;
-            fprintf(outputFile, "\tsw %s, %d(%s)\n", valueReg, offset, BASE_ADDRESS_REGISTER);
-        }
-        else
-        {
-            const char *indexReg = ensureIntInRegister(indexOperand, symTab);
-            fprintf(outputFile, "\tsll %s, %s, 2\n", ADDRESS_CALC_REGISTER, indexReg);
-            fprintf(outputFile, "\tadd %s, %s, %s\n", ADDRESS_CALC_REGISTER, BASE_ADDRESS_REGISTER, ADDRESS_CALC_REGISTER);
-            fprintf(outputFile, "\tsw %s, 0(%s)\n", valueReg, ADDRESS_CALC_REGISTER);
-
-            if (!isVariableUsedLater(current, indexOperand))
-            {
-                deallocateRegister(indexReg);
-            }
-        }
-
-        if (!isVariableUsedLater(current, valueOperand))
-        {
-            deallocateRegister(valueReg);
-        }
-        return;
-    }
-
-    // Array load =[]
-    if (strcmp(current->op, "=[]") == 0)
-    {
-        const char *arrayName = current->arg1;
-        const char *indexOperand = current->arg2;
-        const char *destVar = current->result;
-
-        fprintf(outputFile, "\tla %s, %s\n", BASE_ADDRESS_REGISTER, arrayName);
-        char *offsetValue = computeOffset(indexOperand, 4);
-        const char *resultReg = allocateRegister();
-        setRegisterForVariable(destVar, resultReg);
-
-        if (offsetValue != NULL)
-        {
-            fprintf(outputFile, "\tlw %s, %s(%s)\n", resultReg, offsetValue, BASE_ADDRESS_REGISTER);
-            free(offsetValue);
-        }
-        else
-        {
-            const char *indexReg = ensureIntInRegister(indexOperand, symTab);
-            fprintf(outputFile, "\tmul %s, %s, 4\n", ADDRESS_CALC_REGISTER, indexReg);
-            fprintf(outputFile, "\tadd %s, %s, %s\n", ADDRESS_CALC_REGISTER, BASE_ADDRESS_REGISTER, ADDRESS_CALC_REGISTER);
-            fprintf(outputFile, "\tlw %s, 0(%s)\n", resultReg, ADDRESS_CALC_REGISTER);
-            storeIfNotUsedLater(indexOperand, current, symTab);
-        }
-
-        storeIfNotUsedLater(arrayName, current, symTab);
-        storeIfNotUsedLater(destVar, current, symTab);
-        return;
-    }
-
-    // param
-    if (strcmp(current->op, "param") == 0)
-    {
-        handleFunctionArguments(current, &currentArgCount);
-        return;
-    }
-
-    // call
-    if (strcmp(current->op, "call") == 0)
-    {
-        fprintf(outputFile, "\tjal %s\n", current->arg1);
-        currentArgCount = 0; // Reset arg count
-        return;
-    }
-
-    // ifFalse
-    if (strcmp(current->op, "ifFalse") == 0)
-    {
-        const char *condReg = ensureIntInRegister(current->arg1, symTab);
-        fprintf(outputFile, "\tbeq %s, $zero, %s\n", condReg, current->result);
         storeIfNotUsedLater(current->arg1, current, symTab);
+        storeIfNotUsedLater(current->arg2, current, symTab);
+        storeIfNotUsedLater(current->result, current, symTab);
         return;
     }
 
-    // goto
-    if (strcmp(current->op, "goto") == 0)
+    // Integer Multiplication: mul
+    if (strcmp(current->op, "*") == 0)
     {
-        fprintf(outputFile, "\tj %s\n", current->arg1);
+        fprintf(outputFile, "\t# TAC: %s = %s * %s\n", current->result, current->arg1, current->arg2);
+        const char *reg1 = ensureIntInRegister(current->arg1, symTab);
+        const char *reg2 = ensureIntInRegister(current->arg2, symTab);
+        const char *resReg = allocateRegister();
+        fprintf(outputFile, "\tmul %s, %s, %s\t# Performing integer multiplication\n", resReg, reg1, reg2);
+        setRegisterForVariable(current->result, resReg);
+
+        storeIfNotUsedLater(current->arg1, current, symTab);
+        storeIfNotUsedLater(current->arg2, current, symTab);
+        storeIfNotUsedLater(current->result, current, symTab);
         return;
     }
 
-    // NOT !
+    // Integer Division: div
+    if (strcmp(current->op, "/") == 0)
+    {
+        fprintf(outputFile, "\t# TAC: %s = %s / %s\n", current->result, current->arg1, current->arg2);
+        const char *reg1 = ensureIntInRegister(current->arg1, symTab);
+        const char *reg2 = ensureIntInRegister(current->arg2, symTab);
+        const char *resReg = allocateRegister();
+        fprintf(outputFile, "\tdiv %s, %s, %s\t# Performing integer division\n", resReg, reg1, reg2);
+        setRegisterForVariable(current->result, resReg);
+
+        storeIfNotUsedLater(current->arg1, current, symTab);
+        storeIfNotUsedLater(current->arg2, current, symTab);
+        storeIfNotUsedLater(current->result, current, symTab);
+        return;
+    }
+
+    // Floating-point Addition: fadd
+    if (strcmp(current->op, "fadd") == 0)
+    {
+        fprintf(outputFile, "\t# TAC: %s = %s + %s\n", current->result, current->arg1, current->arg2);
+        const char *reg1 = ensureFloatInRegister(current->arg1, symTab);
+        const char *reg2 = ensureFloatInRegister(current->arg2, symTab);
+        const char *resultReg = allocateFloatRegister();
+        fprintf(outputFile, "\tadd.s %s, %s, %s\t# Performing floating-point addition\n", resultReg, reg1, reg2);
+        setFloatRegisterForVariable(current->result, resultReg);
+
+        // **Store the float register back to memory**
+        storeVariableToMemory(current->result, symTab);
+
+        storeIfNotUsedLater(current->arg1, current, symTab);
+        storeIfNotUsedLater(current->arg2, current, symTab);
+        storeIfNotUsedLater(current->result, current, symTab);
+        return;
+    }
+
+    // Floating-point Subtraction: fsub
+    if (strcmp(current->op, "fsub") == 0)
+    {
+        fprintf(outputFile, "\t# TAC: %s = %s - %s\n", current->result, current->arg1, current->arg2);
+        const char *reg1 = ensureFloatInRegister(current->arg1, symTab);
+        const char *reg2 = ensureFloatInRegister(current->arg2, symTab);
+        const char *resultReg = allocateFloatRegister();
+        fprintf(outputFile, "\tsub.s %s, %s, %s\t# Performing floating-point subtraction\n", resultReg, reg1, reg2);
+        setFloatRegisterForVariable(current->result, resultReg);
+
+        // **Store the float register back to memory**
+        storeVariableToMemory(current->result, symTab);
+
+        storeIfNotUsedLater(current->arg1, current, symTab);
+        storeIfNotUsedLater(current->arg2, current, symTab);
+        storeIfNotUsedLater(current->result, current, symTab);
+        return;
+    }
+
+    // Floating-point Multiplication: fmul
+    if (strcmp(current->op, "fmul") == 0)
+    {
+        fprintf(outputFile, "\t# TAC: %s = %s * %s\n", current->result, current->arg1, current->arg2);
+        const char *reg1 = ensureFloatInRegister(current->arg1, symTab);
+        const char *reg2 = ensureFloatInRegister(current->arg2, symTab);
+        const char *resultReg = allocateFloatRegister();
+        fprintf(outputFile, "\tmul.s %s, %s, %s\t# Performing floating-point multiplication\n", resultReg, reg1, reg2);
+        setFloatRegisterForVariable(current->result, resultReg);
+
+        // **Store the float register back to memory**
+        storeVariableToMemory(current->result, symTab);
+
+        storeIfNotUsedLater(current->arg1, current, symTab);
+        storeIfNotUsedLater(current->arg2, current, symTab);
+        storeIfNotUsedLater(current->result, current, symTab);
+        return;
+    }
+
+    // Logical AND: and
+    if (strcmp(current->op, "and") == 0)
+    {
+        fprintf(outputFile, "\t# TAC: %s = %s AND %s\n", current->result, current->arg1, current->arg2);
+        const char *reg1 = ensureIntInRegister(current->arg1, symTab);
+        const char *reg2 = ensureIntInRegister(current->arg2, symTab);
+        const char *resReg = allocateRegister();
+        fprintf(outputFile, "\tand %s, %s, %s\t# Performing logical AND\n", resReg, reg1, reg2);
+        setRegisterForVariable(current->result, resReg);
+
+        storeIfNotUsedLater(current->arg1, current, symTab);
+        storeIfNotUsedLater(current->arg2, current, symTab);
+        storeIfNotUsedLater(current->result, current, symTab);
+        return;
+    }
+
+    // Logical OR: or
+    if (strcmp(current->op, "or") == 0)
+    {
+        fprintf(outputFile, "\t# TAC: %s = %s OR %s\n", current->result, current->arg1, current->arg2);
+        const char *reg1 = ensureIntInRegister(current->arg1, symTab);
+        const char *reg2 = ensureIntInRegister(current->arg2, symTab);
+        const char *resReg = allocateRegister();
+        fprintf(outputFile, "\tor %s, %s, %s\t# Performing logical OR\n", resReg, reg1, reg2);
+        setRegisterForVariable(current->result, resReg);
+
+        storeIfNotUsedLater(current->arg1, current, symTab);
+        storeIfNotUsedLater(current->arg2, current, symTab);
+        storeIfNotUsedLater(current->result, current, symTab);
+        return;
+    }
+
+    // Logical NOT: !
     if (strcmp(current->op, "!") == 0)
     {
-        const char *exprReg = ensureIntInRegister(current->arg1, symTab);
-        const char *resultReg = allocateRegister();
-        setRegisterForVariable(current->result, resultReg);
-        fprintf(outputFile, "\tseq %s, %s, $zero\n", resultReg, exprReg);
+        fprintf(outputFile, "\t# TAC: %s = NOT %s\n", current->result, current->arg1);
+        const char *reg1 = ensureIntInRegister(current->arg1, symTab);
+        const char *resReg = allocateRegister();
+        fprintf(outputFile, "\tnot %s, %s\t# Performing logical NOT\n", resReg, reg1);
+        setRegisterForVariable(current->result, resReg);
+
         storeIfNotUsedLater(current->arg1, current, symTab);
         storeIfNotUsedLater(current->result, current, symTab);
         return;
     }
 
-    // Logical && ||
-    if (strcmp(current->op, "&&") == 0 || strcmp(current->op, "||") == 0)
+    // Comparison Operations: ==, !=, <, <=, >, >=
+    if (strcmp(current->op, "==") == 0 ||
+        strcmp(current->op, "!=") == 0 ||
+        strcmp(current->op, "<") == 0 ||
+        strcmp(current->op, "<=") == 0 ||
+        strcmp(current->op, ">") == 0 ||
+        strcmp(current->op, ">=") == 0)
     {
-        const char *leftReg = ensureIntInRegister(current->arg1, symTab);
-        const char *rightReg = ensureIntInRegister(current->arg2, symTab);
-        const char *resultReg = allocateRegister();
-        setRegisterForVariable(current->result, resultReg);
+        bool isFloatComparison = false;
+        Symbol *leftSym = findSymbol(symTab, current->arg1);
+        Symbol *rightSym = findSymbol(symTab, current->arg2);
+        if ((leftSym && strcmp(leftSym->type, "float") == 0) ||
+            (rightSym && strcmp(rightSym->type, "float") == 0))
+        {
+            isFloatComparison = true;
+        }
 
-        fprintf(outputFile, "\tsne %s, %s, $zero\n", leftReg, leftReg);
-        fprintf(outputFile, "\tsne %s, %s, $zero\n", rightReg, rightReg);
+        if (isFloatComparison)
+        {
+            fprintf(outputFile, "\t# TAC: %s = %s %s %s\n", current->result, current->arg1, current->op, current->arg2);
+            const char *reg1 = ensureFloatInRegister(current->arg1, symTab);
+            const char *reg2 = ensureFloatInRegister(current->arg2, symTab);
+            const char *resReg = allocateRegister();
 
-        if (strcmp(current->op, "&&") == 0)
-            fprintf(outputFile, "\tand %s, %s, %s\n", resultReg, leftReg, rightReg);
+            // Generate floating-point comparison
+            if (strcmp(current->op, "==") == 0)
+            {
+                fprintf(outputFile, "\tc.eq.s %s, %s\t# Floating-point equality comparison\n", reg1, reg2);
+            }
+            else if (strcmp(current->op, "!=") == 0)
+            {
+                fprintf(outputFile, "\tc.ne.s %s, %s\t# Floating-point inequality comparison\n", reg1, reg2);
+            }
+            else if (strcmp(current->op, "<") == 0)
+            {
+                fprintf(outputFile, "\tc.lt.s %s, %s\t# Floating-point less-than comparison\n", reg1, reg2);
+            }
+            else if (strcmp(current->op, "<=") == 0)
+            {
+                fprintf(outputFile, "\tc.lt.s %s, %s\t# Floating-point less-than comparison\n", reg1, reg2);
+                fprintf(outputFile, "\tc.le.s %s, %s\t# Floating-point less-than-or-equal comparison\n", reg1, reg2);
+            }
+            else if (strcmp(current->op, ">") == 0)
+            {
+                fprintf(outputFile, "\tc.gt.s %s, %s\t# Floating-point greater-than comparison\n", reg1, reg2);
+            }
+            else if (strcmp(current->op, ">=") == 0)
+            {
+                fprintf(outputFile, "\tc.ge.s %s, %s\t# Floating-point greater-than-or-equal comparison\n", reg1, reg2);
+            }
+
+            // Set condition flag and assign boolean result
+            fprintf(outputFile, "\tbc1t label_true_%s\t# Branch to label_true_%s if condition is true\n", current->result, current->result);
+            fprintf(outputFile, "\tli %s, 0\t# Set result to 0 (false)\n", resReg);
+            fprintf(outputFile, "\tj label_end_%s\t# Jump to label_end_%s\n", current->result, current->result);
+            fprintf(outputFile, "label_true_%s:\n", current->result);
+            fprintf(outputFile, "\tli %s, 1\t# Set result to 1 (true)\n", resReg);
+            fprintf(outputFile, "label_end_%s:\n", current->result);
+
+            setRegisterForVariable(current->result, resReg);
+
+            storeIfNotUsedLater(current->arg1, current, symTab);
+            storeIfNotUsedLater(current->arg2, current, symTab);
+            storeIfNotUsedLater(current->result, current, symTab);
+        }
         else
-            fprintf(outputFile, "\tor %s, %s, %s\n", resultReg, leftReg, rightReg);
+        {
+            fprintf(outputFile, "\t# TAC: %s = %s %s %s\n", current->result, current->arg1, current->op, current->arg2);
+            const char *reg1 = ensureIntInRegister(current->arg1, symTab);
+            const char *reg2 = ensureIntInRegister(current->arg2, symTab);
+            const char *resReg = allocateRegister();
 
-        storeIfNotUsedLater(current->arg1, current, symTab);
-        storeIfNotUsedLater(current->arg2, current, symTab);
-        storeIfNotUsedLater(current->result, current, symTab);
+            // Generate integer comparison
+            if (strcmp(current->op, "==") == 0)
+            {
+                fprintf(outputFile, "\tseq %s, %s, %s\t# Integer equality comparison\n", resReg, reg1, reg2);
+            }
+            else if (strcmp(current->op, "!=") == 0)
+            {
+                fprintf(outputFile, "\tsne %s, %s, %s\t# Integer inequality comparison\n", resReg, reg1, reg2);
+            }
+            else if (strcmp(current->op, "<") == 0)
+            {
+                fprintf(outputFile, "\tslt %s, %s, %s\t# Integer less-than comparison\n", resReg, reg1, reg2);
+            }
+            else if (strcmp(current->op, "<=") == 0)
+            {
+                fprintf(outputFile, "\tsle %s, %s, %s\t# Integer less-than-or-equal comparison\n", resReg, reg1, reg2);
+            }
+            else if (strcmp(current->op, ">") == 0)
+            {
+                fprintf(outputFile, "\tsgt %s, %s, %s\t# Integer greater-than comparison\n", resReg, reg1, reg2);
+            }
+            else if (strcmp(current->op, ">=") == 0)
+            {
+                fprintf(outputFile, "\tsge %s, %s, %s\t# Integer greater-than-or-equal comparison\n", resReg, reg1, reg2);
+            }
+
+            setRegisterForVariable(current->result, resReg);
+
+            storeIfNotUsedLater(current->arg1, current, symTab);
+            storeIfNotUsedLater(current->arg2, current, symTab);
+            storeIfNotUsedLater(current->result, current, symTab);
+        }
         return;
     }
 
-    // Relational ops ==, !=, <, <=, >, >=
-    if (strcmp(current->op, "==") == 0 || strcmp(current->op, "!=") == 0 ||
-        strcmp(current->op, "<") == 0 || strcmp(current->op, "<=") == 0 ||
-        strcmp(current->op, ">") == 0 || strcmp(current->op, ">=") == 0)
+    // Goto: goto label
+    if (strcmp(current->op, "goto") == 0)
     {
-        const char *leftReg = ensureIntInRegister(current->arg1, symTab);
-        const char *rightReg = ensureIntInRegister(current->arg2, symTab);
-        const char *resultReg = allocateRegister();
-        setRegisterForVariable(current->result, resultReg);
+        fprintf(outputFile, "\t# TAC: goto %s\n", current->arg1);
+        fprintf(outputFile, "\tj %s\t# Jumping to label %s\n", current->arg1, current->arg1);
+        return;
+    }
 
-        if (strcmp(current->op, "==") == 0)
-            fprintf(outputFile, "\tseq %s, %s, %s\n", resultReg, leftReg, rightReg);
-        else if (strcmp(current->op, "!=") == 0)
-            fprintf(outputFile, "\tsne %s, %s, %s\n", resultReg, leftReg, rightReg);
-        else if (strcmp(current->op, "<") == 0)
-            fprintf(outputFile, "\tslt %s, %s, %s\n", resultReg, leftReg, rightReg);
-        else if (strcmp(current->op, "<=") == 0)
-        {
-            const char *tempReg = allocateRegister();
-            const char *tempReg2 = allocateRegister();
-            fprintf(outputFile, "\tslt %s, %s, %s\n", tempReg, leftReg, rightReg);
-            fprintf(outputFile, "\tseq %s, %s, %s\n", tempReg2, leftReg, rightReg);
-            fprintf(outputFile, "\tor %s, %s, %s\n", resultReg, tempReg, tempReg2);
-            deallocateRegister(tempReg);
-            deallocateRegister(tempReg2);
-        }
-        else if (strcmp(current->op, ">") == 0)
-            fprintf(outputFile, "\tslt %s, %s, %s\n", resultReg, rightReg, leftReg);
-        else if (strcmp(current->op, ">=") == 0)
-        {
-            const char *tempReg = allocateRegister();
-            fprintf(outputFile, "\tslt %s, %s, %s\n", tempReg, leftReg, rightReg);
-            fprintf(outputFile, "\tseq %s, %s, $zero\n", resultReg, tempReg);
-            deallocateRegister(tempReg);
-        }
+    // Label: label:
+    if (strcmp(current->op, "label") == 0)
+    {
+        fprintf(outputFile, "\t# TAC: label %s\n", current->arg1);
+        fprintf(outputFile, "%s:\t# Label %s\n", current->arg1, current->arg1);
+        return;
+    }
 
-        storeIfNotUsedLater(current->arg1, current, symTab);
-        storeIfNotUsedLater(current->arg2, current, symTab);
-        storeIfNotUsedLater(current->result, current, symTab);
+    // Write Operation: write, write_float
+    if (strcmp(current->op, "write") == 0 || strcmp(current->op, "write_float") == 0)
+    {
+        if (strcmp(current->op, "write_float") == 0)
+        {
+            fprintf(outputFile, "\t# TAC: write_float %s\n", current->arg1);
+            const char *reg = ensureFloatInRegister(current->arg1, symTab);
+            fprintf(outputFile, "\tmov.s $f12, %s\t# Moving float to $f12 for syscall\n", reg);
+            fprintf(outputFile, "\tli $v0, 2\t# Setting syscall for float output\n");
+            fprintf(outputFile, "\tsyscall\t# Performing syscall to print float\n");
+            deallocateFloatRegister(reg);
+        }
+        else
+        {
+            fprintf(outputFile, "\t# TAC: write %s\n", current->arg1);
+            const char *reg = ensureIntInRegister(current->arg1, symTab);
+            fprintf(outputFile, "\tmove $a0, %s\t# Moving integer to $a0 for syscall\n", reg);
+            fprintf(outputFile, "\tli $v0, 1\t# Setting syscall for integer output\n");
+            fprintf(outputFile, "\tsyscall\t# Performing syscall to print integer\n");
+            deallocateRegister(reg);
+        }
+        return;
+    }
+
+    // Return Operation: return
+    if (strcmp(current->op, "return") == 0)
+    {
+        if (current->arg1)
+        {
+            Symbol *retSym = findSymbol(symTab, currentFunctionName);
+            if (retSym && strcmp(retSym->type, "float") == 0)
+            {
+                fprintf(outputFile, "\t# TAC: return %s\n", current->arg1);
+                const char *fReg = ensureFloatInRegister(current->arg1, symTab);
+                fprintf(outputFile, "\tmov.s $f0, %s\t# Moving float return value to $f0\n", fReg);
+                deallocateFloatRegister(fReg);
+            }
+            else
+            {
+                fprintf(outputFile, "\t# TAC: return %s\n", current->arg1);
+                const char *reg = ensureIntInRegister(current->arg1, symTab);
+                fprintf(outputFile, "\tmove $v0, %s\t# Moving integer return value to $v0\n", reg);
+                deallocateRegister(reg);
+            }
+        }
+        fprintf(outputFile, "\t# Performing function return\n");
+        fprintf(outputFile, "\tjr $ra\t# Jumping back to caller\n");
         return;
     }
 
@@ -922,6 +1237,7 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
     fprintf(stderr, "Warning: Unsupported TAC operation '%s'\n", current->op);
 }
 
+// Debug function to print the current state of the symbol table
 void debugPrintSymbolTableState(SymbolTable *symTab, const char *context)
 {
     printf("\nDebug: Symbol Table State at %s\n", context);
@@ -941,6 +1257,7 @@ void debugPrintSymbolTableState(SymbolTable *symTab, const char *context)
     printf("----------------------------------------\n");
 }
 
+// Function to process the TAC list and generate corresponding MIPS code
 void processTACList(TAC *tacList, SymbolTable *symTab)
 {
     debugPrintSymbolTableState(symTab, "Start of TAC Processing");
@@ -961,49 +1278,49 @@ void processTACList(TAC *tacList, SymbolTable *symTab)
             if (strcmp(current->op, "label") == 0)
             {
                 currentFunctionName = current->arg1;
-                fprintf(outputFile, "%s:\n", currentFunctionName);
+                fprintf(outputFile, "%s:\t# Label for function %s\n", currentFunctionName, currentFunctionName);
 
                 if (strcmp(currentFunctionName, "main") == 0)
                 {
-                    fprintf(outputFile, ".globl main\n");
+                    fprintf(outputFile, "\t.globl main\t# Declare main as global\n");
                 }
                 inFunction = true;
             }
             else if (strcmp(current->op, "prologue") == 0)
             {
-                fprintf(outputFile, "# Prologue for function %s\n", currentFunctionName);
-                fprintf(outputFile, "\taddiu $sp, $sp, -8\n");
-                fprintf(outputFile, "\tsw $fp, 4($sp)\n");
-                fprintf(outputFile, "\tsw $ra, 0($sp)\n");
-                fprintf(outputFile, "\tmove $fp, $sp\n");
+                fprintf(outputFile, "\t# Prologue for function %s\n", currentFunctionName);
+                fprintf(outputFile, "\taddiu $sp, $sp, -8\t# Allocate stack space\n");
+                fprintf(outputFile, "\tsw $fp, 4($sp)\t# Save frame pointer\n");
+                fprintf(outputFile, "\tsw $ra, 0($sp)\t# Save return address\n");
+                fprintf(outputFile, "\tmove $fp, $sp\t# Set frame pointer\n");
 
                 initializeRegisterMap();
                 initializeFloatRegisterMap();
                 memset(registerInUse, 0, sizeof(registerInUse));
                 memset(floatRegisterInUse, 0, sizeof(floatRegisterInUse));
+
+                currentIntArgCount = 0;
+                currentFloatArgCount = 0;
             }
             else if (strcmp(current->op, "epilogue") == 0)
             {
-                fprintf(outputFile, "# Epilogue for function %s\n", currentFunctionName);
-                fprintf(outputFile, "%s_epilogue:\n", currentFunctionName);
+                fprintf(outputFile, "\t# Epilogue for function %s\n", currentFunctionName);
+                fprintf(outputFile, "%s_epilogue:\t# Epilogue label\n", currentFunctionName);
 
-                fprintf(outputFile, "\tmove $sp, $fp\n");
-                fprintf(outputFile, "\tlw $fp, 4($sp)\n");
-                fprintf(outputFile, "\tlw $ra, 0($sp)\n");
-                fprintf(outputFile, "\taddiu $sp, $sp, 8\n");
+                fprintf(outputFile, "\tmove $sp, $fp\t# Restore stack pointer\n");
+                fprintf(outputFile, "\tlw $fp, 4($sp)\t# Restore frame pointer\n");
+                fprintf(outputFile, "\tlw $ra, 0($sp)\t# Restore return address\n");
+                fprintf(outputFile, "\taddiu $sp, $sp, 8\t# Deallocate stack space\n");
 
                 if (strcmp(currentFunctionName, "main") == 0)
                 {
-                    fprintf(outputFile, "\tli $v0, 10\n");
-                    fprintf(outputFile, "\tsyscall\n");
+                    fprintf(outputFile, "\tli $v0, 10\t# Syscall to exit\n");
+                    fprintf(outputFile, "\tsyscall\t# Exit program\n");
                 }
                 else
                 {
-                    if (strcmp(current->result, "NULL") != 0)
-                    {
-                        fprintf(outputFile, "\tli $v0, %s\n", current->result ? current->result : "NULL");
-                    }
-                    fprintf(outputFile, "\tjr $ra\n");
+                    // For other functions, simply return
+                    fprintf(outputFile, "\tjr $ra\t# Return to caller\n");
                 }
 
                 inFunction = false;
@@ -1016,6 +1333,7 @@ void processTACList(TAC *tacList, SymbolTable *symTab)
                     continue;
                 }
 
+                // Generate MIPS code for the current TAC operation with comments
                 generateTACOperation(current, symTab, currentFunctionName);
             }
         }
@@ -1024,32 +1342,43 @@ void processTACList(TAC *tacList, SymbolTable *symTab)
     }
 }
 
+// Function to generate MIPS code from TAC instructions
 void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
 {
+    // Collect all symbols from the symbol table
     int symbolCapacity = 100;
     int symbolCount = 0;
     Symbol **symbolList = malloc(symbolCapacity * sizeof(Symbol *));
+    if (!symbolList)
+    {
+        fprintf(stderr, "Error: Memory allocation failed for symbol list.\n");
+        exit(1);
+    }
     collectAllSymbols(symTab, &symbolList, &symbolCount, &symbolCapacity);
 
+    // Begin data segment
     fprintf(outputFile, ".data\n");
 
+    // Variables already declared to avoid duplicates
     int declaredCapacity = 100;
     int declaredCount = 0;
     char **declaredVariables = malloc(declaredCapacity * sizeof(char *));
     if (declaredVariables == NULL)
     {
         fprintf(stderr, "Error: Memory allocation failed for declared variables.\n");
-        exit(1);
+        exit(EXIT_FAILURE);
     }
 
+    // Declare variables in the data segment
     for (int i = 0; i < symbolCount; i++)
     {
         Symbol *symbol = symbolList[i];
         if (symbol->isFunction || isTemporaryVariable(symbol->name))
         {
-            continue;
+            continue; // Skip functions and temporary variables
         }
 
+        // Check if variable is already declared
         bool alreadyDeclared = false;
         for (int j = 0; j < declaredCount; j++)
         {
@@ -1064,15 +1393,33 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
             continue;
         }
 
+        // Resize declaredVariables array if needed
+        if (declaredCount >= declaredCapacity)
+        {
+            declaredCapacity *= 2;
+            declaredVariables = realloc(declaredVariables, declaredCapacity * sizeof(char *));
+            if (!declaredVariables)
+            {
+                fprintf(stderr, "Error: Memory reallocation failed for declared variables.\n");
+                exit(EXIT_FAILURE);
+            }
+        }
+
         declaredVariables[declaredCount++] = strdup(symbol->name);
 
+        // Declare the variable based on its type
         if (symbol->isArray)
         {
-            int totalSize = symbol->arrayInfo->size * 4;
+            int totalSize = symbol->arrayInfo->size * 4; // Assuming 4 bytes per element
+            fprintf(outputFile, "\t# Declaring array %s with size %d\n", symbol->name, totalSize);
             fprintf(outputFile, "%s: .space %d\n", symbol->name, totalSize);
         }
         else if (strcmp(symbol->type, "float") == 0)
         {
+            if (symbol->value != NULL)
+                fprintf(outputFile, "\t# Declaring float variable %s with initial value %s\n", symbol->name, symbol->value);
+            else
+                fprintf(outputFile, "\t# Declaring float variable %s with initial value 0.0\n", symbol->name);
             if (symbol->value != NULL)
                 fprintf(outputFile, "%s: .float %s\n", symbol->name, symbol->value);
             else
@@ -1080,6 +1427,10 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
         }
         else if (strcmp(symbol->type, "int") == 0)
         {
+            if (symbol->value != NULL)
+                fprintf(outputFile, "\t# Declaring integer variable %s with initial value %s\n", symbol->name, symbol->value);
+            else
+                fprintf(outputFile, "\t# Declaring integer variable %s with initial value 0\n", symbol->name);
             if (symbol->value != NULL)
                 fprintf(outputFile, "%s: .word %s\n", symbol->name, symbol->value);
             else
@@ -1090,82 +1441,31 @@ void generateMIPS(TAC *tacInstructions, SymbolTable *symTab)
             if (symbol->value != NULL)
             {
                 int boolValue = (strcmp(symbol->value, "true") == 0) ? 1 : 0;
+                fprintf(outputFile, "\t# Declaring boolean variable %s with initial value %d\n", symbol->name, boolValue);
                 fprintf(outputFile, "%s: .word %d\n", symbol->name, boolValue);
             }
             else
             {
+                fprintf(outputFile, "\t# Declaring boolean variable %s with initial value 0 (false)\n", symbol->name);
                 fprintf(outputFile, "%s: .word 0\n", symbol->name);
             }
         }
     }
 
-    for (int i = 0; i < declaredCount; i++)
+    // Declare float constants collected so far
+    for (int i = 0; i < floatConstCount; i++)
     {
-        free(declaredVariables[i]);
+        fprintf(outputFile, "\t# Declaring float constant float_%d\n", i);
+        fprintf(outputFile, "float_%d: .float %s\n", i, floatConstants[i]);
+        free(floatConstants[i]); // Free after declaring
     }
+
     free(declaredVariables);
     free(symbolList);
 
+    // Now begin text segment
     fprintf(outputFile, ".text\n");
 
-    TAC *current = tacInstructions;
-    TAC *mainTAC = NULL;
-    TAC *mainTACTail = NULL;
-    TAC *otherFunctionsTAC = NULL;
-    TAC *otherFunctionsTACTail = NULL;
-    const char *currentFunctionName = NULL;
-    bool inMainFunction = false;
-    bool inFunction = false;
-
-    // Separate main and other functions
-    while (current != NULL)
-    {
-        if (current->op && strcmp(current->op, "label") == 0)
-        {
-            currentFunctionName = current->arg1;
-            inFunction = true;
-
-            if (strcmp(currentFunctionName, "main") == 0)
-                inMainFunction = true;
-            else
-                inMainFunction = false;
-        }
-
-        if (inFunction)
-        {
-            if (inMainFunction)
-            {
-                if (!mainTAC)
-                    mainTAC = mainTACTail = current;
-                else
-                {
-                    mainTACTail->next = current;
-                    mainTACTail = current;
-                }
-            }
-            else
-            {
-                if (!otherFunctionsTAC)
-                    otherFunctionsTAC = otherFunctionsTACTail = current;
-                else
-                {
-                    otherFunctionsTACTail->next = current;
-                    otherFunctionsTACTail = current;
-                }
-            }
-        }
-
-        current = current->next;
-    }
-
-    if (mainTACTail != NULL)
-        mainTACTail->next = NULL;
-    if (otherFunctionsTACTail != NULL)
-        otherFunctionsTACTail->next = NULL;
-
-    // Process main
-    processTACList(mainTAC, symTab);
-    fprintf(outputFile, "\n");
-    // Process other functions
-    processTACList(otherFunctionsTAC, symTab);
+    // Process the TAC instructions to generate MIPS code
+    processTACList(tacInstructions, symTab);
 }
