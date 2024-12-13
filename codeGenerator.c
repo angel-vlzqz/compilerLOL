@@ -913,6 +913,10 @@ void processTACList(TAC *tacList, SymbolTable *symTab)
                 }
                 else
                 {
+                    if(strcmp(current->result, "NULL") != 0)
+                    {
+                        fprintf(outputFile, "\tli $v0, %s\n", current->result ? current->result : "NULL");
+                    }
                     fprintf(outputFile, "\tjr $ra\n");
                 }
 
