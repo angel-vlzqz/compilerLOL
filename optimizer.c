@@ -7,7 +7,19 @@
 #include <stdio.h>
 #include <errno.h>
 
-// Helper: Check if a string is a numeric constant (integer or float)
+// Structures to hold known constants for variables and array elements
+typedef struct VarConst {
+    char *var;
+    char *constant;
+    struct VarConst *next;
+} VarConst;
+
+typedef struct ArrConst {
+    char *arrElement;   // "arr[3]"
+    char *constant;
+    struct ArrConst *next;
+} ArrConst;
+
 static bool isNumericConstant(const char *str)
 {
     if (!str || *str == '\0')
@@ -40,12 +52,91 @@ static bool isNumericConstant(const char *str)
     return hasDigit;
 }
 
-// Parse a numeric constant as double
 static double parseDouble(const char *str)
 {
     errno = 0;
     double val = strtod(str, NULL);
     return val;
+}
+
+static const char* findVarConstant(VarConst *list, const char *var) {
+    for (VarConst *v = list; v; v = v->next) {
+        if (strcmp(v->var, var) == 0) return v->constant;
+    }
+    return NULL;
+}
+
+static void setVarConstant(VarConst **list, const char *var, const char *constant) {
+    VarConst *prev = NULL, *cur = *list;
+    while (cur) {
+        if (strcmp(cur->var, var) == 0) {
+            free(cur->constant);
+            cur->constant = strdup(constant);
+            return;
+        }
+        prev = cur;
+        cur = cur->next;
+    }
+    VarConst *newNode = (VarConst*)malloc(sizeof(VarConst));
+    newNode->var = strdup(var);
+    newNode->constant = strdup(constant);
+    newNode->next = *list;
+    *list = newNode;
+}
+
+static void invalidateVarConstant(VarConst **list, const char *var) {
+    VarConst *prev = NULL, *cur = *list;
+    while (cur) {
+        if (strcmp(cur->var, var) == 0) {
+            if (prev) prev->next = cur->next; else *list = cur->next;
+            free(cur->var);
+            free(cur->constant);
+            free(cur);
+            return;
+        }
+        prev = cur;
+        cur = cur->next;
+    }
+}
+
+static const char* findArrConstant(ArrConst *list, const char *arrElem) {
+    for (ArrConst *a = list; a; a = a->next) {
+        if (strcmp(a->arrElement, arrElem) == 0) return a->constant;
+    }
+    return NULL;
+}
+
+static void setArrConstant(ArrConst **list, const char *arrElem, const char *constant) {
+    ArrConst *prev = NULL, *cur = *list;
+    while (cur) {
+        if (strcmp(cur->arrElement, arrElem) == 0) {
+            free(cur->constant);
+            cur->constant = strdup(constant);
+            return;
+        }
+        prev = cur;
+        cur = cur->next;
+    }
+    ArrConst *newNode = (ArrConst*)malloc(sizeof(ArrConst));
+    newNode->arrElement = strdup(arrElem);
+    newNode->constant = strdup(constant);
+    newNode->next = *list;
+    *list = newNode;
+}
+
+static void invalidateArrConstant(ArrConst **list, const char *arrElem) {
+    ArrConst *prev = NULL, *cur = *list;
+    while (cur) {
+        if (strcmp(cur->arrElement, arrElem) == 0) {
+            if (prev) prev->next = cur->next; else *list = cur->next;
+            free(cur->arrElement);
+            free(cur->constant);
+            free(cur);
+            return;
+        }
+        prev = cur;
+        cur = cur->next;
+    }
 }
 
 void optimizeTAC(TAC **head)
@@ -77,9 +168,20 @@ void optimizeTAC(TAC **head)
             do
             {
                 changes = 0;
-                changes += constantFolding(&funcStart);
-                changes += constantPropagation(&funcStart);
-                changes += copyPropagation(&funcStart);
+                do
+                {
+                    changes = 0;
+                    changes += constantFolding(&funcStart);
+                    changes += constantPropagation(&funcStart);
+                    changes += copyPropagation(&funcStart);
+                    iterationCount++;
+                    if (iterationCount >= MAX_ITERATIONS)
+                    {
+                        fprintf(stderr, "Warning: Optimization reached %d iterations and stopped.\n", MAX_ITERATIONS);
+                        break;
+                    }
+                } while (changes > 0);
+
                 changes += deadCodeElimination(&funcStart);
                 iterationCount++;
                 if (iterationCount >= MAX_ITERATIONS)
@@ -87,7 +189,7 @@ void optimizeTAC(TAC **head)
                     fprintf(stderr, "Warning: Optimization reached %d iterations and stopped.\n", MAX_ITERATIONS);
                     break;
                 }
-            } while (changes > 0 /*&& iterationCount < MAX_ITERATIONS*/);
+            } while (changes > 0);
 
             if (*head == current)
                 *head = funcStart;
@@ -136,7 +238,6 @@ int constantFolding(TAC **head)
             continue;
         }
 
-        // Integer and float operations: +, -, *, /
         if (current->op && (strcmp(current->op, "+") == 0 ||
                             strcmp(current->op, "-") == 0 ||
                             strcmp(current->op, "*") == 0 ||
@@ -181,14 +282,9 @@ int constantFolding(TAC **head)
 
                         changes++;
                     }
-                    else
-                    {
-                        fprintf(stderr, "Error: Division by zero in constant folding.\n");
-                    }
                 }
                 else
                 {
-                    // float folding
                     double operand1 = parseDouble(current->arg1);
                     double operand2 = parseDouble(current->arg2);
                     double result = 0.0;
@@ -222,10 +318,6 @@ int constantFolding(TAC **head)
                         current->arg2 = NULL;
 
                         changes++;
-                    }
-                    else
-                    {
-                        fprintf(stderr, "Error: Division by zero in float constant folding.\n");
                     }
                 }
             }
@@ -271,10 +363,6 @@ int constantFolding(TAC **head)
 
                     changes++;
                 }
-                else
-                {
-                    fprintf(stderr, "Error: Division by zero in float constant folding.\n");
-                }
             }
         }
 
@@ -287,43 +375,202 @@ int constantFolding(TAC **head)
 int constantPropagation(TAC **head)
 {
     int changes = 0;
-    TAC *current = *head;
-    while (current != NULL)
-    {
-        if (current->op && strcmp(current->op, "=") == 0 && isNumericConstant(current->arg1))
+    VarConst *varConstants = NULL;
+    ArrConst *arrConstants = NULL;
+
+    for (TAC *current = *head; current; current = current->next) {
+        // Stop at function boundaries or calls
+        if (current->op && (strcmp(current->op, "prologue") == 0 ||
+                            strcmp(current->op, "epilogue") == 0 ||
+                            strcmp(current->op, "call") == 0))
         {
-            char *constValue = current->arg1;
-            char *varName = current->result;
-            TAC *temp = current->next;
+            // Clear known constants at boundaries
+            while (varConstants) {
+                VarConst *vn = varConstants->next;
+                free(varConstants->var);
+                free(varConstants->constant);
+                free(varConstants);
+                varConstants = vn;
+            }
+            while (arrConstants) {
+                ArrConst *an = arrConstants->next;
+                free(arrConstants->arrElement);
+                free(arrConstants->constant);
+                free(arrConstants);
+                arrConstants = an;
+            }
+            continue;
+        }
 
-            while (temp != NULL)
-            {
-                if (temp->op && (strcmp(temp->op, "prologue") == 0 ||
-                                 strcmp(temp->op, "epilogue") == 0 ||
-                                 strcmp(temp->op, "call") == 0))
-                    break;
-
-                if (temp->arg1 && strcmp(temp->arg1, varName) == 0)
-                {
-                    free(temp->arg1);
-                    temp->arg1 = strdup(constValue);
-                    changes++;
-                }
-                if (temp->arg2 && strcmp(temp->arg2, varName) == 0)
-                {
-                    free(temp->arg2);
-                    temp->arg2 = strdup(constValue);
-                    changes++;
-                }
-
-                if (temp->result && strcmp(temp->result, varName) == 0)
-                    break;
-
-                temp = temp->next;
+        // First, propagate constants into arg1/arg2 if they are variables
+        if (current->arg1) {
+            const char *vc = findVarConstant(varConstants, current->arg1);
+            if (vc && isNumericConstant(vc) && strcmp(vc, current->arg1) != 0) {
+                free(current->arg1);
+                current->arg1 = strdup(vc);
+                changes++;
             }
         }
-        current = current->next;
+
+        if (current->arg2) {
+            const char *vc = findVarConstant(varConstants, current->arg2);
+            if (vc && isNumericConstant(vc) && strcmp(vc, current->arg2) != 0) {
+                free(current->arg2);
+                current->arg2 = strdup(vc);
+                changes++;
+            }
+        }
+
+        // If we have array instructions, try to propagate constants into the index
+        if (current->op && strcmp(current->op, "=[]") == 0) {
+            // var = arr[index]
+            // Try to make index a constant if possible
+            if (current->arg2) {
+                const char *idxConst = findVarConstant(varConstants, current->arg2);
+                if (idxConst && isNumericConstant(idxConst) && strcmp(idxConst, current->arg2) != 0) {
+                    free(current->arg2);
+                    current->arg2 = strdup(idxConst);
+                    changes++;
+                }
+            }
+
+            if (isNumericConstant(current->arg2)) {
+                // Now try arr[index]
+                char arrKey[256];
+                snprintf(arrKey, sizeof(arrKey), "%s[%s]", current->arg1, current->arg2);
+                const char *ac = findArrConstant(arrConstants, arrKey);
+                if (ac && isNumericConstant(ac)) {
+                    free(current->op);
+                    current->op = strdup("=");
+                    free(current->arg1);
+                    current->arg1 = strdup(ac);
+                    free(current->arg2);
+                    current->arg2 = NULL;
+                    changes++;
+
+                    if (current->result) {
+                        setVarConstant(&varConstants, current->result, ac);
+                    }
+                } else {
+                    // Not known, invalidate var
+                    if (current->result)
+                        invalidateVarConstant(&varConstants, current->result);
+                }
+            } else {
+                if (current->result)
+                    invalidateVarConstant(&varConstants, current->result);
+            }
+        } else if (current->op && strcmp(current->op, "[]=") == 0) {
+            // arr[index] = value
+            // Try to make index a constant if possible
+            if (current->arg2) {
+                const char *idxConst = findVarConstant(varConstants, current->arg2);
+                if (idxConst && isNumericConstant(idxConst) && strcmp(idxConst, current->arg2) != 0) {
+                    free(current->arg2);
+                    current->arg2 = strdup(idxConst);
+                    changes++;
+                }
+            }
+
+            if (isNumericConstant(current->arg2)) {
+                char arrKey[256];
+                snprintf(arrKey, sizeof(arrKey), "%s[%s]", current->arg1, current->arg2);
+                if (current->result && isNumericConstant(current->result)) {
+                    setArrConstant(&arrConstants, arrKey, current->result);
+                } else {
+                    // If result is a var, check if var is known constant
+                    if (current->result) {
+                        const char *vc = findVarConstant(varConstants, current->result);
+                        if (vc && isNumericConstant(vc)) {
+                            free(current->result);
+                            current->result = strdup(vc);
+                            changes++;
+                            setArrConstant(&arrConstants, arrKey, vc);
+                        } else {
+                            invalidateArrConstant(&arrConstants, arrKey);
+                        }
+                    }
+                }
+            } else {
+                // Unknown index
+                // Can't set arr constant
+                // If we had a known constant for arr[index], now it should be invalidated
+                // But we don't know which index, so do nothing special here
+            }
+        } else if (current->op && strcmp(current->op, "=") == 0) {
+            // var = something
+            if (current->arg1 && isNumericConstant(current->arg1)) {
+                if (current->result)
+                    setVarConstant(&varConstants, current->result, current->arg1);
+            } else {
+                if (current->arg1) {
+                    const char *vc = findVarConstant(varConstants, current->arg1);
+                    if (vc && isNumericConstant(vc)) {
+                        free(current->arg1);
+                        current->arg1 = strdup(vc);
+                        changes++;
+                        setVarConstant(&varConstants, current->result, vc);
+                    } else {
+                        if (current->result)
+                            invalidateVarConstant(&varConstants, current->result);
+                    }
+                } else {
+                    if (current->result)
+                        invalidateVarConstant(&varConstants, current->result);
+                }
+            }
+        } else {
+            // For other ops that define a result, it's likely not constant
+            if (current->result && strcmp(current->op, "[]=") != 0 && strcmp(current->op, "=[]") != 0 && strcmp(current->op, "=") != 0) {
+                invalidateVarConstant(&varConstants, current->result);
+            }
+        }
+
+        // Final propagation step for arguments after possible updates
+        if (current->arg1) {
+            const char *vc = findVarConstant(varConstants, current->arg1);
+            if (vc && isNumericConstant(vc) && strcmp(vc, current->arg1) != 0) {
+                free(current->arg1);
+                current->arg1 = strdup(vc);
+                changes++;
+            }
+        }
+        if (current->arg2) {
+            const char *vc = findVarConstant(varConstants, current->arg2);
+            if (vc && isNumericConstant(vc) && strcmp(vc, current->arg2) != 0) {
+                free(current->arg2);
+                current->arg2 = strdup(vc);
+                changes++;
+            }
+        }
+
+        // Check for []= result propagation
+        if (current->op && strcmp(current->op, "[]=") == 0 && current->result) {
+            const char *vc = findVarConstant(varConstants, current->result);
+            if (vc && isNumericConstant(vc) && strcmp(vc, current->result) != 0) {
+                free(current->result);
+                current->result = strdup(vc);
+                changes++;
+            }
+        }
     }
+
+    // Free varConstants and arrConstants lists
+    while (varConstants) {
+        VarConst *vn = varConstants->next;
+        free(varConstants->var);
+        free(varConstants->constant);
+        free(varConstants);
+        varConstants = vn;
+    }
+    while (arrConstants) {
+        ArrConst *an = arrConstants->next;
+        free(arrConstants->arrElement);
+        free(arrConstants->constant);
+        free(arrConstants);
+        arrConstants = an;
+    }
+
     return changes;
 }
 
@@ -359,6 +606,7 @@ int copyPropagation(TAC **head)
                     changes++;
                 }
 
+                // If the destination is redefined, stop propagation
                 if (temp->result && strcmp(temp->result, destVar) == 0)
                     break;
 
@@ -408,7 +656,6 @@ int deadCodeElimination(TAC **head)
             if (!isUsed)
             {
                 TAC *toDelete = current;
-
                 if (prev == NULL)
                     *head = current->next;
                 else
@@ -437,14 +684,9 @@ bool hasSideEffect(TAC *instr)
     if (instr == NULL || instr->op == NULL)
         return false;
 
-    // If there is a return TAC, it always has a side effect
     if (strcmp(instr->op, "return") == 0) return true;
-
-    // If your function uses 'result' as the final return variable
-    // and does not generate a 'return' TAC, treat assignments to 'result' as side effects:
     if (instr->result && strcmp(instr->result, "result") == 0)
         return true;
-
     if (strcmp(instr->op, "[]=") == 0) return true;
     if (strcmp(instr->op, "write") == 0 || strcmp(instr->op, "write_float") == 0) return true;
     if (strcmp(instr->op, "call") == 0) return true;
@@ -455,6 +697,5 @@ bool hasSideEffect(TAC *instr)
     if (strcmp(instr->op, "ifFalse") == 0) return true;
     if (strcmp(instr->op, "goto") == 0) return true;
 
-    // Arithmetic and float arithmetic, relational, logical ops, and '=' are not side effects if unused.
     return false;
 }
