@@ -329,23 +329,19 @@ static const char *loadAddress(const char *label)
     return tempReg;
 }
 
-// For loading floats from labels/variables:
-// la $temp, var
-// l.s $fX, offset($temp)  or l.s $fX, 0($temp) if no offset
+// Load float from memory using lwc1 instead of l.s
 static void loadFloatFromMemory(const char *freg, const char *label, const char *offset)
 {
     const char *tempReg = allocateRegister();
     fprintf(outputFile, "\tla %s, %s\n", tempReg, label);
     if (offset)
-        fprintf(outputFile, "\tl.s %s, %s(%s)\n", freg, offset, tempReg);
+        fprintf(outputFile, "\tlwc1 %s, %s(%s)\n", freg, offset, tempReg);
     else
-        fprintf(outputFile, "\tl.s %s, 0(%s)\n", freg, tempReg);
+        fprintf(outputFile, "\tlwc1 %s, 0(%s)\n", freg, tempReg);
     deallocateRegister(tempReg);
 }
 
-// Similarly for int:
-// la $temp, var
-// lw $reg, offset($temp) or lw $reg, 0($temp)
+// Load int from memory remains the same
 static void loadIntFromMemory(const char *reg, const char *label, const char *offset)
 {
     const char *tempReg = allocateRegister();
@@ -357,35 +353,27 @@ static void loadIntFromMemory(const char *reg, const char *label, const char *of
     deallocateRegister(tempReg);
 }
 
-// When ensureFloatInRegister loads a variable, we must use loadFloatFromMemory now
 const char *ensureFloatInRegister(const char *operand, SymbolTable *symTab)
 {
+    // If operand is already in a float register
     if (isVariableInFloatRegisterMap(operand))
     {
         return getFloatRegisterForVariable(operand);
     }
+    // If operand is a float constant
     else if (isFloatConstant(operand))
     {
-        const char *freg = allocateFloatRegister();
+        const char *fReg = allocateFloatRegister();
         int constIndex = addFloatConstantToData(operand);
-        // Load float constant:
         const char *tempReg = allocateRegister();
         fprintf(outputFile, "\tla %s, float_%d\n", tempReg, constIndex);
-        fprintf(outputFile, "\tl.s %s, 0(%s)\n", freg, tempReg);
+        fprintf(outputFile, "\tlwc1 %s, 0(%s)\n", fReg, tempReg);
         deallocateRegister(tempReg);
 
-        setFloatRegisterForVariable(operand, freg);
-        return freg;
-    }
-    else if (isVariableInRegisterMap(operand))
-    {
-        const char *intReg = getRegisterForVariable(operand);
-        const char *fReg = allocateFloatRegister();
-        fprintf(outputFile, "\tmtc1 %s, %s\n", intReg, fReg);
-        fprintf(outputFile, "\tcvt.s.w %s, %s\n", fReg, fReg);
         setFloatRegisterForVariable(operand, fReg);
         return fReg;
     }
+    // If operand is an integer constant that needs to be treated as float
     else if (isConstant(operand) && !isFloatConstant(operand))
     {
         const char *intReg = allocateRegister();
@@ -397,23 +385,37 @@ const char *ensureFloatInRegister(const char *operand, SymbolTable *symTab)
         deallocateRegister(intReg);
         return fReg;
     }
+    else if (isVariableInRegisterMap(operand))
+    {
+        // Operand is an int in a register, convert it to float
+        const char *intReg = getRegisterForVariable(operand);
+        const char *fReg = allocateFloatRegister();
+        fprintf(outputFile, "\tmtc1 %s, %s\n", intReg, fReg);
+        fprintf(outputFile, "\tcvt.s.w %s, %s\n", fReg, fReg);
+        setFloatRegisterForVariable(operand, fReg);
+        return fReg;
+    }
     else
     {
-        // Load from memory as float variable
-        const char *freg = allocateFloatRegister();
-        // var must be loaded via la + l.s 0($reg)
-        // no offset here, so use 0
+        // Load from memory as a float variable
+        Symbol *sym = findSymbol(symTab, operand);
+        if (!sym && isTemporaryVariable(operand))
+        {
+            fprintf(stderr, "Error: Attempting to load temporary variable '%s' from memory.\n", operand);
+            exit(1);
+        }
+        
+        const char *fReg = allocateFloatRegister();
         const char *tempReg = allocateRegister();
         fprintf(outputFile, "\tla %s, %s\n", tempReg, operand);
-        fprintf(outputFile, "\tl.s %s, 0(%s)\n", freg, tempReg);
+        fprintf(outputFile, "\tlwc1 %s, 0(%s)\n", fReg, tempReg);
         deallocateRegister(tempReg);
 
-        setFloatRegisterForVariable(operand, freg);
-        return freg;
+        setFloatRegisterForVariable(operand, fReg);
+        return fReg;
     }
 }
 
-// For int, do similarly:
 const char *ensureIntInRegister(const char *operand, SymbolTable *symTab)
 {
     if (isVariableInRegisterMap(operand))
@@ -429,28 +431,40 @@ const char *ensureIntInRegister(const char *operand, SymbolTable *symTab)
     }
     else if (isFloatConstant(operand))
     {
-        float val = atof(operand);
-        int intVal = (int)val;
-        const char *reg = allocateRegister();
-        fprintf(outputFile, "\tli %s, %d\n", reg, intVal);
-        setRegisterForVariable(operand, reg);
-        return reg;
+        const char *fReg = allocateFloatRegister();
+        int constIndex = addFloatConstantToData(operand);
+        const char *tempReg = allocateRegister();
+        fprintf(outputFile, "\tla %s, float_%d\n", tempReg, constIndex);
+        fprintf(outputFile, "\tlwc1 %s, 0(%s)\n", fReg, tempReg);
+        deallocateRegister(tempReg);
+
+        fprintf(outputFile, "\tcvt.w.s %s, %s\n", fReg, fReg);
+        const char *intReg = allocateRegister();
+        fprintf(outputFile, "\tmfc1 %s, %s\n", intReg, fReg);
+        deallocateFloatRegister(fReg);
+
+        setRegisterForVariable(operand, intReg);
+        return intReg;
     }
     else if (isVariableInFloatRegisterMap(operand))
     {
-        const char *freg = getFloatRegisterForVariable(operand);
+        const char *fReg = getFloatRegisterForVariable(operand);
+        fprintf(outputFile, "\tcvt.w.s %s, %s\n", fReg, fReg);
         const char *intReg = allocateRegister();
-        fprintf(outputFile, "\tcvt.w.s %s, %s\n", freg, freg);
-        fprintf(outputFile, "\tmfc1 %s, %s\n", intReg, freg);
-        removeVariableFromFloatRegisterMap(operand);
+        fprintf(outputFile, "\tmfc1 %s, %s\n", intReg, fReg);
         setRegisterForVariable(operand, intReg);
         return intReg;
     }
     else
     {
-        // Load int from memory:
+        Symbol *sym = findSymbol(symTab, operand);
+        if (!sym && isTemporaryVariable(operand))
+        {
+            fprintf(stderr, "Error: Attempting to load temporary variable '%s' from memory.\n", operand);
+            exit(1);
+        }
+
         const char *reg = allocateRegister();
-        // la $temp, operand; lw reg, 0($temp)
         const char *tempReg = allocateRegister();
         fprintf(outputFile, "\tla %s, %s\n", tempReg, operand);
         fprintf(outputFile, "\tlw %s, 0(%s)\n", reg, tempReg);
@@ -463,7 +477,6 @@ const char *ensureIntInRegister(const char *operand, SymbolTable *symTab)
 
 void handleFunctionArguments(TAC *current, int *argCount)
 {
-    // Simple arg passing: only support up to 4 integer args, and 1 float arg at f12
     const char *argReg;
     switch (*argCount) {
         case 0: argReg = "$a0"; break;
@@ -475,9 +488,7 @@ void handleFunctionArguments(TAC *current, int *argCount)
             return;
     }
 
-    // If float arg:
-    // In a more complete compiler, you'd handle float args differently.
-    // We'll assume all args are int for simplicity, or if float, we place in $f12
+    // Float arguments simplified assumption (handled similarly to ints)
     if (current->arg2 && strcmp(current->arg2, "float") == 0)
     {
         const char *fReg = ensureFloatInRegister(current->arg1, NULL);
@@ -511,14 +522,22 @@ void storeIfNotUsedLater(const char *var, TAC *current, SymbolTable *symTab)
             if (isVariableInRegisterMap(var))
             {
                 const char *regName = getRegisterForVariable(var);
-                fprintf(outputFile, "\tsw %s, %s\n", regName, var);
+                const char *tempReg = allocateRegister();
+                fprintf(outputFile, "\tla %s, %s\n", tempReg, var);
+                fprintf(outputFile, "\tsw %s, 0(%s)\n", regName, tempReg);
+                deallocateRegister(tempReg);
+
                 deallocateRegister(regName);
                 removeVariableFromRegisterMap(var);
             }
             if (isVariableInFloatRegisterMap(var))
             {
                 const char *regName = getFloatRegisterForVariable(var);
-                fprintf(outputFile, "\ts.s %s, %s\n", regName, var);
+                const char *tempReg = allocateRegister();
+                fprintf(outputFile, "\tla %s, %s\n", tempReg, var);
+                fprintf(outputFile, "\tswc1 %s, 0(%s)\n", regName, tempReg);
+                deallocateRegister(tempReg);
+
                 deallocateFloatRegister(regName);
                 removeVariableFromFloatRegisterMap(var);
             }
@@ -684,7 +703,6 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
         }
         else
         {
-            // Dynamic index
             const char *indexReg = ensureIntInRegister(indexOperand, symTab);
             fprintf(outputFile, "\tmul %s, %s, 4\n", ADDRESS_CALC_REGISTER, indexReg);
             fprintf(outputFile, "\tadd %s, %s, %s\n", ADDRESS_CALC_REGISTER, BASE_ADDRESS_REGISTER, ADDRESS_CALC_REGISTER);
@@ -738,7 +756,6 @@ void generateTACOperation(TAC *current, SymbolTable *symTab, const char *current
     // call
     if (strcmp(current->op, "call") == 0)
     {
-        // After placing parameters with param instructions, just call the function
         fprintf(outputFile, "\tjal %s\n", current->arg1);
         currentArgCount = 0; // Reset arg count
         return;

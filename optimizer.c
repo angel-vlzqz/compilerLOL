@@ -5,6 +5,48 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <errno.h>
+
+// Helper: Check if a string is a numeric constant (integer or float)
+static bool isNumericConstant(const char *str)
+{
+    if (!str || *str == '\0')
+        return false;
+    const char *p = str;
+    if (*p == '+' || *p == '-')
+        p++;
+
+    bool hasDigit = false;
+    bool hasDot = false;
+    while (*p)
+    {
+        if (*p == '.')
+        {
+            if (hasDot)
+                return false;
+            hasDot = true;
+        }
+        else if (!isdigit((unsigned char)*p))
+        {
+            return false;
+        }
+        else
+        {
+            hasDigit = true;
+        }
+        p++;
+    }
+
+    return hasDigit;
+}
+
+// Parse a numeric constant as double
+static double parseDouble(const char *str)
+{
+    errno = 0;
+    double val = strtod(str, NULL);
+    return val;
+}
 
 void optimizeTAC(TAC **head)
 {
@@ -13,68 +55,52 @@ void optimizeTAC(TAC **head)
 
     while (current != NULL)
     {
-        // Find the start of a function (prologue)
+        // Find start of function block
         if (current->op && strcmp(current->op, "prologue") == 0)
         {
-            // This is the start of a function block
             TAC *funcStart = current;
             TAC *funcEnd = funcStart;
 
-            // Traverse until we find the corresponding epilogue
+            // Find corresponding epilogue
             while (funcEnd != NULL && !(funcEnd->op && strcmp(funcEnd->op, "epilogue") == 0))
             {
                 funcEnd = funcEnd->next;
             }
 
-            // If no epilogue found, we can't properly isolate a function block.
-            // Just break out, as we can't safely optimize.
             if (funcEnd == NULL)
-            {
                 break;
-            }
-
-            // Now [funcStart ... funcEnd] is the function block
-            // We'll optimize only within these boundaries.
 
             int changes;
             int iterationCount = 0;
             const int MAX_ITERATIONS = 100;
 
-            // Run optimization passes in a loop until no changes or max iterations
             do
             {
                 changes = 0;
-                // If you want to keep arithmetic steps visible, comment out the next line:
-                changes += constantFolding(&funcStart); 
+                changes += constantFolding(&funcStart);
                 changes += constantPropagation(&funcStart);
                 changes += copyPropagation(&funcStart);
                 changes += deadCodeElimination(&funcStart);
                 iterationCount++;
                 if (iterationCount >= MAX_ITERATIONS)
                 {
-                    fprintf(stderr, "Warning: Optimization reached %d iterations for a function and stopped.\n", MAX_ITERATIONS);
+                    fprintf(stderr, "Warning: Optimization reached %d iterations and stopped.\n", MAX_ITERATIONS);
                     break;
                 }
-            } while (changes > 0 && iterationCount < MAX_ITERATIONS);
+            } while (changes > 0 /*&& iterationCount < MAX_ITERATIONS*/);
 
-            // After optimization, funcStart might have changed
-            // If we optimized the top instructions of the function, funcStart might now be different
-            // We need to ensure the head is updated if needed
             if (*head == current)
                 *head = funcStart;
 
-            // Move current pointer just past the epilogue for the next iteration
             current = funcEnd->next;
         }
         else
         {
-            // Not a prologue, just move to the next TAC instruction
             current = current->next;
         }
     }
 }
 
-// Constant Folding Optimization
 int constantFolding(TAC **head)
 {
     int changes = 0;
@@ -82,38 +108,149 @@ int constantFolding(TAC **head)
 
     while (current != NULL)
     {
-        if (current->op && (strcmp(current->op, "prologue") == 0 || strcmp(current->op, "epilogue") == 0 ||
-                            strcmp(current->op, "call") == 0 || strcmp(current->op, "return") == 0 ||
-                            strcmp(current->op, "ifFalse") == 0 || strcmp(current->op, "goto") == 0 ||
-                            strcmp(current->op, "label") == 0 || strcmp(current->op, "param") == 0 ||
-                            strcmp(current->op, "write") == 0 || strcmp(current->op, "write_float") == 0 ||
-                            strcmp(current->op, "=[]") == 0 || strcmp(current->op, "[]=") == 0))
+        // Skip complex ops or those that must not be folded
+        if (current->op && (
+            strcmp(current->op, "prologue") == 0 ||
+            strcmp(current->op, "epilogue") == 0 ||
+            strcmp(current->op, "call") == 0 ||
+            strcmp(current->op, "return") == 0 ||
+            strcmp(current->op, "ifFalse") == 0 ||
+            strcmp(current->op, "goto") == 0 ||
+            strcmp(current->op, "label") == 0 ||
+            strcmp(current->op, "param") == 0 ||
+            strcmp(current->op, "write") == 0 ||
+            strcmp(current->op, "write_float") == 0 ||
+            strcmp(current->op, "=[]") == 0 ||
+            strcmp(current->op, "[]=") == 0 ||
+            strcmp(current->op, "!") == 0 ||
+            strcmp(current->op, "&&") == 0 ||
+            strcmp(current->op, "||") == 0 ||
+            strcmp(current->op, "==") == 0 ||
+            strcmp(current->op, "!=") == 0 ||
+            strcmp(current->op, "<") == 0 ||
+            strcmp(current->op, "<=") == 0 ||
+            strcmp(current->op, ">") == 0 ||
+            strcmp(current->op, ">=") == 0))
         {
-            // Skip these operations for constant folding
             current = current->next;
             continue;
         }
 
-        // Fold simple arithmetic operations where both args are constants
-        if (current->op && (strcmp(current->op, "+") == 0 || strcmp(current->op, "-") == 0 ||
-                            strcmp(current->op, "*") == 0 || strcmp(current->op, "/") == 0))
+        // Integer and float operations: +, -, *, /
+        if (current->op && (strcmp(current->op, "+") == 0 ||
+                            strcmp(current->op, "-") == 0 ||
+                            strcmp(current->op, "*") == 0 ||
+                            strcmp(current->op, "/") == 0))
         {
-            if (isConstant(current->arg1) && isConstant(current->arg2))
+            if (isNumericConstant(current->arg1) && isNumericConstant(current->arg2))
             {
-                int operand1 = atoi(current->arg1);
-                int operand2 = atoi(current->arg2);
-                int result = 0;
+                bool isFloatArg = (strchr(current->arg1, '.') != NULL) || (strchr(current->arg2, '.') != NULL);
+                if (!isFloatArg)
+                {
+                    int operand1 = atoi(current->arg1);
+                    int operand2 = atoi(current->arg2);
+                    int result = 0;
+                    bool divisionByZero = false;
+
+                    if (strcmp(current->op, "+") == 0)
+                        result = operand1 + operand2;
+                    else if (strcmp(current->op, "-") == 0)
+                        result = operand1 - operand2;
+                    else if (strcmp(current->op, "*") == 0)
+                        result = operand1 * operand2;
+                    else if (strcmp(current->op, "/") == 0)
+                    {
+                        if (operand2 == 0)
+                            divisionByZero = true;
+                        else
+                            result = operand1 / operand2;
+                    }
+
+                    if (!divisionByZero)
+                    {
+                        char resultStr[20];
+                        sprintf(resultStr, "%d", result);
+
+                        free(current->arg1);
+                        free(current->arg2);
+                        free(current->op);
+
+                        current->arg1 = strdup(resultStr);
+                        current->op = strdup("=");
+                        current->arg2 = NULL;
+
+                        changes++;
+                    }
+                    else
+                    {
+                        fprintf(stderr, "Error: Division by zero in constant folding.\n");
+                    }
+                }
+                else
+                {
+                    // float folding
+                    double operand1 = parseDouble(current->arg1);
+                    double operand2 = parseDouble(current->arg2);
+                    double result = 0.0;
+                    bool divisionByZero = false;
+
+                    if (strcmp(current->op, "+") == 0)
+                        result = operand1 + operand2;
+                    else if (strcmp(current->op, "-") == 0)
+                        result = operand1 - operand2;
+                    else if (strcmp(current->op, "*") == 0)
+                        result = operand1 * operand2;
+                    else if (strcmp(current->op, "/") == 0)
+                    {
+                        if (operand2 == 0.0)
+                            divisionByZero = true;
+                        else
+                            result = operand1 / operand2;
+                    }
+
+                    if (!divisionByZero)
+                    {
+                        char resultStr[64];
+                        sprintf(resultStr, "%f", result);
+
+                        free(current->arg1);
+                        free(current->arg2);
+                        free(current->op);
+
+                        current->arg1 = strdup(resultStr);
+                        current->op = strdup("=");
+                        current->arg2 = NULL;
+
+                        changes++;
+                    }
+                    else
+                    {
+                        fprintf(stderr, "Error: Division by zero in float constant folding.\n");
+                    }
+                }
+            }
+        }
+        else if (current->op && (strcmp(current->op, "fadd") == 0 ||
+                                 strcmp(current->op, "fsub") == 0 ||
+                                 strcmp(current->op, "fmul") == 0 ||
+                                 strcmp(current->op, "fdiv") == 0))
+        {
+            if (isNumericConstant(current->arg1) && isNumericConstant(current->arg2))
+            {
+                double operand1 = parseDouble(current->arg1);
+                double operand2 = parseDouble(current->arg2);
+                double result = 0.0;
                 bool divisionByZero = false;
 
-                if (strcmp(current->op, "+") == 0)
+                if (strcmp(current->op, "fadd") == 0)
                     result = operand1 + operand2;
-                else if (strcmp(current->op, "-") == 0)
+                else if (strcmp(current->op, "fsub") == 0)
                     result = operand1 - operand2;
-                else if (strcmp(current->op, "*") == 0)
+                else if (strcmp(current->op, "fmul") == 0)
                     result = operand1 * operand2;
-                else if (strcmp(current->op, "/") == 0)
+                else if (strcmp(current->op, "fdiv") == 0)
                 {
-                    if (operand2 == 0)
+                    if (operand2 == 0.0)
                         divisionByZero = true;
                     else
                         result = operand1 / operand2;
@@ -121,8 +258,8 @@ int constantFolding(TAC **head)
 
                 if (!divisionByZero)
                 {
-                    char resultStr[20];
-                    sprintf(resultStr, "%d", result);
+                    char resultStr[64];
+                    sprintf(resultStr, "%f", result);
 
                     free(current->arg1);
                     free(current->arg2);
@@ -136,24 +273,24 @@ int constantFolding(TAC **head)
                 }
                 else
                 {
-                    fprintf(stderr, "Error: Division by zero in constant folding.\n");
+                    fprintf(stderr, "Error: Division by zero in float constant folding.\n");
                 }
             }
         }
+
         current = current->next;
     }
 
     return changes;
 }
 
-// Constant Propagation
 int constantPropagation(TAC **head)
 {
     int changes = 0;
     TAC *current = *head;
     while (current != NULL)
     {
-        if (current->op && strcmp(current->op, "=") == 0 && isConstant(current->arg1))
+        if (current->op && strcmp(current->op, "=") == 0 && isNumericConstant(current->arg1))
         {
             char *constValue = current->arg1;
             char *varName = current->result;
@@ -161,7 +298,9 @@ int constantPropagation(TAC **head)
 
             while (temp != NULL)
             {
-                if (temp->op && (strcmp(temp->op, "prologue") == 0 || strcmp(temp->op, "epilogue") == 0 || strcmp(temp->op, "call") == 0))
+                if (temp->op && (strcmp(temp->op, "prologue") == 0 ||
+                                 strcmp(temp->op, "epilogue") == 0 ||
+                                 strcmp(temp->op, "call") == 0))
                     break;
 
                 if (temp->arg1 && strcmp(temp->arg1, varName) == 0)
@@ -188,7 +327,6 @@ int constantPropagation(TAC **head)
     return changes;
 }
 
-// Copy Propagation
 int copyPropagation(TAC **head)
 {
     int changes = 0;
@@ -203,7 +341,9 @@ int copyPropagation(TAC **head)
 
             while (temp != NULL)
             {
-                if (temp->op && (strcmp(temp->op, "prologue") == 0 || strcmp(temp->op, "epilogue") == 0 || strcmp(temp->op, "call") == 0))
+                if (temp->op && (strcmp(temp->op, "prologue") == 0 ||
+                                 strcmp(temp->op, "epilogue") == 0 ||
+                                 strcmp(temp->op, "call") == 0))
                     break;
 
                 if (temp->arg1 && strcmp(temp->arg1, destVar) == 0)
@@ -230,7 +370,6 @@ int copyPropagation(TAC **head)
     return changes;
 }
 
-// Dead Code Elimination
 int deadCodeElimination(TAC **head)
 {
     int changes = 0;
@@ -239,7 +378,8 @@ int deadCodeElimination(TAC **head)
 
     while (current != NULL)
     {
-        if (current->op && (strcmp(current->op, "prologue") == 0 || strcmp(current->op, "epilogue") == 0))
+        if (current->op && (strcmp(current->op, "prologue") == 0 ||
+                            strcmp(current->op, "epilogue") == 0))
         {
             prev = current;
             current = current->next;
@@ -297,19 +437,24 @@ bool hasSideEffect(TAC *instr)
     if (instr == NULL || instr->op == NULL)
         return false;
 
-    // Instructions with side effects or special operations
-    if (strcmp(instr->op, "[]=") == 0)
-        return true; // Array assignment modifies memory
-    if (strcmp(instr->op, "write") == 0 || strcmp(instr->op, "write_float") == 0)
-        return true; // Output side effect
-    if (strcmp(instr->op, "call") == 0)
-        return true; // Function call may have side effects
-    if (strcmp(instr->op, "prologue") == 0)
-        return true;
-    if (strcmp(instr->op, "epilogue") == 0)
-        return true;
-    if (strcmp(instr->op, "return") == 0)
-        return true; // Return from function changes control flow
+    // If there is a return TAC, it always has a side effect
+    if (strcmp(instr->op, "return") == 0) return true;
 
+    // If your function uses 'result' as the final return variable
+    // and does not generate a 'return' TAC, treat assignments to 'result' as side effects:
+    if (instr->result && strcmp(instr->result, "result") == 0)
+        return true;
+
+    if (strcmp(instr->op, "[]=") == 0) return true;
+    if (strcmp(instr->op, "write") == 0 || strcmp(instr->op, "write_float") == 0) return true;
+    if (strcmp(instr->op, "call") == 0) return true;
+    if (strcmp(instr->op, "prologue") == 0) return true;
+    if (strcmp(instr->op, "epilogue") == 0) return true;
+    if (strcmp(instr->op, "param") == 0) return true;
+    if (strcmp(instr->op, "label") == 0) return true;
+    if (strcmp(instr->op, "ifFalse") == 0) return true;
+    if (strcmp(instr->op, "goto") == 0) return true;
+
+    // Arithmetic and float arithmetic, relational, logical ops, and '=' are not side effects if unused.
     return false;
 }
